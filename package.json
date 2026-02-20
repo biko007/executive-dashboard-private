@@ -1,0 +1,13 @@
+{
+  "name": "executive-dashboard",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "OpenClaw Executive Dashboard",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

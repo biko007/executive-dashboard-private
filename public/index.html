@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Executive Dashboard</title>
+<style>
+:root {
+  --bg:      #0f1117;
+  --surface: #161b26;
+  --border:  #272d3d;
+  --text:    #e2e8f0;
+  --muted:   #7a8499;
+  --accent:  #4f9cf9;
+  --green:   #4ade80;
+  --yellow:  #fbbf24;
+  --red:     #f87171;
+  --r:       8px;
+  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+
+/* ── Login ── */
+#login { display: none; align-items: center; justify-content: center; min-height: 100vh; }
+.login-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 40px 36px; width: 340px; }
+.login-box h2 { font-size: 20px; margin-bottom: 6px; }
+.login-box p  { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+.login-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 14px; margin-bottom: 12px; outline: none; }
+.login-box input:focus { border-color: var(--accent); }
+.login-err { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 18px; }
+
+/* ── App shell ── */
+#app { display: none; min-height: 100vh; }
+header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+header h1 { font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: .3px; }
+.header-meta { display: flex; align-items: center; gap: 16px; }
+.header-meta span { color: var(--muted); font-size: 12px; }
+.btn-logout { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 2px; }
+nav button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); padding: 11px 14px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: color .12s; white-space: nowrap; }
+nav button:hover { color: var(--text); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+main { padding: 24px; max-width: 1200px; }
+
+/* ── Utilities ── */
+.btn { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-family: var(--font); transition: opacity .12s, background .12s; }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { opacity: .85; }
+.btn-danger { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
+.btn-danger:hover { background: rgba(248,113,113,.25); }
+
+.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.badge-green  { background: rgba(74,222,128,.12); color: var(--green); }
+.badge-yellow { background: rgba(251,191,36,.12); color: var(--yellow); }
+.badge-red    { background: rgba(248,113,113,.12); color: var(--red); }
+.badge-blue   { background: rgba(79,156,249,.12);  color: var(--accent); }
+.badge-muted  { background: rgba(255,255,255,.06); color: var(--muted); }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; }
+.card-pad { padding: 20px; }
+
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(255,255,255,.018); }
+
+.spinner { color: var(--muted); padding: 60px; text-align: center; font-size: 15px; }
+.empty   { color: var(--muted); padding: 60px; text-align: center; }
+
+/* ── Summary cards ── */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.s-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
+.s-card .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+.s-card .val { font-size: 26px; font-weight: 700; line-height: 1; }
+.s-card .sub { color: var(--muted); font-size: 12px; margin-top: 5px; }
+
+/* ── Trip cards ── */
+.trip-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 12px; }
+.trip-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.trip-top h3 { font-size: 16px; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.trip-dates { color: var(--muted); font-size: 13px; }
+.trip-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.trip-grid .mi { font-size: 13px; }
+.trip-grid .ml { color: var(--muted); }
+.segments { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
+.seg-header { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+.seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.seg-row:last-child { border-bottom: none; }
+
+/* ── Calendar ── */
+.day-group { margin-bottom: 22px; }
+.day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.ev-row { display: flex; gap: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
+.ev-time { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; padding-top: 1px; }
+.ev-body { min-width: 0; }
+.ev-title { font-size: 14px; font-weight: 500; }
+.ev-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+
+/* ── Draft body ── */
+.draft-body-row td { padding: 0 14px 12px; }
+.draft-body { background: var(--bg); border-radius: 6px; padding: 14px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: var(--muted); border: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────────────── -->
+<div id="login">
+  <div class="login-box">
+    <h2>⚙️ Executive Dashboard</h2>
+    <p>Zugangstoken eingeben</p>
+    <input type="password" id="tokenInput" placeholder="DASHBOARD_TOKEN" autocomplete="off">
+    <button class="btn btn-primary" style="width:100%;padding:10px" onclick="submitToken()">Anmelden</button>
+    <div class="login-err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ── App ───────────────────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <h1>⚙️ Executive Dashboard &nbsp;<span style="color:var(--muted);font-weight:400;font-size:13px">Hans Dampf</span></h1>
+    <div class="header-meta">
+      <span id="lastUpdate"></span>
+      <button class="btn-logout" onclick="logout()">Abmelden</button>
+    </div>
+  </header>
+  <nav>
+    <button onclick="showTab('trips')"    class="active">✈️ Trips</button>
+    <button onclick="showTab('health')"          >🏥 Health</button>
+    <button onclick="showTab('drafts')"          >📬 Drafts</button>
+    <button onclick="showTab('calendar')"        >📅 Kalender</button>
+  </nav>
+  <main id="content">
+    <div class="spinner">Laden…</div>
+  </main>
+</div>
+
+<script>
+'use strict';
+
+/* ── State ── */
+let TOKEN = '';
+let currentTab = 'trips';
+
+/* ── Init ── */
+(function init() {
+  const p = new URLSearchParams(location.search);
+  const urlToken = p.get('token');
+  if (urlToken) {
+    localStorage.setItem('ocdb_token', urlToken);
+    history.replaceState({}, '', location.pathname);
+  }
+  TOKEN = localStorage.getItem('ocdb_token') || '';
+  if (TOKEN) {
+    showApp();
+    showTab('trips');
+  } else {
+    document.getElementById('login').style.display = 'flex';
+  }
+})();
+
+document.getElementById('tokenInput').addEventListener('keypress', e => {
+  if (e.key === 'Enter') submitToken();
+});
+
+async function submitToken() {
+  const v = document.getElementById('tokenInput').value.trim();
+  if (!v) return;
+  TOKEN = v;
+  try {
+    await apiFetch('/api/trips');
+    localStorage.setItem('ocdb_token', TOKEN);
+    document.getElementById('login').style.display = 'none';
+    showApp();
+    showTab('trips');
+  } catch {
+    document.getElementById('loginErr').textContent = 'Token ungültig oder Server nicht erreichbar.';
+    TOKEN = '';
+  }
+}
+
+function logout() {
+  localStorage.removeItem('ocdb_token');
+  TOKEN = '';
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('tokenInput').value = '';
+  document.getElementById('loginErr').textContent = '';
+  document.getElementById('login').style.display = 'flex';
+}
+
+function showApp() {
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+}
+
+/* ── Tab routing ── */
+function showTab(tab) {
+  currentTab = tab;
+  const tabs = ['trips','health','drafts','calendar'];
+  document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
+  document.getElementById('lastUpdate').textContent = '';
+  document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar })[tab]();
+}
+
+/* ── Fetch helper ── */
+async function apiFetch(url, opts = {}) {
+  const res = await fetch(url, {
+    ...opts,
+    headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
+  });
+  if (res.status === 401) { logout(); throw new Error('401'); }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+/* ── Helpers ── */
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmtDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(iso)) : '–';
+const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso)) : '–';
+const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso)) : '–';
+
+function stamp() {
+  document.getElementById('lastUpdate').textContent = 'Stand: ' + fmtDT(new Date().toISOString());
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TRIPS
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadTrips() {
+  const c = document.getElementById('content');
+  try {
+    const trips = await apiFetch('/api/trips');
+    if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen. Mit /tripnew anlegen.</div>'; return; }
+    const today = new Date().toISOString().slice(0,10);
+    c.innerHTML = trips.map(t => {
+      const active   = t.start_date <= today && t.end_date >= today;
+      const upcoming = !active && t.start_date > today;
+      const badge = active
+        ? '<span class="badge badge-green">Aktiv</span>'
+        : upcoming
+          ? '<span class="badge badge-blue">Geplant</span>'
+          : '<span class="badge badge-muted">Vergangen</span>';
+
+      const meta = [
+        t.currency         && `<div class="mi"><span class="ml">💶 Währung </span>${esc(t.currency)}</div>`,
+        t.exchange_rate_eur&& `<div class="mi"><span class="ml">💱 Kurs </span>${esc(t.exchange_rate_eur)}</div>`,
+        t.visa_de          && `<div class="mi"><span class="ml">🛂 Visum </span>${esc(t.visa_de)}</div>`,
+        t.distance_km      && `<div class="mi"><span class="ml">📏 Luftlinie </span>${t.distance_km} km</div>`,
+        t.travel_mode      && `<div class="mi"><span class="ml">🚀 Verkehr </span>${esc(t.travel_mode)}</div>`,
+        t.door_to_door_estimate && `<div class="mi"><span class="ml">⏱ Haustür↔Haustür </span>${esc(t.door_to_door_estimate)}</div>`,
+        `<div class="mi"><span class="ml">🌡 Klima </span>${esc(t.climate||'–')}</div>`,
+        `<div class="mi"><span class="ml">🎯 Aktivitäten </span>${esc((t.activities||[]).join(', '))||'–'}</div>`,
+      ].filter(Boolean).join('');
+
+      const segs = t.segments?.length ? `
+        <div class="segments">
+          <div class="seg-header">Segmente (${t.segments.length})</div>
+          ${t.segments.map(s => `<div class="seg-row">
+            <span class="badge badge-muted">${esc(s.type)}</span>
+            <span>${esc(s.title)}</span>
+            <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local)} (${esc(s.timezone)})</span>
+            ${s.confirmation ? `<span style="color:var(--green);font-size:12px">✔ ${esc(s.confirmation)}</span>` : ''}
+          </div>`).join('')}
+        </div>` : '';
+
+      return `<div class="trip-card" id="tc-${esc(t.id)}">
+        <div class="trip-top">
+          <div>
+            <h3>${esc(t.name)} ${badge}</h3>
+            <div class="trip-dates">📅 ${esc(t.start_date)} → ${esc(t.end_date)} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
+          </div>
+          <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
+        </div>
+        <div class="trip-grid">${meta}</div>
+        ${segs}
+      </div>`;
+    }).join('');
+    stamp();
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+async function deleteTrip(id, name) {
+  if (!confirm(`Reise "${name}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    document.getElementById(`tc-${id}`)?.remove();
+    if (!document.querySelector('.trip-card')) {
+      document.getElementById('content').innerHTML = '<div class="empty">Keine Reisen.</div>';
+    }
+  } catch(e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   HEALTH
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadHealth() {
+  const c = document.getElementById('content');
+  try {
+    const entries = await apiFetch('/api/health?days=90');
+    if (!entries.length) { c.innerHTML = '<div class="empty">Keine Health-Daten in den letzten 90 Tagen.</div>'; return; }
+
+    const byType = t => entries.filter(e => e.type === t);
+    const weights = byType('weight');
+    const lastW   = weights[0];
+    const w7      = weights.filter(e => e.timestamp >= new Date(Date.now()-7*86400000).toISOString());
+    const lastSleep = byType('sleep')[0];
+    const lastStep  = byType('steps')[0];
+
+    let trendHtml = '';
+    if (w7.length >= 2) {
+      const diff = (lastW.value - w7[w7.length-1].value).toFixed(1);
+      const col  = diff <= 0 ? 'var(--green)' : 'var(--red)';
+      trendHtml = `<div class="s-card"><div class="lbl">Gewicht-Trend 7 T</div><div class="val" style="color:${col};font-size:22px">${diff>0?'+':''}${diff} kg</div><div class="sub">vs. ${fmtDate(w7[w7.length-1].timestamp)}</div></div>`;
+    }
+
+    const summaryGrid = `<div class="summary-grid">
+      ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
+      ${trendHtml}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (zuletzt)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}</div></div>` : ''}
+      ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
+      <div class="s-card"><div class="lbl">Einträge (90 T)</div><div class="val">${entries.length}</div><div class="sub">zuletzt ${fmtDate(entries[0]?.timestamp)}</div></div>
+    </div>`;
+
+    const icons = {weight:'⚖️',sleep:'😴',steps:'👟',training:'💪',symptom:'🤒',medication:'💊',note:'📝'};
+    const rows = entries.slice(0,150).map(e => {
+      const val = e.value !== undefined ? `${e.value}${e.unit?' '+e.unit:''}` : (e.text||e.note||'–');
+      return `<tr>
+        <td style="white-space:nowrap">${fmtDT(e.timestamp)}</td>
+        <td>${icons[e.type]||'📊'} ${esc(e.type)}</td>
+        <td>${esc(String(val))}</td>
+        <td>${e.source?`<span class="badge badge-blue">${esc(e.source)}</span>`:''}</td>
+      </tr>`;
+    }).join('');
+
+    c.innerHTML = summaryGrid + `<div class="card"><table>
+      <thead><tr><th>Datum</th><th>Typ</th><th>Wert</th><th>Quelle</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>`;
+    stamp();
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DRAFTS
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadDrafts() {
+  const c = document.getElementById('content');
+  try {
+    const drafts = await apiFetch('/api/drafts');
+    if (!drafts.length) { c.innerHTML = '<div class="empty">Keine Drafts vorhanden.</div>'; return; }
+    const statusBadge = s => ({'draft':'badge-yellow','approved':'badge-blue','sent':'badge-green'}[s]||'badge-muted');
+    const rows = drafts.map(d => `
+      <tr style="cursor:pointer" onclick="toggleDraft('${esc(d.id)}')">
+        <td style="white-space:nowrap">${fmtDate(d.createdAt)}</td>
+        <td><span class="badge badge-blue">${esc(d.account||'–')}</span></td>
+        <td><span class="badge ${statusBadge(d.status)}">${esc(d.status||'–')}</span></td>
+        <td>${esc(d.subject||'–')}</td>
+        <td style="color:var(--muted);font-size:12px">${esc((d.to||[]).join(', '))}</td>
+      </tr>
+      <tr id="db-${esc(d.id)}" style="display:none" class="draft-body-row">
+        <td colspan="5"><div class="draft-body">${esc(d.bodyText||'(kein Body)')}</div></td>
+      </tr>`).join('');
+    c.innerHTML = `<div class="card"><table>
+      <thead><tr><th>Erstellt</th><th>Konto</th><th>Status</th><th>Betreff</th><th>An</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div><p style="color:var(--muted);font-size:12px;padding:4px 2px">Zeile klicken = Body einblenden</p>`;
+    stamp();
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function toggleDraft(id) {
+  const r = document.getElementById(`db-${id}`);
+  if (r) r.style.display = r.style.display === 'none' ? '' : 'none';
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CALENDAR
+═══════════════════════════════════════════════════════════════════════════ */
+async function loadCalendar() {
+  const c = document.getElementById('content');
+  try {
+    const events = await apiFetch('/api/calendar');
+    if (!events.length) { c.innerHTML = '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
+
+    const tz = 'Europe/Berlin';
+    const dayKey   = iso => new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(iso));
+    const dayLabel = iso => new Intl.DateTimeFormat('de-DE',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(iso));
+
+    const groups = {};
+    for (const ev of events) {
+      const k = dayKey(ev.start?.dateTime || ev.start?.date || new Date().toISOString());
+      (groups[k] = groups[k] || []).push(ev);
+    }
+
+    const html = Object.keys(groups).sort().map(k => {
+      const evs = groups[k].sort((a,b) => (a.start.dateTime||'').localeCompare(b.start.dateTime||''));
+      return `<div class="day-group">
+        <div class="day-lbl">📅 ${dayLabel(evs[0].start.dateTime||k)}</div>
+        ${evs.map(ev => {
+          const allDay = ev.isAllDay;
+          const time   = allDay ? 'Ganztag' : `${fmtTime(ev.start.dateTime)} – ${fmtTime(ev.end.dateTime)}`;
+          const loc    = ev.location?.displayName ? `📍 ${esc(ev.location.displayName)}` : '';
+          const teams  = ev.onlineMeeting?.joinUrl ? '🔗 Online-Meeting' : '';
+          const sub    = [loc, teams].filter(Boolean).join(' &nbsp;|&nbsp; ');
+          return `<div class="ev-row">
+            <div class="ev-time">${time}</div>
+            <div class="ev-body">
+              <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
+              ${sub ? `<div class="ev-sub">${sub}</div>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('');
+
+    c.innerHTML = html;
+    stamp();
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+</script>
+</body>
+</html>
