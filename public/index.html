@@ -414,14 +414,26 @@ async function createTrip() {
 function editTrip(id) {
   const t = _tripsCache.find(x => x.id === id);
   if (!t) return alert('Trip nicht gefunden');
-  window._editSegments = JSON.parse(JSON.stringify(t.segments || []));
-  const segList = () => window._editSegments.map((s, i) =>
-    `<div class="seg-item">
-      <span class="badge badge-muted">${esc(s.type)}</span>
-      <span>${esc(s.title)}</span>
-      <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local||'')} ${esc(s.timezone||'')}</span>
-      <button class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
-    </div>`).join('') || '<span style="color:var(--muted)">Keine Segmente</span>';
+  window._editSegments = (t.segments || []).map(s => ({
+    type:           s.type           || '',
+    title:          s.title          || '',
+    datetime_local: s.datetime_local || '',
+    timezone:       s.timezone       || '',
+    confirmation:   s.confirmation   || '',
+  }));
+  const segList = () => {
+    if (!window._editSegments.length) {
+      return '<span style="color:var(--muted)">Keine Segmente vorhanden.</span>';
+    }
+    return window._editSegments.map((s, i) =>
+      `<div class="seg-item">
+        <span class="badge badge-muted">${esc(s.type)}</span>
+        <span>${esc(s.title)}</span>
+        <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local)} ${esc(s.timezone)}</span>
+        ${s.confirmation ? `<span style="color:var(--green);font-size:12px">✔ ${esc(s.confirmation)}</span>` : ''}
+        <button class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
+      </div>`).join('');
+  };
   openModal(`
     <h3>✏️ Reise bearbeiten</h3>
     <label>Titel</label>
