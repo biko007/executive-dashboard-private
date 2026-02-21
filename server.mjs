@@ -324,6 +324,35 @@ app.get('/api/health', auth, (req, res) => {
       .filter(Boolean)
       .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } })
       .filter(e => (e.timestamp || '') >= cutoff)
+      .map(e => {
+        // Normalize steps: value lives in e.steps, not e.value
+        if (e.type === 'steps') {
+          e.value = e.steps ?? 0;
+          e.unit = 'Schritte';
+        }
+        // Normalize heartrate
+        if (e.type === 'heartrate') {
+          e.value = e.hr_avg ?? 0;
+          e.unit = 'bpm';
+        }
+        // Normalize activity: build a readable value string
+        if (e.type === 'activity') {
+          const parts = [];
+          if (e.duration_min) parts.push(`${e.duration_min} min`);
+          if (e.steps)        parts.push(`${e.steps} Schritte`);
+          if (e.distance_m)   parts.push(`${(e.distance_m / 1000).toFixed(1)} km`);
+          if (e.calories)     parts.push(`${e.calories} kcal`);
+          e.value = parts.join(', ') || null;
+          e.unit = '';
+          e.text = e.activity_type || '';
+        }
+        return e;
+      })
+      // Filter out activity entries with no useful metrics
+      .filter(e => {
+        if (e.type !== 'activity') return true;
+        return e.steps || e.distance_m || e.calories || e.hr_avg;
+      })
       .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
     res.json(entries);
   } catch (e) {
