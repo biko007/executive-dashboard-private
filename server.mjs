@@ -113,6 +113,41 @@ app.get('/api/trips', auth, (req, res) => {
   }
 });
 
+app.post('/api/trips', auth, (req, res) => {
+  try {
+    const { id, name, destination, start_date, end_date, climate, activities } = req.body;
+    if (!id || !name || !start_date || !end_date) {
+      return res.status(400).json({ error: 'id, name, start_date and end_date are required' });
+    }
+    const safeId = String(id).replace(/[^a-z0-9\-_]/gi, '');
+    if (!safeId) return res.status(400).json({ error: 'Invalid trip id' });
+    const filePath = path.join(TRAVEL_DIR, `${safeId}.json`);
+    if (!filePath.startsWith(TRAVEL_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (fs.existsSync(filePath)) {
+      return res.status(409).json({ error: 'Trip with this ID already exists' });
+    }
+    if (!fs.existsSync(TRAVEL_DIR)) fs.mkdirSync(TRAVEL_DIR, { recursive: true });
+    const trip = {
+      id: safeId,
+      name: String(name),
+      destination: String(destination || ''),
+      start_date: String(start_date),
+      end_date: String(end_date),
+      climate: String(climate || ''),
+      activities: Array.isArray(activities) ? activities.map(String) : [],
+      segments: [],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
+    res.status(201).json(trip);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 app.delete('/api/trips/:id', auth, (req, res) => {
   try {
     // Strict sanitization: only allow slug-safe characters
@@ -126,6 +161,28 @@ app.delete('/api/trips/:id', auth, (req, res) => {
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Trip not found' });
     fs.unlinkSync(filePath);
     res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/trips/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid trip id' });
+    const filePath = path.join(TRAVEL_DIR, `${id}.json`);
+    if (!filePath.startsWith(TRAVEL_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Trip not found' });
+    const trip = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const allowed = ['name', 'destination', 'start_date', 'end_date', 'climate', 'activities', 'segments'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) trip[key] = req.body[key];
+    }
+    trip.updated_at = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
+    res.json(trip);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -163,6 +220,47 @@ app.get('/api/drafts', auth, (req, res) => {
       })
       .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     res.json(drafts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.put('/api/drafts/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+    const filePath = path.join(DRAFTS_DIR, `${id}.json`);
+    if (!filePath.startsWith(DRAFTS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const draft = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const allowed = ['to', 'subject', 'bodyText'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) draft[key] = req.body[key];
+    }
+    draft.updatedAt = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(draft, null, 2));
+    res.json(draft);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/drafts/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+    const filePath = path.join(DRAFTS_DIR, `${id}.json`);
+    if (!filePath.startsWith(DRAFTS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const trashDir = path.join(DRAFTS_DIR, '.trash');
+    if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+    const bakName = `${id}.json.${Date.now()}.bak`;
+    fs.renameSync(filePath, path.join(trashDir, bakName));
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

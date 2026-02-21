@@ -104,6 +104,23 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 /* ── Draft body ── */
 .draft-body-row td { padding: 0 14px 12px; }
 .draft-body { background: var(--bg); border-radius: 6px; padding: 14px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: var(--muted); border: 1px solid var(--border); }
+
+/* ── Modal ── */
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+@keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:28px; animation:slideUp .2s ease; }
+.modal h3 { font-size:17px; margin-bottom:18px; }
+.modal label { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; margin-top:14px; }
+.modal input, .modal textarea, .modal select { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:9px 12px; color:var(--text); font-size:14px; font-family:var(--font); outline:none; }
+.modal input:focus, .modal textarea:focus, .modal select:focus { border-color:var(--accent); }
+.modal textarea { min-height:120px; resize:vertical; }
+.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; padding-top:16px; border-top:1px solid var(--border); }
+.btn-ghost { background:none; border:1px solid var(--border); color:var(--muted); padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:var(--font); }
+.btn-ghost:hover { border-color:var(--text); color:var(--text); }
+.seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:13px; }
+.seg-item:last-child { border-bottom:none; }
+.seg-item .seg-rm { background:none; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:2px 4px; }
 </style>
 </head>
 <body>
@@ -145,6 +162,8 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 /* ── State ── */
 let TOKEN = '';
 let currentTab = 'trips';
+let _tripsCache = [];
+let _draftsCache = [];
 
 /* ── Init ── */
 (function init() {
@@ -227,6 +246,20 @@ function stamp() {
   document.getElementById('lastUpdate').textContent = 'Stand: ' + fmtDT(new Date().toISOString());
 }
 
+/* ── Modal helpers ── */
+function openModal(html) {
+  closeModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `<div class="modal">${html}</div>`;
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+  document.body.appendChild(overlay);
+}
+function closeModal() {
+  document.querySelector('.modal-overlay')?.remove();
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
 /* ═══════════════════════════════════════════════════════════════════════════
    TRIPS
 ═══════════════════════════════════════════════════════════════════════════ */
@@ -234,9 +267,10 @@ async function loadTrips() {
   const c = document.getElementById('content');
   try {
     const trips = await apiFetch('/api/trips');
-    if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen. Mit /tripnew anlegen.</div>'; return; }
+    _tripsCache = trips;
+    if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
     const today = new Date().toISOString().slice(0,10);
-    c.innerHTML = trips.map(t => {
+    c.innerHTML = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newTrip()">+ Neue Reise</button></div>' + trips.map(t => {
       const active   = t.start_date <= today && t.end_date >= today;
       const upcoming = !active && t.start_date > today;
       const badge = active
@@ -273,7 +307,10 @@ async function loadTrips() {
             <h3>${esc(t.name)} ${badge}</h3>
             <div class="trip-dates">📅 ${esc(t.start_date)} → ${esc(t.end_date)} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
           </div>
-          <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
+            <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
+          </div>
         </div>
         <div class="trip-grid">${meta}</div>
         ${segs}
@@ -292,6 +329,150 @@ async function deleteTrip(id, name) {
       document.getElementById('content').innerHTML = '<div class="empty">Keine Reisen.</div>';
     }
   } catch(e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── New trip ── */
+function newTrip() {
+  openModal(`
+    <h3>+ Neue Reise anlegen</h3>
+    <label>ID (Slug, z.B. tokyo-2026-05)</label>
+    <input id="mn-id" placeholder="tokyo-2026-05">
+    <label>Name</label>
+    <input id="mn-name" placeholder="Tokyo Mai 2026">
+    <label>Ziel</label>
+    <input id="mn-dest" placeholder="Tokyo, Japan">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Startdatum</label><input id="mn-start" type="date"></div>
+      <div><label>Enddatum</label><input id="mn-end" type="date"></div>
+    </div>
+    <label>Klima (optional)</label>
+    <input id="mn-climate" placeholder="z.B. warm, sonnig">
+    <label>Aktivitäten (optional, kommagetrennt)</label>
+    <input id="mn-activities" placeholder="z.B. Sightseeing, Kulinarik">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="createTrip()">✈️ Erstellen</button>
+    </div>
+  `);
+}
+
+async function createTrip() {
+  const id         = document.getElementById('mn-id').value.trim();
+  const name       = document.getElementById('mn-name').value.trim();
+  const destination= document.getElementById('mn-dest').value.trim();
+  const start_date = document.getElementById('mn-start').value;
+  const end_date   = document.getElementById('mn-end').value;
+  const climate    = document.getElementById('mn-climate').value.trim();
+  const activities = document.getElementById('mn-activities').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if (!id || !name || !start_date || !end_date) return alert('ID, Name, Start- und Enddatum sind Pflichtfelder.');
+  try {
+    await apiFetch('/api/trips', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, name, destination, start_date, end_date, climate, activities })
+    });
+    closeModal();
+    showTab('trips');
+  } catch(e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── Trip editing ── */
+function editTrip(id) {
+  const t = _tripsCache.find(x => x.id === id);
+  if (!t) return alert('Trip nicht gefunden');
+  window._editSegments = JSON.parse(JSON.stringify(t.segments || []));
+  const segList = () => window._editSegments.map((s, i) =>
+    `<div class="seg-item">
+      <span class="badge badge-muted">${esc(s.type)}</span>
+      <span>${esc(s.title)}</span>
+      <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local||'')} ${esc(s.timezone||'')}</span>
+      <button class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
+    </div>`).join('') || '<span style="color:var(--muted)">Keine Segmente</span>';
+  openModal(`
+    <h3>✏️ Reise bearbeiten</h3>
+    <label>Titel</label>
+    <input id="m-name" value="${esc(t.name||'')}">
+    <label>Ziel</label>
+    <input id="m-dest" value="${esc(t.destination||'')}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Startdatum</label><input id="m-start" type="date" value="${esc(t.start_date||'')}"></div>
+      <div><label>Enddatum</label><input id="m-end" type="date" value="${esc(t.end_date||'')}"></div>
+    </div>
+    <label>Klima</label>
+    <input id="m-climate" value="${esc(t.climate||'')}">
+    <label>Aktivitäten (kommagetrennt)</label>
+    <input id="m-activities" value="${esc((t.activities||[]).join(', '))}">
+    <label>Segmente</label>
+    <div id="m-seglist">${segList()}</div>
+    <button class="btn btn-primary" style="margin-top:8px" onclick="addSegmentModal('${esc(id)}')">+ Segment hinzufügen</button>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveTrip('${esc(id)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveTrip(id) {
+  const name       = document.getElementById('m-name').value.trim();
+  const destination= document.getElementById('m-dest').value.trim();
+  const start_date = document.getElementById('m-start').value;
+  const end_date   = document.getElementById('m-end').value;
+  const climate    = document.getElementById('m-climate').value.trim();
+  const activities = document.getElementById('m-activities').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const segments   = window._editSegments || [];
+  try {
+    await apiFetch(`/api/trips/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, destination, start_date, end_date, climate, activities, segments })
+    });
+    closeModal();
+    showTab('trips');
+  } catch(e) { alert(`Fehler: ${e.message}`); }
+}
+
+function addSegmentModal(tripId) {
+  openModal(`
+    <h3>+ Segment hinzufügen</h3>
+    <label>Typ</label>
+    <select id="ms-type">
+      <option value="flight">✈️ Flug</option>
+      <option value="train">🚆 Zug</option>
+      <option value="hotel">🏨 Hotel</option>
+      <option value="car">🚗 Auto</option>
+      <option value="activity">🎯 Aktivität</option>
+      <option value="other">📦 Sonstiges</option>
+    </select>
+    <label>Titel</label>
+    <input id="ms-title" placeholder="z.B. LH1234 FRA→BCN">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Datum</label><input id="ms-date" type="date"></div>
+      <div><label>Uhrzeit</label><input id="ms-time" type="time"></div>
+    </div>
+    <label>Zeitzone</label>
+    <input id="ms-tz" value="Europe/Berlin" placeholder="Europe/Berlin">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="editTrip('${esc(tripId)}')">← Zurück</button>
+      <button class="btn btn-primary" onclick="confirmAddSegment('${esc(tripId)}')">Hinzufügen</button>
+    </div>
+  `);
+}
+
+function confirmAddSegment(tripId) {
+  const type  = document.getElementById('ms-type').value;
+  const title = document.getElementById('ms-title').value.trim();
+  const date  = document.getElementById('ms-date').value;
+  const time  = document.getElementById('ms-time').value;
+  const tz    = document.getElementById('ms-tz').value.trim() || 'Europe/Berlin';
+  if (!title) return alert('Titel ist erforderlich');
+  const datetime_local = date && time ? `${date}T${time}` : date || '';
+  window._editSegments.push({ type, title, datetime_local, timezone: tz });
+  editTrip(tripId);
+}
+
+function removeSegment(index, tripId) {
+  window._editSegments.splice(index, 1);
+  editTrip(tripId);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -351,6 +532,7 @@ async function loadDrafts() {
   const c = document.getElementById('content');
   try {
     const drafts = await apiFetch('/api/drafts');
+    _draftsCache = drafts;
     if (!drafts.length) { c.innerHTML = '<div class="empty">Keine Drafts vorhanden.</div>'; return; }
     const statusBadge = s => ({'draft':'badge-yellow','approved':'badge-blue','sent':'badge-green'}[s]||'badge-muted');
     const rows = drafts.map(d => `
@@ -360,12 +542,16 @@ async function loadDrafts() {
         <td><span class="badge ${statusBadge(d.status)}">${esc(d.status||'–')}</span></td>
         <td>${esc(d.subject||'–')}</td>
         <td style="color:var(--muted);font-size:12px">${esc((d.to||[]).join(', '))}</td>
+        <td style="white-space:nowrap" onclick="event.stopPropagation()">
+          <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editDraft('${esc(d.id)}')">✏️</button>
+          <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
+        </td>
       </tr>
       <tr id="db-${esc(d.id)}" style="display:none" class="draft-body-row">
-        <td colspan="5"><div class="draft-body">${esc(d.bodyText||'(kein Body)')}</div></td>
+        <td colspan="6"><div class="draft-body">${esc(d.bodyText||'(kein Body)')}</div></td>
       </tr>`).join('');
     c.innerHTML = `<div class="card"><table>
-      <thead><tr><th>Erstellt</th><th>Konto</th><th>Status</th><th>Betreff</th><th>An</th></tr></thead>
+      <thead><tr><th>Erstellt</th><th>Konto</th><th>Status</th><th>Betreff</th><th>An</th><th>Aktionen</th></tr></thead>
       <tbody>${rows}</tbody>
     </table></div><p style="color:var(--muted);font-size:12px;padding:4px 2px">Zeile klicken = Body einblenden</p>`;
     stamp();
@@ -375,6 +561,47 @@ async function loadDrafts() {
 function toggleDraft(id) {
   const r = document.getElementById(`db-${id}`);
   if (r) r.style.display = r.style.display === 'none' ? '' : 'none';
+}
+
+function editDraft(id) {
+  const d = _draftsCache.find(x => x.id === id);
+  if (!d) return alert('Draft nicht gefunden');
+  openModal(`
+    <h3>✏️ Draft bearbeiten</h3>
+    <label>An (kommagetrennt)</label>
+    <input id="md-to" value="${esc((d.to||[]).join(', '))}">
+    <label>Betreff</label>
+    <input id="md-subject" value="${esc(d.subject||'')}">
+    <label>Nachricht</label>
+    <textarea id="md-body">${esc(d.bodyText||'')}</textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="saveDraft('${esc(id)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveDraft(id) {
+  const to       = document.getElementById('md-to').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const subject  = document.getElementById('md-subject').value.trim();
+  const bodyText = document.getElementById('md-body').value;
+  try {
+    await apiFetch(`/api/drafts/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, bodyText })
+    });
+    closeModal();
+    showTab('drafts');
+  } catch(e) { alert(`Fehler: ${e.message}`); }
+}
+
+async function deleteDraft(id, subject) {
+  if (!confirm(`Draft "${subject}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    showTab('drafts');
+  } catch(e) { alert(`Fehler: ${e.message}`); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
