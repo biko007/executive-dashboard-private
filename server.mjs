@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import multer from 'multer';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -40,6 +41,9 @@ const M365_USER         = ENV.M365_USER         || '';
 const TRAVEL_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/travel');
 const HEALTH_LOG  = path.join(HOME, '.openclaw/workspace/artifacts/personal/health/health-log.jsonl');
 const DRAFTS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/mail-drafts');
+const DOCS_DIR    = path.join(HOME, '.openclaw/workspace/artifacts/personal/documents');
+const DOCS_META   = path.join(DOCS_DIR, 'metadata.json');
+const DOCS_CATEGORIES = ['vertraege', 'rechnungen', 'notizen', 'sonstiges'];
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -291,6 +295,132 @@ app.get('/api/calendar', auth, async (req, res) => {
       url = next;
     }
     res.json(events);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: Documents ───────────────────────────────────────────────────────────
+
+function readDocsMeta() {
+  try { return JSON.parse(fs.readFileSync(DOCS_META, 'utf8')); } catch { return {}; }
+}
+function writeDocsMeta(meta) {
+  if (!fs.existsSync(DOCS_DIR)) fs.mkdirSync(DOCS_DIR, { recursive: true });
+  fs.writeFileSync(DOCS_META, JSON.stringify(meta, null, 2));
+}
+
+function walkDir(dir) {
+  const results = [];
+  if (!fs.existsSync(dir)) return results;
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '.trash') continue;
+      results.push(...walkDir(full));
+    } else if (entry.isFile() && entry.name !== 'metadata.json') {
+      results.push(full);
+    }
+  }
+  return results;
+}
+
+// Multer storage — category subfolder
+const docStorage = multer.diskStorage({
+  destination(req, _file, cb) {
+    const kategorie = DOCS_CATEGORIES.includes(req.body.kategorie) ? req.body.kategorie : 'sonstiges';
+    const dest = path.join(DOCS_DIR, kategorie);
+    fs.mkdirSync(dest, { recursive: true });
+    cb(null, dest);
+  },
+  filename(_req, file, cb) {
+    // Sanitize original name, prefix with timestamp to avoid collisions
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._\-äöüÄÖÜß ]/g, '_');
+    cb(null, `${Date.now()}_${safe}`);
+  },
+});
+const upload = multer({ storage: docStorage, limits: { fileSize: 50 * 1024 * 1024 } });
+
+// List all documents
+app.get('/api/documents', auth, (req, res) => {
+  try {
+    const meta = readDocsMeta();
+    const files = walkDir(DOCS_DIR).map(fp => {
+      const rel = path.relative(DOCS_DIR, fp);
+      const stat = fs.statSync(fp);
+      const parts = rel.split(path.sep);
+      const kategorie = DOCS_CATEGORIES.includes(parts[0]) ? parts[0] : 'sonstiges';
+      const m = meta[rel] || {};
+      return {
+        name: path.basename(fp),
+        path: rel,
+        size: stat.size,
+        date: stat.mtime.toISOString(),
+        kategorie: m.kategorie || kategorie,
+        tripId: m.tripId || null,
+      };
+    }).sort((a, b) => b.date.localeCompare(a.date));
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload document
+app.post('/api/documents/upload', auth, upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const rel = path.relative(DOCS_DIR, req.file.path);
+    const kategorie = DOCS_CATEGORIES.includes(req.body.kategorie) ? req.body.kategorie : 'sonstiges';
+    const tripId = req.body.tripId || null;
+
+    const meta = readDocsMeta();
+    meta[rel] = { kategorie, tripId, uploadedAt: new Date().toISOString() };
+    writeDocsMeta(meta);
+
+    const stat = fs.statSync(req.file.path);
+    res.status(201).json({
+      name: req.file.originalname,
+      path: rel,
+      size: stat.size,
+      date: stat.mtime.toISOString(),
+      kategorie,
+      tripId,
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete document
+app.delete('/api/documents/:path(*)', auth, (req, res) => {
+  try {
+    const rel = req.params.path;
+    const filePath = path.join(DOCS_DIR, rel);
+    if (!filePath.startsWith(DOCS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    fs.unlinkSync(filePath);
+    const meta = readDocsMeta();
+    delete meta[rel];
+    writeDocsMeta(meta);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Download document
+app.get('/api/documents/download/:path(*)', auth, (req, res) => {
+  try {
+    const rel = req.params.path;
+    const filePath = path.join(DOCS_DIR, rel);
+    if (!filePath.startsWith(DOCS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    res.download(filePath, path.basename(filePath));
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

@@ -105,6 +105,15 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .draft-body-row td { padding: 0 14px 12px; }
 .draft-body { background: var(--bg); border-radius: 6px; padding: 14px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: var(--muted); border: 1px solid var(--border); }
 
+/* ── Documents ── */
+.doc-toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
+.doc-toolbar select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: var(--font); outline: none; }
+.doc-toolbar select:focus { border-color: var(--accent); }
+.drop-zone { border: 2px dashed var(--border); border-radius: var(--r); padding: 32px; text-align: center; color: var(--muted); font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s; margin-bottom: 8px; }
+.drop-zone.drag-over { border-color: var(--accent); background: rgba(79,156,249,.06); }
+.doc-trip-link { color: var(--accent); cursor: pointer; text-decoration: none; }
+.doc-trip-link:hover { text-decoration: underline; }
+
 /* ── Modal ── */
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 @keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
@@ -150,6 +159,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('health')"          >🏥 Health</button>
     <button onclick="showTab('drafts')"          >📬 Drafts</button>
     <button onclick="showTab('calendar')"        >📅 Kalender</button>
+    <button onclick="showTab('documents')"       >📁 Dokumente</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -164,6 +174,7 @@ let TOKEN = '';
 let currentTab = 'trips';
 let _tripsCache = [];
 let _draftsCache = [];
+let _docsCache = [];
 
 /* ── Init ── */
 (function init() {
@@ -220,11 +231,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar'];
+  const tabs = ['trips','health','drafts','calendar','documents'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar })[tab]();
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -241,6 +252,13 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const fmtDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(iso)) : '–';
 const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso)) : '–';
 const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso)) : '–';
+
+const DOC_CAT_LABELS = { vertraege: 'Verträge', rechnungen: 'Rechnungen', notizen: 'Notizen', sonstiges: 'Sonstiges' };
+function fmtSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
 
 function stamp() {
   document.getElementById('lastUpdate').textContent = 'Stand: ' + fmtDT(new Date().toISOString());
@@ -266,8 +284,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 async function loadTrips() {
   const c = document.getElementById('content');
   try {
-    const trips = await apiFetch('/api/trips');
+    const [trips, docs] = await Promise.all([apiFetch('/api/trips'), apiFetch('/api/documents')]);
     _tripsCache = trips;
+    _docsCache = docs;
     if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
     const today = new Date().toISOString().slice(0,10);
     c.innerHTML = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newTrip()">+ Neue Reise</button></div>' + trips.map(t => {
@@ -301,6 +320,20 @@ async function loadTrips() {
           </div>`).join('')}
         </div>` : '';
 
+      const tripDocs = docs.filter(d => d.tripId === t.id);
+      const docsSection = tripDocs.length ? `
+        <div class="segments">
+          <div class="seg-header">📁 Dokumente (${tripDocs.length})</div>
+          ${tripDocs.map(d => {
+            const dlUrl = '/dashboard/api/documents/download/' + encodeURIComponent(d.path) + '?token=' + encodeURIComponent(TOKEN);
+            return `<div class="seg-row">
+              <span class="badge badge-blue">${esc(DOC_CAT_LABELS[d.kategorie] || d.kategorie)}</span>
+              <a href="${esc(dlUrl)}" style="color:var(--text);text-decoration:none" download>${esc(d.name.replace(/^\d+_/, ''))}</a>
+              <span style="color:var(--muted);font-size:12px">${fmtSize(d.size)} · ${fmtDate(d.date)}</span>
+            </div>`;
+          }).join('')}
+        </div>` : '';
+
       return `<div class="trip-card" id="tc-${esc(t.id)}">
         <div class="trip-top">
           <div>
@@ -314,6 +347,7 @@ async function loadTrips() {
         </div>
         <div class="trip-grid">${meta}</div>
         ${segs}
+        ${docsSection}
       </div>`;
     }).join('');
     stamp();
@@ -647,6 +681,162 @@ async function loadCalendar() {
     c.innerHTML = html;
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DOCUMENTS
+═══════════════════════════════════════════════════════════════════════════ */
+
+const DOC_CATEGORIES = [
+  { value: '', label: 'Alle Kategorien' },
+  { value: 'vertraege', label: 'Verträge' },
+  { value: 'rechnungen', label: 'Rechnungen' },
+  { value: 'notizen', label: 'Notizen' },
+  { value: 'sonstiges', label: 'Sonstiges' },
+];
+
+async function loadDocuments() {
+  const c = document.getElementById('content');
+  try {
+    const [docs, trips] = await Promise.all([
+      apiFetch('/api/documents'),
+      apiFetch('/api/trips'),
+    ]);
+    _docsCache = docs;
+    _tripsCache = trips;
+
+    // Build filter toolbar
+    const catOpts = DOC_CATEGORIES.map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    const tripOpts = `<option value="">Alle Trips</option>` + trips.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+
+    c.innerHTML = `
+      <div class="doc-toolbar">
+        <select id="doc-cat-filter" onchange="filterDocs()">${catOpts}</select>
+        <select id="doc-trip-filter" onchange="filterDocs()">${tripOpts}</select>
+        <button class="btn btn-primary" onclick="uploadDocModal()">+ Hochladen</button>
+      </div>
+      <div class="card" id="doc-table-wrap"></div>`;
+
+    renderDocTable(docs, trips);
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderDocTable(docs, trips) {
+  const wrap = document.getElementById('doc-table-wrap');
+  if (!docs.length) { wrap.innerHTML = '<div class="empty">Keine Dokumente vorhanden.</div>'; return; }
+  const tripMap = {};
+  for (const t of trips) tripMap[t.id] = t.name;
+
+  const rows = docs.map(d => {
+    const tripLabel = d.tripId && tripMap[d.tripId]
+      ? `<a class="doc-trip-link" onclick="goToTrip('${esc(d.tripId)}')">${esc(tripMap[d.tripId])}</a>`
+      : '<span style="color:var(--muted)">–</span>';
+    const dlUrl = '/dashboard/api/documents/download/' + encodeURIComponent(d.path) + '?token=' + encodeURIComponent(TOKEN);
+    return `<tr>
+      <td>${esc(d.name.replace(/^\d+_/, ''))}</td>
+      <td><span class="badge badge-blue">${esc(DOC_CAT_LABELS[d.kategorie] || d.kategorie)}</span></td>
+      <td>${tripLabel}</td>
+      <td style="white-space:nowrap">${fmtSize(d.size)}</td>
+      <td style="white-space:nowrap">${fmtDate(d.date)}</td>
+      <td style="white-space:nowrap">
+        <a href="${esc(dlUrl)}" class="btn btn-primary" style="padding:4px 8px;font-size:12px;text-decoration:none" download>⬇</a>
+        <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteDoc('${esc(d.path)}','${esc(d.name)}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Dateiname</th><th>Kategorie</th><th>Trip</th><th>Größe</th><th>Datum</th><th>Aktionen</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function filterDocs() {
+  const cat = document.getElementById('doc-cat-filter').value;
+  const trip = document.getElementById('doc-trip-filter').value;
+  let filtered = _docsCache;
+  if (cat) filtered = filtered.filter(d => d.kategorie === cat);
+  if (trip) filtered = filtered.filter(d => d.tripId === trip);
+  renderDocTable(filtered, _tripsCache);
+}
+
+function goToTrip(tripId) {
+  showTab('trips');
+  setTimeout(() => {
+    const el = document.getElementById('tc-' + tripId);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 400);
+}
+
+function uploadDocModal() {
+  const catOpts = DOC_CATEGORIES.slice(1).map(o => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+  const tripOpts = `<option value="">– Kein Trip –</option>` + _tripsCache.map(t => `<option value="${esc(t.id)}">${esc(t.name)}</option>`).join('');
+  openModal(`
+    <h3>📁 Dokument hochladen</h3>
+    <label>Kategorie</label>
+    <select id="upl-cat">${catOpts}</select>
+    <label>Trip-Verknüpfung (optional)</label>
+    <select id="upl-trip">${tripOpts}</select>
+    <label>Datei</label>
+    <div class="drop-zone" id="upl-drop" onclick="document.getElementById('upl-file').click()">
+      Datei hierher ziehen oder klicken
+    </div>
+    <input type="file" id="upl-file" style="display:none" onchange="showFileName()">
+    <div id="upl-fname" style="color:var(--muted);font-size:13px;margin-top:4px"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="upl-btn" onclick="uploadDoc()">⬆ Hochladen</button>
+    </div>
+  `);
+  // Drag & drop
+  const dz = document.getElementById('upl-drop');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+      document.getElementById('upl-file').files = e.dataTransfer.files;
+      showFileName();
+    }
+  });
+}
+
+function showFileName() {
+  const f = document.getElementById('upl-file').files[0];
+  document.getElementById('upl-fname').textContent = f ? `${f.name} (${fmtSize(f.size)})` : '';
+  document.getElementById('upl-drop').textContent = f ? f.name : 'Datei hierher ziehen oder klicken';
+}
+
+async function uploadDoc() {
+  const fileInput = document.getElementById('upl-file');
+  if (!fileInput.files.length) return alert('Bitte eine Datei auswählen.');
+  const form = new FormData();
+  form.append('file', fileInput.files[0]);
+  form.append('kategorie', document.getElementById('upl-cat').value);
+  const tripId = document.getElementById('upl-trip').value;
+  if (tripId) form.append('tripId', tripId);
+
+  const btn = document.getElementById('upl-btn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try {
+    const sep = '/api/documents/upload'.includes('?') ? '&' : '?';
+    const res = await fetch('/dashboard/api/documents/upload' + sep + 'token=' + encodeURIComponent(TOKEN), {
+      method: 'POST', body: form,
+    });
+    if (res.status === 401) { logout(); throw new Error('401'); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+    closeModal();
+    showTab('documents');
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+}
+
+async function deleteDoc(docPath, name) {
+  if (!confirm(`Dokument "${name.replace(/^\d+_/, '')}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/documents/${encodeURIComponent(docPath)}`, { method: 'DELETE' });
+    showTab('documents');
+  } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 </script>
 </body>
