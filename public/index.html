@@ -653,15 +653,24 @@ async function deleteDraft(id, subject) {
 /* ═══════════════════════════════════════════════════════════════════════════
    CALENDAR
 ═══════════════════════════════════════════════════════════════════════════ */
+let _calCache = [];
+
+function calDatePart(iso) { return (iso || '').slice(0, 10); }
+function calTimePart(iso) { return (iso || '').slice(11, 16); }
+
 async function loadCalendar() {
   const c = document.getElementById('content');
   try {
     const events = await apiFetch('/api/calendar');
-    if (!events.length) { c.innerHTML = '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
+    _calCache = events;
 
     const tz = 'Europe/Berlin';
     const dayKey   = iso => new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(iso));
     const dayLabel = iso => new Intl.DateTimeFormat('de-DE',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(iso));
+
+    const toolbar = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newEventModal()">+ Neuer Termin</button></div>';
+
+    if (!events.length) { c.innerHTML = toolbar + '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
 
     const groups = {};
     for (const ev of events) {
@@ -679,20 +688,137 @@ async function loadCalendar() {
           const loc    = ev.location?.displayName ? `📍 ${esc(ev.location.displayName)}` : '';
           const teams  = ev.onlineMeeting?.joinUrl ? '🔗 Online-Meeting' : '';
           const sub    = [loc, teams].filter(Boolean).join(' &nbsp;|&nbsp; ');
+          const evId   = ev.id || '';
           return `<div class="ev-row">
             <div class="ev-time">${time}</div>
-            <div class="ev-body">
+            <div class="ev-body" style="flex:1">
               <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
               ${sub ? `<div class="ev-sub">${sub}</div>` : ''}
+              ${ev.bodyPreview ? `<div class="ev-sub" style="margin-top:2px">${esc(ev.bodyPreview.slice(0,120))}${ev.bodyPreview.length>120?'…':''}</div>` : ''}
+            </div>
+            <div style="display:flex;gap:6px;align-items:center;white-space:nowrap">
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editEventModal('${esc(evId)}')">✏️</button>
+              <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
             </div>
           </div>`;
         }).join('')}
       </div>`;
     }).join('');
 
-    c.innerHTML = html;
+    c.innerHTML = toolbar + html;
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function newEventModal() {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(`
+    <h3>+ Neuer Termin</h3>
+    <label>Titel</label>
+    <input id="ce-subject" placeholder="Besprechung, Arzttermin, …">
+    <label>Datum</label>
+    <input id="ce-date" type="date" value="${today}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Start</label><input id="ce-start" type="time" value="09:00"></div>
+      <div><label>Ende</label><input id="ce-end" type="time" value="10:00"></div>
+    </div>
+    <label>Ort (optional)</label>
+    <input id="ce-loc" placeholder="z.B. Büro, Zoom">
+    <label>Beschreibung (optional)</label>
+    <textarea id="ce-body" style="min-height:80px" placeholder="Weitere Details…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="ce-save" onclick="createEvent()">📅 Erstellen</button>
+    </div>
+  `);
+}
+
+async function createEvent() {
+  const subject = document.getElementById('ce-subject').value.trim();
+  const date    = document.getElementById('ce-date').value;
+  const tStart  = document.getElementById('ce-start').value;
+  const tEnd    = document.getElementById('ce-end').value;
+  const loc     = document.getElementById('ce-loc').value.trim();
+  const body    = document.getElementById('ce-body').value.trim();
+  if (!subject || !date || !tStart || !tEnd) return alert('Titel, Datum, Start- und Endzeit sind Pflichtfelder.');
+  const btn = document.getElementById('ce-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch('/api/calendar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject,
+        start: `${date}T${tStart}:00`,
+        end:   `${date}T${tEnd}:00`,
+        location: loc || undefined,
+        body: body || undefined,
+      }),
+    });
+    closeModal();
+    showTab('calendar');
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '📅 Erstellen'; }
+}
+
+function editEventModal(eventId) {
+  const ev = _calCache.find(e => e.id === eventId);
+  if (!ev) return alert('Termin nicht gefunden');
+  const startDT = ev.start?.dateTime || '';
+  const endDT   = ev.end?.dateTime   || '';
+  openModal(`
+    <h3>✏️ Termin bearbeiten</h3>
+    <label>Titel</label>
+    <input id="ee-subject" value="${esc(ev.subject||'')}">
+    <label>Datum</label>
+    <input id="ee-date" type="date" value="${esc(calDatePart(startDT))}">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Start</label><input id="ee-start" type="time" value="${esc(calTimePart(startDT))}"></div>
+      <div><label>Ende</label><input id="ee-end" type="time" value="${esc(calTimePart(endDT))}"></div>
+    </div>
+    <label>Ort</label>
+    <input id="ee-loc" value="${esc(ev.location?.displayName||'')}">
+    <label>Beschreibung</label>
+    <textarea id="ee-body" style="min-height:80px">${esc(ev.bodyPreview||'')}</textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="ee-save" onclick="saveEvent('${esc(eventId)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveEvent(eventId) {
+  const subject = document.getElementById('ee-subject').value.trim();
+  const date    = document.getElementById('ee-date').value;
+  const tStart  = document.getElementById('ee-start').value;
+  const tEnd    = document.getElementById('ee-end').value;
+  const loc     = document.getElementById('ee-loc').value.trim();
+  const body    = document.getElementById('ee-body').value.trim();
+  if (!subject || !date || !tStart || !tEnd) return alert('Titel, Datum, Start- und Endzeit sind Pflichtfelder.');
+  const btn = document.getElementById('ee-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/calendar/${encodeURIComponent(eventId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subject,
+        start: `${date}T${tStart}:00`,
+        end:   `${date}T${tEnd}:00`,
+        location: loc,
+        body: body,
+      }),
+    });
+    closeModal();
+    showTab('calendar');
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+async function deleteEvent(eventId, subject) {
+  if (!confirm(`Termin "${subject}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/calendar/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
+    showTab('calendar');
+  } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

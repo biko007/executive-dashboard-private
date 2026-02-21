@@ -92,6 +92,20 @@ async function graphGet(url) {
   return res.json();
 }
 
+async function graphRequest(method, url, body) {
+  const token = await getGraphToken();
+  const opts = {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(20000),
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) throw new Error(`Graph API HTTP ${res.status}: ${await res.text().catch(() => '')}`);
+  if (res.status === 204) return {};
+  return res.json();
+}
+
 // ── Trip AI enrichment (Claude Haiku) ────────────────────────────────────────
 
 async function enrichTripWithHaiku(name) {
@@ -432,7 +446,7 @@ app.get('/api/calendar', auth, async (req, res) => {
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}` +
       `/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}` +
       `&endDateTime=${encodeURIComponent(end.toISOString())}` +
-      `&$select=subject,start,end,isAllDay,location,organizer,onlineMeeting` +
+      `&$select=id,subject,start,end,isAllDay,location,organizer,onlineMeeting,bodyPreview` +
       `&$orderby=start/dateTime`;
 
     const events = [];
@@ -444,6 +458,70 @@ app.get('/api/calendar', auth, async (req, res) => {
       url = next;
     }
     res.json(events);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create calendar event
+app.post('/api/calendar', auth, async (req, res) => {
+  if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
+    return res.status(503).json({ error: 'M365 credentials not configured' });
+  }
+  try {
+    const { subject, start, end, location, body, isAllDay } = req.body;
+    if (!subject || !start || !end) {
+      return res.status(400).json({ error: 'subject, start and end are required' });
+    }
+    const payload = {
+      subject,
+      start: { dateTime: start, timeZone: 'Europe/Berlin' },
+      end:   { dateTime: end,   timeZone: 'Europe/Berlin' },
+    };
+    if (location) payload.location = { displayName: location };
+    if (body)     payload.body = { contentType: 'Text', content: body };
+    if (isAllDay) payload.isAllDay = true;
+    const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events`;
+    const event = await graphRequest('POST', url, payload);
+    res.status(201).json(event);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update calendar event
+app.patch('/api/calendar/:eventId', auth, async (req, res) => {
+  if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
+    return res.status(503).json({ error: 'M365 credentials not configured' });
+  }
+  try {
+    const eventId = req.params.eventId;
+    const { subject, start, end, location, body, isAllDay } = req.body;
+    const payload = {};
+    if (subject !== undefined)  payload.subject = subject;
+    if (start !== undefined)    payload.start = { dateTime: start, timeZone: 'Europe/Berlin' };
+    if (end !== undefined)      payload.end   = { dateTime: end,   timeZone: 'Europe/Berlin' };
+    if (location !== undefined) payload.location = { displayName: location };
+    if (body !== undefined)     payload.body = { contentType: 'Text', content: body };
+    if (isAllDay !== undefined) payload.isAllDay = isAllDay;
+    const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events/${encodeURIComponent(eventId)}`;
+    const event = await graphRequest('PATCH', url, payload);
+    res.json(event);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete calendar event
+app.delete('/api/calendar/:eventId', auth, async (req, res) => {
+  if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
+    return res.status(503).json({ error: 'M365 credentials not configured' });
+  }
+  try {
+    const eventId = req.params.eventId;
+    const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events/${encodeURIComponent(eventId)}`;
+    await graphRequest('DELETE', url);
+    res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
