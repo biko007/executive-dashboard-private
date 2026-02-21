@@ -151,10 +151,11 @@ let currentTab = 'trips';
   const p = new URLSearchParams(location.search);
   const urlToken = p.get('token');
   if (urlToken) {
-    localStorage.setItem('ocdb_token', urlToken);
+    TOKEN = urlToken;
+      localStorage.setItem('token', urlToken);
     history.replaceState({}, '', location.pathname);
   }
-  TOKEN = localStorage.getItem('ocdb_token') || '';
+  TOKEN = localStorage.getItem('token') || '';
   if (TOKEN) {
     showApp();
     showTab('trips');
@@ -173,7 +174,7 @@ async function submitToken() {
   TOKEN = v;
   try {
     await apiFetch('/api/trips');
-    localStorage.setItem('ocdb_token', TOKEN);
+    localStorage.setItem('token', TOKEN);
     document.getElementById('login').style.display = 'none';
     showApp();
     showTab('trips');
@@ -184,7 +185,7 @@ async function submitToken() {
 }
 
 function logout() {
-  localStorage.removeItem('ocdb_token');
+  localStorage.removeItem('token');
   TOKEN = '';
   document.getElementById('app').style.display = 'none';
   document.getElementById('tokenInput').value = '';
@@ -209,10 +210,8 @@ function showTab(tab) {
 
 /* ── Fetch helper ── */
 async function apiFetch(url, opts = {}) {
-  const res = await fetch(url, {
-    ...opts,
-    headers: { 'Authorization': `Bearer ${TOKEN}`, 'Content-Type': 'application/json', ...(opts.headers || {}) },
-  });
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch('/dashboard' + url + sep + 'token=' + encodeURIComponent(TOKEN), opts);
   if (res.status === 401) { logout(); throw new Error('401'); }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
