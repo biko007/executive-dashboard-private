@@ -280,6 +280,30 @@ app.post('/api/trips', auth, async (req, res) => {
     }
 
     fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
+
+    // Auto-create M365 calendar event for the trip
+    if (M365_TENANT_ID && M365_CLIENT_ID && M365_CLIENT_SECRET && M365_USER) {
+      try {
+        const calTitle = `${trip.name}${trip.destination ? ' – ' + trip.destination : ''}`;
+        const bodyParts = [
+          trip.destination && `Ziel: ${trip.destination}`,
+          trip.climate     && `Klima: ${trip.climate}`,
+          trip.activities?.length && `Aktivitäten: ${trip.activities.join(', ')}`,
+        ].filter(Boolean);
+        const calUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events`;
+        await graphRequest('POST', calUrl, {
+          subject: calTitle,
+          isAllDay: true,
+          start: { dateTime: `${trip.start_date}T00:00:00`, timeZone: 'Europe/Berlin' },
+          end:   { dateTime: `${trip.end_date}T00:00:00`,   timeZone: 'Europe/Berlin' },
+          body:  bodyParts.length ? { contentType: 'Text', content: bodyParts.join('\n') } : undefined,
+        });
+        console.log(`[dashboard] Calendar event created for trip "${trip.name}"`);
+      } catch (calErr) {
+        console.log(`[dashboard] Calendar event creation failed: ${calErr.message}`);
+      }
+    }
+
     res.status(201).json(trip);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -648,6 +672,139 @@ app.get('/api/documents/download/:path(*)', auth, (req, res) => {
     }
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
     res.download(filePath, path.basename(filePath));
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── SharePoint API ────────────────────────────────────────────────────────────
+
+const spUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
+
+// List all sites
+app.get('/api/sharepoint/sites', auth, async (req, res) => {
+  try {
+    const data = await graphGet('https://graph.microsoft.com/v1.0/sites?search=*&$top=200');
+    res.json(data.value || []);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// List drives for a site
+app.get('/api/sharepoint/drives/:siteId', auth, async (req, res) => {
+  try {
+    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(req.params.siteId)}/drives`);
+    res.json(data.value || []);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// List files in a drive (optional folderId query param)
+app.get('/api/sharepoint/files/:siteId/:driveId', auth, async (req, res) => {
+  try {
+    const base = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(req.params.siteId)}/drives/${encodeURIComponent(req.params.driveId)}`;
+    const folderId = req.query.folderId;
+    const url = folderId
+      ? `${base}/items/${encodeURIComponent(folderId)}/children?$top=200`
+      : `${base}/root/children?$top=200`;
+    const data = await graphGet(url);
+    const items = (data.value || []).map(f => ({
+      id: f.id,
+      name: f.name || '',
+      size: f.size || 0,
+      webUrl: f.webUrl || '',
+      lastModifiedDateTime: f.lastModifiedDateTime || '',
+      createdDateTime: f.createdDateTime || '',
+      mimeType: f.file?.mimeType || null,
+      downloadUrl: f['@microsoft.graph.downloadUrl'] || null,
+      isFolder: !!f.folder,
+      childCount: f.folder?.childCount ?? null,
+    }));
+    res.json(items);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Search documents via Graph Search API
+app.get('/api/sharepoint/search', auth, async (req, res) => {
+  try {
+    const q = req.query.q || '';
+    if (!q) return res.status(400).json({ error: 'Missing query parameter q' });
+    const body = {
+      requests: [{
+        entityTypes: ['driveItem'],
+        query: { queryString: q },
+        from: 0,
+        size: 25,
+      }],
+    };
+    const data = await graphRequest('POST', 'https://graph.microsoft.com/v1.0/search/query', body);
+    const hits = [];
+    const containers = data?.value?.[0]?.hitsContainers || [];
+    for (const c of containers) {
+      for (const hit of (c.hits || [])) {
+        const r = hit.resource || {};
+        hits.push({
+          name: r.name || '',
+          webUrl: r.webUrl || '',
+          lastModifiedDateTime: r.lastModifiedDateTime || '',
+          size: r.size || null,
+          summary: hit.summary || null,
+        });
+      }
+    }
+    res.json(hits);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Download proxy (uses pre-auth downloadUrl from Graph)
+app.get('/api/sharepoint/download', auth, async (req, res) => {
+  try {
+    const url = req.query.url;
+    if (!url) return res.status(400).json({ error: 'Missing url parameter' });
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(60000) });
+    if (!upstream.ok) return res.status(upstream.status).json({ error: `Upstream HTTP ${upstream.status}` });
+    const ct = upstream.headers.get('content-type');
+    const cd = upstream.headers.get('content-disposition');
+    if (ct) res.setHeader('Content-Type', ct);
+    if (cd) res.setHeader('Content-Disposition', cd);
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.send(buf);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload file to SharePoint drive
+app.post('/api/sharepoint/upload', auth, spUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { siteId, driveId, path: filePath } = req.body;
+    if (!siteId || !driveId) return res.status(400).json({ error: 'Missing siteId or driveId' });
+    const uploadPath = filePath || req.file.originalname;
+    const token = await getGraphToken();
+    const base = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(siteId)}/drives/${encodeURIComponent(driveId)}`;
+    const url = `${base}/root:/${encodeURIComponent(uploadPath)}:/content`;
+    const upstream = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/octet-stream',
+      },
+      body: req.file.buffer,
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!upstream.ok) {
+      const errText = await upstream.text().catch(() => '');
+      return res.status(upstream.status).json({ error: `Graph API HTTP ${upstream.status}: ${errText}` });
+    }
+    const result = await upstream.json();
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

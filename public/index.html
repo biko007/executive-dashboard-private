@@ -160,6 +160,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('drafts')"          >📬 Drafts</button>
     <button onclick="showTab('calendar')"        >📅 Kalender</button>
     <button onclick="showTab('documents')"       >📁 Dokumente</button>
+    <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -231,11 +232,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar','documents'];
+  const tabs = ['trips','health','drafts','calendar','documents','sharepoint'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments })[tab]();
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -975,6 +976,266 @@ async function deleteDoc(docPath, name) {
     await apiFetch(`/api/documents/${encodeURIComponent(docPath)}`, { method: 'DELETE' });
     showTab('documents');
   } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SHAREPOINT
+═══════════════════════════════════════════════════════════════════════════ */
+
+let _spSitesCache = [];
+let _spDrivesCache = [];
+let _spFilesCache = [];
+let _spCurrentSiteId = '';
+let _spCurrentDriveId = '';
+let _spCurrentFolderId = '';
+let _spBreadcrumb = []; // [{name, folderId}]
+
+async function loadSharePoint() {
+  const c = document.getElementById('content');
+  try {
+    const sites = await apiFetch('/api/sharepoint/sites');
+    _spSitesCache = sites;
+    _spCurrentSiteId = '';
+    _spCurrentDriveId = '';
+    _spCurrentFolderId = '';
+    _spBreadcrumb = [];
+
+    c.innerHTML = `
+      <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="sp-search-input" placeholder="Volltextsuche in SharePoint…"
+          style="flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;font-family:var(--font);outline:none"
+          onkeypress="if(event.key==='Enter')spSearch()">
+        <button class="btn btn-primary" onclick="spSearch()">🔍 Suchen</button>
+      </div>
+      <div class="card" id="sp-main"></div>`;
+
+    renderSPSites(sites);
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderSPSites(sites) {
+  const wrap = document.getElementById('sp-main');
+  if (!sites.length) { wrap.innerHTML = '<div class="empty">Keine SharePoint-Sites gefunden.</div>'; return; }
+  const rows = sites.map(s => `<tr style="cursor:pointer" onclick="spOpenSite('${esc(s.id)}')">
+    <td><strong>${esc(s.displayName)}</strong></td>
+    <td style="color:var(--muted);font-size:12px">${esc(s.description || '–')}</td>
+    <td style="white-space:nowrap"><a href="${esc(s.webUrl)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+  </tr>`).join('');
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Site</th><th>Beschreibung</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function spOpenSite(siteId) {
+  _spCurrentSiteId = siteId;
+  _spCurrentDriveId = '';
+  _spCurrentFolderId = '';
+  _spBreadcrumb = [];
+  const wrap = document.getElementById('sp-main');
+  wrap.innerHTML = '<div class="spinner">Drives laden…</div>';
+  try {
+    const drives = await apiFetch(`/api/sharepoint/drives/${encodeURIComponent(siteId)}`);
+    _spDrivesCache = drives;
+    renderSPDrives(drives);
+  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderSPDrives(drives) {
+  const wrap = document.getElementById('sp-main');
+  const backBtn = `<div style="padding:12px 14px;border-bottom:1px solid var(--border)">
+    <button class="btn-ghost" onclick="loadSharePoint()" style="font-size:12px">← Zurück zu Sites</button>
+  </div>`;
+  if (!drives.length) { wrap.innerHTML = backBtn + '<div class="empty">Keine Dokumentbibliotheken gefunden.</div>'; return; }
+  const rows = drives.map(d => `<tr style="cursor:pointer" onclick="spOpenDrive('${esc(d.id)}',null,'${esc(d.name)}')">
+    <td><strong>${esc(d.name)}</strong></td>
+    <td><span class="badge badge-blue">${esc(d.driveType)}</span></td>
+    <td style="white-space:nowrap"><a href="${esc(d.webUrl)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+  </tr>`).join('');
+  wrap.innerHTML = backBtn + `<table>
+    <thead><tr><th>Bibliothek</th><th>Typ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+async function spOpenDrive(driveId, folderId, folderName) {
+  if (driveId) _spCurrentDriveId = driveId;
+  _spCurrentFolderId = folderId || '';
+
+  if (folderId && folderName) {
+    _spBreadcrumb.push({ name: folderName, folderId });
+  } else if (!folderId) {
+    _spBreadcrumb = [];
+  }
+
+  const wrap = document.getElementById('sp-main');
+  wrap.innerHTML = '<div class="spinner">Dateien laden…</div>';
+  try {
+    let url = `/api/sharepoint/files/${encodeURIComponent(_spCurrentSiteId)}/${encodeURIComponent(_spCurrentDriveId)}`;
+    if (_spCurrentFolderId) url += `?folderId=${encodeURIComponent(_spCurrentFolderId)}`;
+    const files = await apiFetch(url);
+    _spFilesCache = files;
+    renderSPFiles(files);
+  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderSPFiles(files) {
+  const wrap = document.getElementById('sp-main');
+
+  // Breadcrumb
+  const crumbs = [{name: '← Drives', folderId: null}].concat(_spBreadcrumb);
+  const breadcrumbHtml = crumbs.map((cr, i) => {
+    if (i === 0) return `<span style="cursor:pointer;color:var(--accent)" onclick="spOpenSite('${esc(_spCurrentSiteId)}')">${esc(cr.name)}</span>`;
+    if (i === crumbs.length - 1) return `<span style="color:var(--text)">${esc(cr.name)}</span>`;
+    return `<span style="cursor:pointer;color:var(--accent)" onclick="spNavToCrumb(${i})">${esc(cr.name)}</span>`;
+  }).join(' <span style="color:var(--muted)">›</span> ');
+
+  const toolbar = `<div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div style="font-size:13px">${breadcrumbHtml}</div>
+    <button class="btn btn-primary" style="font-size:12px" onclick="spUploadModal()">⬆ Upload</button>
+  </div>`;
+
+  if (!files.length) { wrap.innerHTML = toolbar + '<div class="empty">Keine Dateien in diesem Ordner.</div>'; return; }
+
+  // Sort: folders first, then by name
+  const sorted = [...files].sort((a, b) => {
+    if (a.isFolder && !b.isFolder) return -1;
+    if (!a.isFolder && b.isFolder) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  const rows = sorted.map(f => {
+    const icon = f.isFolder ? '📁' : '📄';
+    const nameCell = f.isFolder
+      ? `<td style="cursor:pointer" onclick="spOpenDrive(null,'${esc(f.id)}','${esc(f.name)}')">${icon} <strong>${esc(f.name)}</strong>${f.childCount != null ? ` <span style="color:var(--muted);font-size:11px">(${f.childCount})</span>` : ''}</td>`
+      : `<td>${icon} ${esc(f.name)}</td>`;
+    const sizeStr = f.isFolder ? '–' : fmtSize(f.size);
+    const dateStr = f.lastModifiedDateTime ? f.lastModifiedDateTime.slice(0,10) : '–';
+    const actions = f.isFolder ? '' : (f.downloadUrl
+      ? `<a href="/dashboard/api/sharepoint/download?url=${encodeURIComponent(f.downloadUrl)}&token=${encodeURIComponent(TOKEN)}" class="btn btn-primary" style="padding:3px 8px;font-size:11px;text-decoration:none" download="${esc(f.name)}">⬇</a>`
+      : `<a href="${esc(f.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a>`);
+    return `<tr>
+      ${nameCell}
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
+      <td style="white-space:nowrap">${actions}</td>
+    </tr>`;
+  }).join('');
+
+  wrap.innerHTML = toolbar + `<table>
+    <thead><tr><th>Name</th><th>Größe</th><th>Geändert</th><th>Aktionen</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+function spNavToCrumb(index) {
+  const target = _spBreadcrumb[index - 1]; // index 0 = Drives (handled separately)
+  _spBreadcrumb = _spBreadcrumb.slice(0, index);
+  if (target) {
+    _spCurrentFolderId = target.folderId;
+    const wrap = document.getElementById('sp-main');
+    wrap.innerHTML = '<div class="spinner">Dateien laden…</div>';
+    (async () => {
+      try {
+        let url = `/api/sharepoint/files/${encodeURIComponent(_spCurrentSiteId)}/${encodeURIComponent(_spCurrentDriveId)}`;
+        if (_spCurrentFolderId) url += `?folderId=${encodeURIComponent(_spCurrentFolderId)}`;
+        const files = await apiFetch(url);
+        _spFilesCache = files;
+        renderSPFiles(files);
+      } catch (e) { document.getElementById('sp-main').innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+    })();
+  } else {
+    spOpenDrive(_spCurrentDriveId, null, null);
+  }
+}
+
+async function spSearch() {
+  const input = document.getElementById('sp-search-input');
+  const q = (input?.value || '').trim();
+  if (!q) return;
+  const wrap = document.getElementById('sp-main');
+  wrap.innerHTML = '<div class="spinner">Suche…</div>';
+  try {
+    const hits = await apiFetch(`/api/sharepoint/search?q=${encodeURIComponent(q)}`);
+    if (!hits.length) { wrap.innerHTML = '<div class="empty">Keine Ergebnisse.</div>'; return; }
+    const rows = hits.map(h => {
+      const sizeStr = h.size ? fmtSize(h.size) : '–';
+      const dateStr = h.lastModifiedDateTime ? h.lastModifiedDateTime.slice(0,10) : '–';
+      const snippet = h.summary ? `<div style="color:var(--muted);font-size:12px;margin-top:3px">${h.summary}</div>` : '';
+      return `<tr>
+        <td><strong>${esc(h.name)}</strong>${snippet}</td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
+        <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
+        <td style="white-space:nowrap"><a href="${esc(h.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `<table>
+      <thead><tr><th>Datei</th><th>Größe</th><th>Geändert</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function spUploadModal() {
+  if (!_spCurrentSiteId || !_spCurrentDriveId) return alert('Bitte zuerst eine Site und Drive auswählen.');
+  openModal(`
+    <h3>📂 SharePoint Upload</h3>
+    <label>Datei (max 4 MB)</label>
+    <div class="drop-zone" id="sp-upl-drop" onclick="document.getElementById('sp-upl-file').click()">
+      Datei hierher ziehen oder klicken
+    </div>
+    <input type="file" id="sp-upl-file" style="display:none" onchange="spShowFileName()">
+    <div id="sp-upl-fname" style="color:var(--muted);font-size:13px;margin-top:4px"></div>
+    <label>Pfad (optional, Standard: Dateiname)</label>
+    <input type="text" id="sp-upl-path" placeholder="z.B. subfolder/datei.pdf">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="sp-upl-btn" onclick="spUploadFile()">⬆ Hochladen</button>
+    </div>
+  `);
+  const dz = document.getElementById('sp-upl-drop');
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault(); dz.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) {
+      document.getElementById('sp-upl-file').files = e.dataTransfer.files;
+      spShowFileName();
+    }
+  });
+}
+
+function spShowFileName() {
+  const f = document.getElementById('sp-upl-file').files[0];
+  document.getElementById('sp-upl-fname').textContent = f ? `${f.name} (${fmtSize(f.size)})` : '';
+  document.getElementById('sp-upl-drop').textContent = f ? f.name : 'Datei hierher ziehen oder klicken';
+}
+
+async function spUploadFile() {
+  const fileInput = document.getElementById('sp-upl-file');
+  if (!fileInput.files.length) return alert('Bitte eine Datei auswählen.');
+  const file = fileInput.files[0];
+  if (file.size > 4 * 1024 * 1024) return alert('Datei zu groß (max 4 MB).');
+  const filePath = document.getElementById('sp-upl-path').value.trim() || file.name;
+
+  const form = new FormData();
+  form.append('file', file);
+  form.append('siteId', _spCurrentSiteId);
+  form.append('driveId', _spCurrentDriveId);
+  form.append('path', filePath);
+
+  const btn = document.getElementById('sp-upl-btn');
+  btn.disabled = true; btn.textContent = 'Uploading…';
+  try {
+    const res = await fetch('/dashboard/api/sharepoint/upload?token=' + encodeURIComponent(TOKEN), {
+      method: 'POST', body: form,
+    });
+    if (res.status === 401) { logout(); throw new Error('401'); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
+    closeModal();
+    spOpenDrive(null, _spCurrentFolderId || null, null);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 </script>
 </body>
