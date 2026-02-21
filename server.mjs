@@ -31,6 +31,7 @@ function readEnvFile() {
 
 const ENV = readEnvFile();
 const DASHBOARD_TOKEN   = ENV.DASHBOARD_TOKEN   || '';
+const ANTHROPIC_API_KEY = ENV.ANTHROPIC_API_KEY  || '';
 const M365_TENANT_ID    = ENV.M365_TENANT_ID    || '';
 const M365_CLIENT_ID    = ENV.M365_CLIENT_ID    || '';
 const M365_CLIENT_SECRET= ENV.M365_CLIENT_SECRET|| '';
@@ -91,6 +92,91 @@ async function graphGet(url) {
   return res.json();
 }
 
+// ── Trip AI enrichment (Claude Haiku) ────────────────────────────────────────
+
+async function enrichTripWithHaiku(name) {
+  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY nicht konfiguriert');
+
+  const prompt =
+    `Du hilfst bei der Reiseplanung. Der Nutzer plant eine Reise nach "${name}".\n` +
+    `Antworte NUR mit einem JSON-Objekt (kein Markdown, kein Text davor/danach):\n` +
+    `{\n` +
+    `  "destination": "<Hauptstadt oder bekannteste Stadt des Ziels>",\n` +
+    `  "country": "<Land auf Deutsch>",\n` +
+    `  "country_code": "<ISO-3166-1-Alpha-2-Ländercode, z.B. JP>",\n` +
+    `  "lat": <Breitengrad der Destination als Dezimalzahl, z.B. 35.6895>,\n` +
+    `  "lon": <Längengrad der Destination als Dezimalzahl, z.B. 139.6917>,\n` +
+    `  "climate": "<eines von: tropical|temperate|cold|desert|mixed>",\n` +
+    `  "activities": ["<eines oder mehrere von: business|leisure|outdoor|beach|city>"],\n` +
+    `  "currency": "<Währungsname und Symbol, z.B. Japanischer Yen (¥)>",\n` +
+    `  "visa_de": "<Visapflicht für deutschen Pass, z.B. 'kein Visum erforderlich (bis 90 Tage)'>",\n` +
+    `  "distance_km": <Luftlinie in km von Tuttlingen (48.0641°N, 8.8236°E) als ganze Zahl>,\n` +
+    `  "travel_mode": "<Empfohlenes Hauptverkehrsmittel, z.B. Flugzeug, Zug, Auto>",\n` +
+    `  "door_to_door_estimate": "<Haustür-zu-Haustür Zeitschätzung ab Tuttlingen, z.B. 'ca. 14-16 Stunden (Flug FRA + Transfers)'>",\n` +
+    `  "exchange_rate_eur": "<Wechselkurs: wie viel Landeswährung bekommt man für 1 EUR, z.B. '1 EUR ≈ 160 JPY' oder '1 EUR ≈ 1,08 USD'>"\n` +
+    `}`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`Anthropic API ${res.status}: ${err.slice(0, 200)}`);
+  }
+
+  const data = await res.json();
+  const text = data?.content?.[0]?.text || '';
+  const jsonMatch = text.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Kein JSON in Haiku-Antwort');
+
+  const p = JSON.parse(jsonMatch[0]);
+  return {
+    destination:           String(p.destination || name),
+    country_code:          String(p.country_code || '').toUpperCase(),
+    lat:                   Number(p.lat) || 0,
+    lon:                   Number(p.lon) || 0,
+    climate:               String(p.climate || 'temperate'),
+    activities:            Array.isArray(p.activities) ? p.activities.map(String) : ['leisure'],
+    currency:              String(p.currency || ''),
+    visa_de:               String(p.visa_de || ''),
+    distance_km:           Number(p.distance_km) || 0,
+    travel_mode:           String(p.travel_mode || ''),
+    door_to_door_estimate: String(p.door_to_door_estimate || ''),
+    exchange_rate_eur:     String(p.exchange_rate_eur || ''),
+  };
+}
+
+async function fetchWeatherForecast(lat, lon) {
+  const url =
+    `https://api.open-meteo.com/v1/forecast` +
+    `?latitude=${lat}&longitude=${lon}` +
+    `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum` +
+    `&timezone=auto&forecast_days=7`;
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) return [];
+  const data = await res.json();
+  const d = data?.daily;
+  if (!d?.time?.length) return [];
+  return d.time.map((date, i) => ({
+    date,
+    tmax: Math.round(d.temperature_2m_max[i] ?? 0),
+    tmin: Math.round(d.temperature_2m_min[i] ?? 0),
+    precip: Math.round((d.precipitation_sum[i] ?? 0) * 10) / 10,
+  }));
+}
+
 // ── Express app ───────────────────────────────────────────────────────────────
 
 const app = express();
@@ -117,7 +203,7 @@ app.get('/api/trips', auth, (req, res) => {
   }
 });
 
-app.post('/api/trips', auth, (req, res) => {
+app.post('/api/trips', auth, async (req, res) => {
   try {
     const { id, name, destination, start_date, end_date, climate, activities } = req.body;
     if (!id || !name || !start_date || !end_date) {
@@ -145,6 +231,40 @@ app.post('/api/trips', auth, (req, res) => {
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+
+    // AI enrichment via Claude Haiku
+    const enrichTarget = destination || name;
+    if (ANTHROPIC_API_KEY && enrichTarget) {
+      try {
+        console.log(`[dashboard] Enriching trip "${enrichTarget}" via Haiku …`);
+        const enriched = await enrichTripWithHaiku(enrichTarget);
+        if (!trip.destination && enriched.destination) trip.destination = enriched.destination;
+        trip.country_code          = enriched.country_code;
+        trip.climate               = enriched.climate;
+        trip.activities            = enriched.activities;
+        trip.currency              = enriched.currency;
+        trip.visa_de               = enriched.visa_de;
+        trip.distance_km           = enriched.distance_km;
+        trip.travel_mode           = enriched.travel_mode;
+        trip.door_to_door_estimate = enriched.door_to_door_estimate;
+        trip.exchange_rate_eur     = enriched.exchange_rate_eur;
+
+        // Weather forecast via Open-Meteo
+        if (enriched.lat && enriched.lon) {
+          try {
+            const forecast = await fetchWeatherForecast(enriched.lat, enriched.lon);
+            if (forecast.length) trip.weather_forecast = forecast;
+          } catch (wErr) {
+            console.log(`[dashboard] Weather fetch failed: ${wErr.message}`);
+          }
+        }
+        console.log(`[dashboard] Enrichment done for "${enrichTarget}"`);
+      } catch (aiErr) {
+        console.log(`[dashboard] AI enrichment failed: ${aiErr.message}`);
+        // Trip still gets created, just without enrichment
+      }
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
     res.status(201).json(trip);
   } catch (e) {
