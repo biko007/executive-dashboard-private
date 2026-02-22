@@ -1885,7 +1885,7 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
       <span style="color:var(--muted);font-size:13px">— ${nameHtml}</span>
       <span style="color:var(--muted);font-size:11px;margin-left:auto">${l.id}</span>
       <button class="btn btn-danger" style="padding:2px 8px;font-size:11px"
-        onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}',${esc(JSON.stringify(refreshFn))})">✕</button>
+        onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">✕</button>
     </div>`;
   }).join('');
 
@@ -1893,7 +1893,7 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h3 style="font-size:15px">📎 Verknüpfte Dokumente (${links.length})</h3>
       <button class="btn btn-primary" style="font-size:12px"
-        onclick="linkDocModal('${esc(entityType)}','${esc(entityId)}',${esc(JSON.stringify(refreshFn))})">+ Verknüpfen</button>
+        onclick="linkDocModal('${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">+ Verknüpfen</button>
     </div>
     ${rows || '<span style="color:var(--muted)">Keine Dokumente verknüpft</span>'}
   </div>`;
