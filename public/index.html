@@ -130,6 +130,20 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:13px; }
 .seg-item:last-child { border-bottom:none; }
 .seg-item .seg-rm { background:none; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:2px 4px; }
+
+/* ── Fleet cards ── */
+.fleet-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.fleet-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+.fleet-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.fleet-card-header .fleet-icon { font-size: 28px; }
+.fleet-card-header h3 { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
+.fleet-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; }
+.fleet-meta .fl { color: var(--muted); }
+.fleet-actions { display: flex; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.tuev-green  { color: var(--green); }
+.tuev-yellow { color: var(--yellow); }
+.tuev-red    { color: var(--red); }
+.tuev-none   { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -161,6 +175,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('calendar')"        >📅 Kalender</button>
     <button onclick="showTab('documents')"       >📁 Dokumente</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
+    <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -232,11 +247,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar','documents','sharepoint'];
+  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint })[tab]();
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -528,31 +543,88 @@ function removeSegment(index, tripId) {
 async function loadHealth() {
   const c = document.getElementById('content');
   try {
-    const entries = await apiFetch('/api/health?days=90');
-    if (!entries.length) { c.innerHTML = '<div class="empty">Keine Health-Daten in den letzten 90 Tagen.</div>'; return; }
+    const [entries, trends, alerts, weightData, sleepData] = await Promise.all([
+      apiFetch('/api/health?days=90'),
+      apiFetch('/api/health/trends?days=30'),
+      apiFetch('/api/health/alerts'),
+      apiFetch('/api/health/chart-data?type=weight&days=90'),
+      apiFetch('/api/health/chart-data?type=sleep&days=30'),
+    ]);
 
+    if (!entries.length && !alerts.length) {
+      c.innerHTML = '<div class="empty">Keine Health-Daten in den letzten 90 Tagen.</div>';
+      return;
+    }
+
+    // ── Alerts Box ──
+    let alertsHtml = '';
+    if (alerts.length) {
+      const sevIcon = { critical: '🔴', warning: '⚠️', info: 'ℹ️' };
+      const sevColor = { critical: 'var(--red)', warning: 'var(--yellow)', info: 'var(--accent)' };
+      const alertItems = alerts.map(a =>
+        `<div style="padding:8px 12px;border-left:3px solid ${sevColor[a.severity]||'var(--muted)'};margin-bottom:6px;background:rgba(255,255,255,.03);border-radius:0 6px 6px 0">
+          <span>${sevIcon[a.severity]||'•'}</span> ${esc(a.message)}
+        </div>`
+      ).join('');
+      alertsHtml = `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:10px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">🚨 Aktive Alerts</div>
+        ${alertItems}
+      </div>`;
+    }
+
+    // ── Summary cards ──
     const byType = t => entries.filter(e => e.type === t);
     const weights = byType('weight');
-    const lastW   = weights[0];
-    const w7      = weights.filter(e => e.timestamp >= new Date(Date.now()-7*86400000).toISOString());
+    const lastW = weights[0];
     const lastSleep = byType('sleep')[0];
-    const lastStep  = byType('steps')[0];
+    const lastStep = byType('steps')[0];
 
+    const wt = trends.weight;
     let trendHtml = '';
-    if (w7.length >= 2) {
-      const diff = (lastW.value - w7[w7.length-1].value).toFixed(1);
-      const col  = diff <= 0 ? 'var(--green)' : 'var(--red)';
-      trendHtml = `<div class="s-card"><div class="lbl">Gewicht-Trend 7 T</div><div class="val" style="color:${col};font-size:22px">${diff>0?'+':''}${diff} kg</div><div class="sub">vs. ${fmtDate(w7[w7.length-1].timestamp)}</div></div>`;
+    if (wt) {
+      const col = wt.change <= 0 ? 'var(--green)' : 'var(--red)';
+      const arrow = wt.direction === 'up' ? '📈' : wt.direction === 'down' ? '📉' : '➡️';
+      trendHtml = `<div class="s-card"><div class="lbl">Gewicht-Trend 30 T</div><div class="val" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${wt.change} kg</div><div class="sub">Ø ${wt.avg} kg (${wt.dataPoints} Messungen)</div></div>`;
+    }
+
+    const st = trends.sleep;
+    let sleepTrendHtml = '';
+    if (st) {
+      sleepTrendHtml = `<div class="s-card"><div class="lbl">Schlaf-Trend 30 T</div><div class="val" style="font-size:22px">Ø ${st.avgDuration}h</div><div class="sub">${st.minDuration}–${st.maxDuration}h${st.avgQuality ? ' | Score '+st.avgQuality+'%' : ''}</div></div>`;
     }
 
     const summaryGrid = `<div class="summary-grid">
       ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
       ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (zuletzt)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}</div></div>` : ''}
+      ${sleepTrendHtml}
       ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
       <div class="s-card"><div class="lbl">Einträge (90 T)</div><div class="val">${entries.length}</div><div class="sub">zuletzt ${fmtDate(entries[0]?.timestamp)}</div></div>
     </div>`;
 
+    // ── Weight Chart (SVG line, 90 days) ──
+    let weightChartHtml = '';
+    if (weightData.length >= 2) {
+      weightChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">⚖️ Gewichtsverlauf (90 Tage)</div>
+        <div style="position:relative;width:100%;overflow-x:auto">
+          <svg id="weightChart" width="100%" height="220" style="min-width:600px"></svg>
+        </div>
+      </div>`;
+    }
+
+    // ── Sleep Chart (SVG bars, 30 days) ──
+    let sleepChartHtml = '';
+    if (sleepData.length >= 2) {
+      sleepChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">😴 Schlaf (30 Tage)</div>
+        <div style="position:relative;width:100%;overflow-x:auto">
+          <svg id="sleepChart" width="100%" height="220" style="min-width:600px"></svg>
+        </div>
+      </div>`;
+    }
+
+    // ── Table ──
     const icons = {weight:'⚖️',sleep:'😴',steps:'👟',training:'💪',symptom:'🤒',medication:'💊',note:'📝'};
     const rows = entries.slice(0,150).map(e => {
       const val = e.value !== undefined ? `${e.value}${e.unit?' '+e.unit:''}` : (e.text||e.note||'–');
@@ -564,12 +636,118 @@ async function loadHealth() {
       </tr>`;
     }).join('');
 
-    c.innerHTML = summaryGrid + `<div class="card"><table>
-      <thead><tr><th>Datum</th><th>Typ</th><th>Wert</th><th>Quelle</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
+    c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml +
+      `<div class="card"><table>
+        <thead><tr><th>Datum</th><th>Typ</th><th>Wert</th><th>Quelle</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+
+    // ── Render Charts ──
+    if (weightData.length >= 2) renderWeightChart(weightData);
+    if (sleepData.length >= 2) renderSleepChart(sleepData);
+
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderWeightChart(data) {
+  const svg = document.getElementById('weightChart');
+  if (!svg) return;
+  const W = svg.clientWidth || 600, H = 200;
+  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const vals = data.map(d => d.value);
+  const vMin = Math.floor(Math.min(...vals) - 0.5);
+  const vMax = Math.ceil(Math.max(...vals) + 0.5);
+  const xScale = i => pad.l + (i / (data.length - 1)) * cw;
+  const yScale = v => pad.t + ch - ((v - vMin) / (vMax - vMin)) * ch;
+
+  // Grid lines
+  let svgContent = '';
+  const steps = 5;
+  for (let i = 0; i <= steps; i++) {
+    const v = vMin + (vMax - vMin) * (i / steps);
+    const y = yScale(v);
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${v.toFixed(1)}</text>`;
+  }
+
+  // X-axis labels (every ~7th point)
+  const step = Math.max(1, Math.floor(data.length / 8));
+  for (let i = 0; i < data.length; i += step) {
+    const x = xScale(i);
+    const d = data[i].date.slice(5); // MM-DD
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${d}</text>`;
+  }
+
+  // Line
+  const points = data.map((d, i) => `${xScale(i).toFixed(1)},${yScale(d.value).toFixed(1)}`).join(' ');
+  svgContent += `<polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linejoin="round"/>`;
+
+  // Trend line (linear regression)
+  const n = data.length;
+  const xMean = (n - 1) / 2;
+  const yMean = vals.reduce((a, b) => a + b, 0) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (i - xMean) * (vals[i] - yMean); den += (i - xMean) ** 2; }
+  const slope = den ? num / den : 0;
+  const intercept = yMean - slope * xMean;
+  const ty0 = yScale(intercept);
+  const ty1 = yScale(slope * (n - 1) + intercept);
+  svgContent += `<line x1="${pad.l}" y1="${ty0}" x2="${W-pad.r}" y2="${ty1}" stroke="var(--yellow)" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7"/>`;
+
+  // Dots
+  data.forEach((d, i) => {
+    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--accent)" opacity="0.8"><title>${d.date}: ${d.value} kg</title></circle>`;
+  });
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = svgContent;
+}
+
+function renderSleepChart(data) {
+  const svg = document.getElementById('sleepChart');
+  if (!svg) return;
+  const W = svg.clientWidth || 600, H = 200;
+  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const maxH = Math.ceil(Math.max(...data.map(d => d.duration)) + 0.5);
+  const barW = Math.max(4, Math.min(20, cw / data.length - 2));
+  const xScale = i => pad.l + (i + 0.5) * (cw / data.length);
+  const yScale = v => pad.t + ch - (v / maxH) * ch;
+
+  let svgContent = '';
+
+  // Grid lines
+  for (let h = 0; h <= maxH; h += 2) {
+    const y = yScale(h);
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${h}h</text>`;
+  }
+
+  // Bars
+  data.forEach((d, i) => {
+    const x = xScale(i) - barW / 2;
+    const barH = (d.duration / maxH) * ch;
+    const y = pad.t + ch - barH;
+    const color = d.duration < 6 ? 'var(--red)' : d.duration < 7 ? 'var(--yellow)' : 'var(--green)';
+    svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.75" rx="2"><title>${d.date}: ${d.duration}h${d.quality ? ' (Score: '+d.quality+'%)' : ''}</title></rect>`;
+  });
+
+  // X-axis labels
+  const step = Math.max(1, Math.floor(data.length / 8));
+  for (let i = 0; i < data.length; i += step) {
+    const x = xScale(i);
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+  }
+
+  // 6h reference line
+  const y6 = yScale(6);
+  svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
+  svgContent += `<text x="${W-pad.r+2}" y="${y6+3}" fill="var(--red)" font-size="9" opacity="0.6">6h</text>`;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = svgContent;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -989,6 +1167,8 @@ let _spCurrentSiteId = '';
 let _spCurrentDriveId = '';
 let _spCurrentFolderId = '';
 let _spBreadcrumb = []; // [{name, folderId}]
+let _spSortField = 'lastModifiedDateTime'; // 'name' | 'lastModifiedDateTime'
+let _spSortDir = 'desc'; // 'asc' | 'desc'
 
 async function loadSharePoint() {
   const c = document.getElementById('content');
@@ -1080,6 +1260,36 @@ async function spOpenDrive(driveId, folderId, folderName) {
   } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
 }
 
+function spSortIndicator(field) {
+  if (_spSortField !== field) return '';
+  return _spSortDir === 'asc' ? ' ▲' : ' ▼';
+}
+
+function spToggleSort(field, rerender) {
+  if (_spSortField === field) {
+    _spSortDir = _spSortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _spSortField = field;
+    _spSortDir = field === 'lastModifiedDateTime' ? 'desc' : 'asc';
+  }
+  rerender();
+}
+
+function spSortItems(items) {
+  return [...items].sort((a, b) => {
+    // Folders always first
+    if (a.isFolder && !b.isFolder) return -1;
+    if (!a.isFolder && b.isFolder) return 1;
+    const dir = _spSortDir === 'asc' ? 1 : -1;
+    if (_spSortField === 'name') {
+      return dir * a.name.localeCompare(b.name);
+    }
+    const da = a.lastModifiedDateTime || '';
+    const db = b.lastModifiedDateTime || '';
+    return dir * da.localeCompare(db);
+  });
+}
+
 function renderSPFiles(files) {
   const wrap = document.getElementById('sp-main');
 
@@ -1098,12 +1308,7 @@ function renderSPFiles(files) {
 
   if (!files.length) { wrap.innerHTML = toolbar + '<div class="empty">Keine Dateien in diesem Ordner.</div>'; return; }
 
-  // Sort: folders first, then by name
-  const sorted = [...files].sort((a, b) => {
-    if (a.isFolder && !b.isFolder) return -1;
-    if (!a.isFolder && b.isFolder) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  const sorted = spSortItems(files);
 
   const rows = sorted.map(f => {
     const icon = f.isFolder ? '📁' : '📄';
@@ -1123,8 +1328,14 @@ function renderSPFiles(files) {
     </tr>`;
   }).join('');
 
+  const thStyle = 'cursor:pointer;user-select:none';
   wrap.innerHTML = toolbar + `<table>
-    <thead><tr><th>Name</th><th>Größe</th><th>Geändert</th><th>Aktionen</th></tr></thead>
+    <thead><tr>
+      <th style="${thStyle}" onclick="spToggleSort('name', () => renderSPFiles(_spFilesCache))">Name${spSortIndicator('name')}</th>
+      <th>Größe</th>
+      <th style="${thStyle}" onclick="spToggleSort('lastModifiedDateTime', () => renderSPFiles(_spFilesCache))">Geändert${spSortIndicator('lastModifiedDateTime')}</th>
+      <th>Aktionen</th>
+    </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
@@ -1150,6 +1361,8 @@ function spNavToCrumb(index) {
   }
 }
 
+let _spSearchHits = [];
+
 async function spSearch() {
   const input = document.getElementById('sp-search-input');
   const q = (input?.value || '').trim();
@@ -1157,24 +1370,40 @@ async function spSearch() {
   const wrap = document.getElementById('sp-main');
   wrap.innerHTML = '<div class="spinner">Suche…</div>';
   try {
-    const hits = await apiFetch(`/api/sharepoint/search?q=${encodeURIComponent(q)}`);
-    if (!hits.length) { wrap.innerHTML = '<div class="empty">Keine Ergebnisse.</div>'; return; }
-    const rows = hits.map(h => {
-      const sizeStr = h.size ? fmtSize(h.size) : '–';
-      const dateStr = h.lastModifiedDateTime ? h.lastModifiedDateTime.slice(0,10) : '–';
-      const snippet = h.summary ? `<div style="color:var(--muted);font-size:12px;margin-top:3px">${h.summary}</div>` : '';
-      return `<tr>
-        <td><strong>${esc(h.name)}</strong>${snippet}</td>
-        <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
-        <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
-        <td style="white-space:nowrap"><a href="${esc(h.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
-      </tr>`;
-    }).join('');
-    wrap.innerHTML = `<table>
-      <thead><tr><th>Datei</th><th>Größe</th><th>Geändert</th><th></th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    _spSearchHits = await apiFetch(`/api/sharepoint/search?q=${encodeURIComponent(q)}`);
+    renderSPSearchHits();
   } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+function renderSPSearchHits() {
+  const wrap = document.getElementById('sp-main');
+  if (!_spSearchHits.length) { wrap.innerHTML = '<div class="empty">Keine Ergebnisse.</div>'; return; }
+  const sorted = [..._spSearchHits].sort((a, b) => {
+    const dir = _spSortDir === 'asc' ? 1 : -1;
+    if (_spSortField === 'name') return dir * (a.name || '').localeCompare(b.name || '');
+    return dir * (a.lastModifiedDateTime || '').localeCompare(b.lastModifiedDateTime || '');
+  });
+  const rows = sorted.map(h => {
+    const sizeStr = h.size ? fmtSize(h.size) : '–';
+    const dateStr = h.lastModifiedDateTime ? h.lastModifiedDateTime.slice(0,10) : '–';
+    const snippet = h.summary ? `<div style="color:var(--muted);font-size:12px;margin-top:3px">${h.summary}</div>` : '';
+    return `<tr>
+      <td><strong>${esc(h.name)}</strong>${snippet}</td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
+      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
+      <td style="white-space:nowrap"><a href="${esc(h.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+    </tr>`;
+  }).join('');
+  const thStyle = 'cursor:pointer;user-select:none';
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th style="${thStyle}" onclick="spToggleSort('name', renderSPSearchHits)">Datei${spSortIndicator('name')}</th>
+      <th>Größe</th>
+      <th style="${thStyle}" onclick="spToggleSort('lastModifiedDateTime', renderSPSearchHits)">Geändert${spSortIndicator('lastModifiedDateTime')}</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
 }
 
 function spUploadModal() {
@@ -1236,6 +1465,356 @@ async function spUploadFile() {
     closeModal();
     spOpenDrive(null, _spCurrentFolderId || null, null);
   } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLEET / FUHRPARK
+═══════════════════════════════════════════════════════════════════════════ */
+
+let _fleetCache = [];
+
+function tuevInfo(tuevDate) {
+  if (!tuevDate) return { cls: 'tuev-none', text: 'kein TÜV' };
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(tuevDate); d.setHours(0,0,0,0);
+  const days = Math.round((d - today) / 86400000);
+  const dateStr = fmtDate(tuevDate);
+  if (days < 0) return { cls: 'tuev-red', text: `überfällig (${dateStr})` };
+  if (days <= 30) return { cls: 'tuev-yellow', text: `in ${days}d (${dateStr})` };
+  if (days <= 90) return { cls: 'tuev-yellow', text: `in ${days}d (${dateStr})` };
+  return { cls: 'tuev-green', text: dateStr };
+}
+
+async function loadFleet() {
+  const c = document.getElementById('content');
+  try {
+    const vehicles = await apiFetch('/api/fleet');
+    _fleetCache = vehicles;
+    if (!vehicles.length) {
+      c.innerHTML = '<div class="empty">Keine Fahrzeuge im Fuhrpark.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newVehicleModal()">+ Fahrzeug anlegen</button></div>';
+      return;
+    }
+
+    const cards = vehicles.map(v => {
+      const icon = v.type === 'car' ? '🚗' : '🚲';
+      const plate = v.plate ? `<span class="badge badge-blue">${esc(v.plate)}</span>` : '';
+      const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
+      const t = tuevInfo(v.tuevDate);
+      return `<div class="fleet-card" id="fc-${esc(v.id)}">
+        <div class="fleet-card-header">
+          <span class="fleet-icon">${icon}</span>
+          <h3>${esc(v.name)} ${plate}</h3>
+        </div>
+        <div class="fleet-meta">
+          <div><span class="fl">Hersteller</span> ${esc(v.make)}</div>
+          <div><span class="fl">Modell</span> ${esc(v.model)}</div>
+          <div><span class="fl">Baujahr</span> ${v.year}</div>
+          <div><span class="fl">km-Stand</span> ${km}</div>
+          ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
+          <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
+        </div>
+        <div class="fleet-actions">
+          <button class="btn btn-primary" onclick="fleetDetail('${esc(v.id)}')">Details</button>
+          <button class="btn btn-danger" onclick="deleteVehicle('${esc(v.id)}','${esc(v.name)}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    c.innerHTML = `<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newVehicleModal()">+ Fahrzeug anlegen</button></div>
+      <div class="fleet-grid">${cards}</div>`;
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ── New vehicle ── */
+function newVehicleModal() {
+  openModal(`
+    <h3>🚗 Neues Fahrzeug</h3>
+    <label>Typ</label>
+    <select id="fv-type">
+      <option value="car">🚗 Auto</option>
+      <option value="bike">🚲 Fahrrad</option>
+    </select>
+    <label>Hersteller</label>
+    <input id="fv-make" placeholder="z.B. Tesla, BMW, Canyon">
+    <label>Modell</label>
+    <input id="fv-model" placeholder="z.B. Model X, X3, Endurace CF SL">
+    <label>Baujahr</label>
+    <input id="fv-year" type="number" min="1900" max="2100" placeholder="2024">
+    <label>Name (optional, Standard: Hersteller + Modell)</label>
+    <input id="fv-name" placeholder="">
+    <label>Kennzeichen (optional)</label>
+    <input id="fv-plate" placeholder="z.B. TUT-AB 123">
+    <label>Farbe (optional)</label>
+    <input id="fv-color" placeholder="">
+    <label>km-Stand (optional)</label>
+    <input id="fv-km" type="number" min="0" placeholder="0">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="fv-save" onclick="createVehicle()">🚗 Anlegen</button>
+    </div>
+  `);
+}
+
+async function createVehicle() {
+  const type  = document.getElementById('fv-type').value;
+  const make  = document.getElementById('fv-make').value.trim();
+  const model = document.getElementById('fv-model').value.trim();
+  const year  = document.getElementById('fv-year').value;
+  const name  = document.getElementById('fv-name').value.trim();
+  const plate = document.getElementById('fv-plate').value.trim();
+  const color = document.getElementById('fv-color').value.trim();
+  const km    = document.getElementById('fv-km').value;
+  if (!make || !model || !year) return alert('Hersteller, Modell und Baujahr sind Pflicht.');
+  const btn = document.getElementById('fv-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch('/api/fleet', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type, make, model, year: Number(year),
+        name: name || undefined,
+        plate: plate || undefined,
+        color: color || undefined,
+        mileage: km ? Number(km) : undefined,
+      }),
+    });
+    closeModal();
+    showTab('fleet');
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '🚗 Anlegen'; }
+}
+
+/* ── Delete vehicle ── */
+async function deleteVehicle(id, name) {
+  if (!confirm(`Fahrzeug "${name}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    showTab('fleet');
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── Vehicle detail ── */
+async function fleetDetail(id) {
+  const c = document.getElementById('content');
+  try {
+    const v = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`);
+    const icon = v.type === 'car' ? '🚗' : '🚲';
+    const t = tuevInfo(v.tuevDate);
+    const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
+
+    // Insurance section
+    let insHtml = '<span style="color:var(--muted)">Keine Versicherung hinterlegt</span>';
+    if (v.insurance) {
+      insHtml = `<div class="fleet-meta" style="margin-top:6px">
+        <div><span class="fl">Anbieter</span> ${esc(v.insurance.provider)}</div>
+        <div><span class="fl">Typ</span> ${esc(v.insurance.type)}</div>
+        ${v.insurance.policyNumber ? `<div><span class="fl">Policen-Nr</span> ${esc(v.insurance.policyNumber)}</div>` : ''}
+        ${v.insurance.validUntil ? `<div><span class="fl">Gültig bis</span> ${fmtDate(v.insurance.validUntil)}</div>` : ''}
+        ${v.insurance.annualCost != null ? `<div><span class="fl">Kosten/Jahr</span> ${v.insurance.annualCost} €</div>` : ''}
+      </div>`;
+    }
+
+    // Service log
+    let serviceHtml = '<span style="color:var(--muted)">Keine Einträge</span>';
+    if (v.serviceLog?.length) {
+      const rows = v.serviceLog.slice().reverse().map(s => {
+        const skm = s.mileage != null ? `${Number(s.mileage).toLocaleString('de-DE')} km` : '–';
+        const cost = s.cost != null ? `${s.cost} €` : '–';
+        return `<tr>
+          <td style="white-space:nowrap">${fmtDate(s.date)}</td>
+          <td>${esc(s.type)}</td>
+          <td>${skm}</td>
+          <td>${cost}</td>
+          <td style="color:var(--muted);font-size:12px">${esc(s.notes || '')}</td>
+        </tr>`;
+      }).join('');
+      serviceHtml = `<table>
+        <thead><tr><th>Datum</th><th>Typ</th><th>km</th><th>Kosten</th><th>Notiz</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    }
+
+    c.innerHTML = `
+      <div style="margin-bottom:16px">
+        <button class="btn-ghost" onclick="showTab('fleet')">← Zurück</button>
+      </div>
+      <div class="card card-pad">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+          <span style="font-size:36px">${icon}</span>
+          <div>
+            <h2 style="font-size:20px;font-weight:700">${esc(v.name)}</h2>
+            <span style="color:var(--muted);font-size:13px">ID: ${esc(v.id)} · Erstellt: ${fmtDate(v.createdAt)}</span>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="editVehicleModal('${esc(v.id)}')">✏️ Bearbeiten</button>
+            <button class="btn btn-primary" onclick="addServiceModal('${esc(v.id)}')">🔧 Service</button>
+          </div>
+        </div>
+        <div class="fleet-meta" style="margin-bottom:20px">
+          <div><span class="fl">Hersteller</span> ${esc(v.make)}</div>
+          <div><span class="fl">Modell</span> ${esc(v.model)}</div>
+          <div><span class="fl">Baujahr</span> ${v.year}</div>
+          <div><span class="fl">km-Stand</span> ${km}</div>
+          ${v.plate ? `<div><span class="fl">Kennzeichen</span> ${esc(v.plate)}</div>` : ''}
+          ${v.vin ? `<div><span class="fl">FIN</span> ${esc(v.vin)}</div>` : ''}
+          ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
+          <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
+        </div>
+      </div>
+      <div class="card card-pad" style="margin-top:16px">
+        <h3 style="font-size:15px;margin-bottom:12px">🛡 Versicherung</h3>
+        ${insHtml}
+      </div>
+      <div class="card" style="margin-top:16px">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3 style="font-size:15px">🔧 Wartungshistorie (${v.serviceLog?.length || 0})</h3>
+          <button class="btn btn-primary" style="font-size:12px" onclick="addServiceModal('${esc(v.id)}')">+ Eintrag</button>
+        </div>
+        ${serviceHtml}
+      </div>`;
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ── Edit vehicle ── */
+function editVehicleModal(id) {
+  const v = _fleetCache.find(x => x.id === id);
+  if (!v) return alert('Fahrzeug nicht gefunden');
+  const tuevVal = v.tuevDate ? v.tuevDate.slice(0, 10) : '';
+  openModal(`
+    <h3>✏️ Fahrzeug bearbeiten</h3>
+    <label>Name</label>
+    <input id="ev-name" value="${esc(v.name || '')}">
+    <label>Hersteller</label>
+    <input id="ev-make" value="${esc(v.make || '')}">
+    <label>Modell</label>
+    <input id="ev-model" value="${esc(v.model || '')}">
+    <label>Baujahr</label>
+    <input id="ev-year" type="number" value="${v.year || ''}">
+    <label>Kennzeichen</label>
+    <input id="ev-plate" value="${esc(v.plate || '')}">
+    <label>FIN</label>
+    <input id="ev-vin" value="${esc(v.vin || '')}">
+    <label>Farbe</label>
+    <input id="ev-color" value="${esc(v.color || '')}">
+    <label>km-Stand</label>
+    <input id="ev-km" type="number" value="${v.mileage ?? ''}">
+    <label>TÜV-Datum</label>
+    <input id="ev-tuev" type="date" value="${tuevVal}">
+    <label>Versicherung — Anbieter</label>
+    <input id="ev-ins-prov" value="${esc(v.insurance?.provider || '')}">
+    <label>Versicherung — Typ</label>
+    <input id="ev-ins-type" value="${esc(v.insurance?.type || '')}" placeholder="Haftpflicht, Vollkasko, …">
+    <label>Versicherung — Kosten/Jahr (€)</label>
+    <input id="ev-ins-cost" type="number" value="${v.insurance?.annualCost ?? ''}">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="ev-save" onclick="saveVehicle('${esc(id)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveVehicle(id) {
+  const name  = document.getElementById('ev-name').value.trim();
+  const make  = document.getElementById('ev-make').value.trim();
+  const model = document.getElementById('ev-model').value.trim();
+  const year  = Number(document.getElementById('ev-year').value);
+  const plate = document.getElementById('ev-plate').value.trim();
+  const vin   = document.getElementById('ev-vin').value.trim();
+  const color = document.getElementById('ev-color').value.trim();
+  const km    = document.getElementById('ev-km').value;
+  const tuev  = document.getElementById('ev-tuev').value;
+  const insProv = document.getElementById('ev-ins-prov').value.trim();
+  const insType = document.getElementById('ev-ins-type').value.trim();
+  const insCost = document.getElementById('ev-ins-cost').value;
+
+  if (!make || !model) return alert('Hersteller und Modell sind Pflicht.');
+
+  const body = {
+    name, make, model, year,
+    plate: plate || undefined,
+    vin: vin || undefined,
+    color: color || undefined,
+    mileage: km !== '' ? Number(km) : undefined,
+    tuevDate: tuev || undefined,
+  };
+  if (insProv || insType) {
+    body.insurance = {
+      provider: insProv || '–',
+      type: insType || '–',
+      annualCost: insCost !== '' ? Number(insCost) : undefined,
+    };
+  }
+
+  const btn = document.getElementById('ev-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    closeModal();
+    // Reload cache & detail
+    _fleetCache = await apiFetch('/api/fleet');
+    fleetDetail(id);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+/* ── Add service entry ── */
+function addServiceModal(vehicleId) {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(`
+    <h3>🔧 Service-Eintrag</h3>
+    <label>Datum</label>
+    <input id="sv-date" type="date" value="${today}">
+    <label>Typ</label>
+    <select id="sv-type">
+      <option value="Inspektion">Inspektion</option>
+      <option value="Ölwechsel">Ölwechsel</option>
+      <option value="Reifenwechsel">Reifenwechsel</option>
+      <option value="Reparatur">Reparatur</option>
+      <option value="TÜV/HU">TÜV/HU</option>
+      <option value="Sonstiges">Sonstiges</option>
+    </select>
+    <label>km-Stand (optional)</label>
+    <input id="sv-km" type="number" min="0">
+    <label>Kosten € (optional)</label>
+    <input id="sv-cost" type="number" min="0" step="0.01">
+    <label>Notiz (optional)</label>
+    <input id="sv-notes" placeholder="z.B. Bremsbeläge vorne gewechselt">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="sv-save" onclick="saveService('${esc(vehicleId)}')">🔧 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveService(vehicleId) {
+  const date  = document.getElementById('sv-date').value;
+  const type  = document.getElementById('sv-type').value;
+  const km    = document.getElementById('sv-km').value;
+  const cost  = document.getElementById('sv-cost').value;
+  const notes = document.getElementById('sv-notes').value.trim();
+  if (!date || !type) return alert('Datum und Typ sind Pflicht.');
+  const btn = document.getElementById('sv-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/fleet/${encodeURIComponent(vehicleId)}/service`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date, type,
+        mileage: km ? Number(km) : undefined,
+        cost: cost ? Number(cost) : undefined,
+        notes: notes || undefined,
+      }),
+    });
+    closeModal();
+    _fleetCache = await apiFetch('/api/fleet');
+    fleetDetail(vehicleId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '🔧 Speichern'; }
 }
 </script>
 </body>

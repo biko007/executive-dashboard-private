@@ -45,6 +45,8 @@ const DRAFTS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/mail-drafts')
 const DOCS_DIR    = path.join(HOME, '.openclaw/workspace/artifacts/personal/documents');
 const DOCS_META   = path.join(DOCS_DIR, 'metadata.json');
 const DOCS_CATEGORIES = ['vertraege', 'rechnungen', 'notizen', 'sonstiges'];
+const FLEET_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/fleet');
+const FLEET_FILE  = path.join(FLEET_DIR, 'vehicles.json');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -398,6 +400,138 @@ app.get('/api/health', auth, (req, res) => {
   }
 });
 
+// ── API: Health Trends & Alerts ───────────────────────────────────────────────
+
+function readHealthEntries(daysCutoff) {
+  if (!fs.existsSync(HEALTH_LOG)) return [];
+  const cutoff = new Date(Date.now() - daysCutoff * 86_400_000).toISOString();
+  return fs.readFileSync(HEALTH_LOG, 'utf8')
+    .split('\n').filter(Boolean)
+    .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } })
+    .filter(e => (e.timestamp || '') >= cutoff);
+}
+
+function computeWeightTrend(days) {
+  const entries = readHealthEntries(days).filter(e => e.type === 'weight' && e.value != null);
+  if (!entries.length) return null;
+  const values = entries.map(e => e.value);
+  const current = values[values.length - 1];
+  const first = values[0];
+  const change = +(current - first).toFixed(2);
+  const avg = +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
+  const direction = Math.abs(change) < 0.3 ? 'stable' : change > 0 ? 'up' : 'down';
+  return {
+    current: +current.toFixed(1), min: +Math.min(...values).toFixed(1),
+    max: +Math.max(...values).toFixed(1), avg, change: +change.toFixed(1),
+    direction, dataPoints: values.length,
+  };
+}
+
+function computeSleepTrend(days) {
+  const entries = readHealthEntries(days).filter(e => e.type === 'sleep' && e.value != null);
+  if (!entries.length) return null;
+  const durations = entries.map(e => e.value);
+  const qualities = entries.filter(e => e.quality != null).map(e => e.quality);
+  const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0;
+  return {
+    avgDuration: avg(durations), minDuration: +Math.min(...durations).toFixed(1),
+    maxDuration: +Math.max(...durations).toFixed(1),
+    avgQuality: qualities.length ? +avg(qualities) : 0,
+    dataPoints: durations.length,
+  };
+}
+
+function computeAlerts() {
+  const alerts = [];
+  const recent = readHealthEntries(7);
+
+  // Sleep < 6h on 3+ of last 7 nights
+  const sleepEntries = recent.filter(e => e.type === 'sleep' && e.value != null);
+  const sleepByDay = new Map();
+  for (const s of sleepEntries) {
+    const day = s.timestamp.slice(0, 10);
+    const prev = sleepByDay.get(day) ?? 0;
+    if (s.value > prev) sleepByDay.set(day, s.value);
+  }
+  const shortNights = Array.from(sleepByDay.values()).filter(h => h < 6).length;
+  if (shortNights >= 3) {
+    alerts.push({ type: 'sleep_low_week', severity: 'warning', message: `Schlaf unter 6h an ${shortNights} von 7 Tagen` });
+  }
+
+  // Sleep < 5h last night
+  const lastSleepValues = Array.from(sleepByDay.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  if (lastSleepValues.length && lastSleepValues[0][1] < 5) {
+    alerts.push({ type: 'sleep_critical', severity: 'critical', message: `Schlaf letzte Nacht nur ${lastSleepValues[0][1].toFixed(1)}h` });
+  }
+
+  // Weight change > 2kg in 7 days
+  const wt = computeWeightTrend(7);
+  if (wt && Math.abs(wt.change) > 2) {
+    const dir = wt.change > 0 ? '+' : '';
+    alerts.push({ type: 'weight_change', severity: 'warning', message: `Gewichtsveränderung ${dir}${wt.change} kg in 7 Tagen` });
+  }
+
+  // No Withings data for 3+ days
+  const threeDay = readHealthEntries(3).filter(e => e.source === 'withings');
+  if (!threeDay.length) {
+    alerts.push({ type: 'no_withings_data', severity: 'info', message: 'Keine Withings-Daten seit 3+ Tagen' });
+  }
+
+  return alerts;
+}
+
+app.get('/api/health/trends', auth, (req, res) => {
+  try {
+    const days = Math.min(Math.max(1, Number(req.query.days) || 30), 365);
+    res.json({
+      weight: computeWeightTrend(days),
+      sleep: computeSleepTrend(days),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/health/alerts', auth, (req, res) => {
+  try {
+    res.json(computeAlerts());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.get('/api/health/chart-data', auth, (req, res) => {
+  try {
+    const type = String(req.query.type || 'weight');
+    const days = Math.min(Math.max(1, Number(req.query.days) || 90), 365);
+    const entries = readHealthEntries(days);
+
+    if (type === 'weight') {
+      const data = entries
+        .filter(e => e.type === 'weight' && e.value != null)
+        .map(e => ({ date: e.timestamp.slice(0, 10), value: e.value }))
+        .sort((a, b) => a.date.localeCompare(b.date));
+      res.json(data);
+    } else if (type === 'sleep') {
+      // Deduplicate: keep longest sleep per day
+      const byDay = new Map();
+      for (const e of entries.filter(e => e.type === 'sleep' && e.value != null)) {
+        const day = e.timestamp.slice(0, 10);
+        const prev = byDay.get(day);
+        if (!prev || e.value > prev.value) {
+          byDay.set(day, { date: day, duration: e.value, quality: e.quality ?? null });
+        }
+      }
+      const data = Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
+      res.json(data);
+    } else {
+      res.status(400).json({ error: 'type must be weight or sleep' });
+    }
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: Drafts ───────────────────────────────────────────────────────────────
 
 app.get('/api/drafts', auth, (req, res) => {
@@ -739,6 +873,7 @@ app.get('/api/sharepoint/search', auth, async (req, res) => {
         query: { queryString: q },
         from: 0,
         size: 25,
+        region: 'DEU',
       }],
     };
     const data = await graphRequest('POST', 'https://graph.microsoft.com/v1.0/search/query', body);
@@ -805,6 +940,131 @@ app.post('/api/sharepoint/upload', auth, spUpload.single('file'), async (req, re
     }
     const result = await upstream.json();
     res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: Fleet ────────────────────────────────────────────────────────────────
+
+function readFleet() {
+  try { return JSON.parse(fs.readFileSync(FLEET_FILE, 'utf8')); } catch { return []; }
+}
+function writeFleet(vehicles) {
+  fs.mkdirSync(FLEET_DIR, { recursive: true });
+  fs.writeFileSync(FLEET_FILE, JSON.stringify(vehicles, null, 2));
+}
+
+// List all vehicles
+app.get('/api/fleet', auth, (req, res) => {
+  try {
+    res.json(readFleet());
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create vehicle
+app.post('/api/fleet', auth, (req, res) => {
+  try {
+    const { type, make, model, year, name, plate, vin, color, mileage } = req.body;
+    if (!type || !make || !model || !year) {
+      return res.status(400).json({ error: 'type, make, model and year are required' });
+    }
+    if (type !== 'car' && type !== 'bike') {
+      return res.status(400).json({ error: 'type must be "car" or "bike"' });
+    }
+    const y = Number(year);
+    if (!Number.isFinite(y) || y < 1900 || y > 2100) {
+      return res.status(400).json({ error: 'Invalid year' });
+    }
+    const id = 'v-' + Math.random().toString(16).slice(2, 8);
+    const now = new Date().toISOString();
+    const vehicle = {
+      id, type,
+      name: String(name || `${make} ${model}`),
+      plate: plate || undefined,
+      vin: vin || undefined,
+      make: String(make), model: String(model), year: y,
+      color: color || undefined,
+      mileage: mileage != null ? Number(mileage) : undefined,
+      serviceLog: [], documents: [],
+      createdAt: now, updatedAt: now,
+    };
+    const all = readFleet();
+    all.push(vehicle);
+    writeFleet(all);
+    res.status(201).json(vehicle);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Get vehicle by ID
+app.get('/api/fleet/:id', auth, (req, res) => {
+  try {
+    const v = readFleet().find(v => v.id === req.params.id);
+    if (!v) return res.status(404).json({ error: 'Vehicle not found' });
+    res.json(v);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update vehicle
+app.put('/api/fleet/:id', auth, (req, res) => {
+  try {
+    const all = readFleet();
+    const idx = all.findIndex(v => v.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Vehicle not found' });
+    const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'insurance'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+    }
+    all[idx].updatedAt = new Date().toISOString();
+    writeFleet(all);
+    res.json(all[idx]);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete vehicle
+app.delete('/api/fleet/:id', auth, (req, res) => {
+  try {
+    const all = readFleet();
+    const idx = all.findIndex(v => v.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Vehicle not found' });
+    all.splice(idx, 1);
+    writeFleet(all);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Add service entry
+app.post('/api/fleet/:id/service', auth, (req, res) => {
+  try {
+    const all = readFleet();
+    const idx = all.findIndex(v => v.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Vehicle not found' });
+    const { date, type, mileage, cost, notes } = req.body;
+    if (!date || !type) return res.status(400).json({ error: 'date and type are required' });
+    const entry = {
+      date: String(date),
+      type: String(type),
+      mileage: mileage != null ? Number(mileage) : undefined,
+      cost: cost != null ? Number(cost) : undefined,
+      notes: notes || undefined,
+    };
+    all[idx].serviceLog.push(entry);
+    if (entry.mileage != null && (all[idx].mileage == null || entry.mileage > all[idx].mileage)) {
+      all[idx].mileage = entry.mileage;
+    }
+    all[idx].updatedAt = new Date().toISOString();
+    writeFleet(all);
+    res.status(201).json(all[idx]);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
