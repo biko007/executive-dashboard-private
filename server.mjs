@@ -47,6 +47,9 @@ const DOCS_META   = path.join(DOCS_DIR, 'metadata.json');
 const DOCS_CATEGORIES = ['vertraege', 'rechnungen', 'notizen', 'sonstiges'];
 const FLEET_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/fleet');
 const FLEET_FILE  = path.join(FLEET_DIR, 'vehicles.json');
+const LINKS_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/links');
+const LINKS_FILE  = path.join(LINKS_DIR, 'links.json');
+const SP_INDEX_FILE = path.join(HOME, '.openclaw/workspace/artifacts/personal/sharepoint/sharepoint-index.json');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -1068,6 +1071,119 @@ app.post('/api/fleet/:id/service', auth, (req, res) => {
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Document Links API ────────────────────────────────────────────────────────
+
+function readLinks() {
+  try {
+    if (fs.existsSync(LINKS_FILE)) return JSON.parse(fs.readFileSync(LINKS_FILE, 'utf8'));
+  } catch {}
+  return [];
+}
+
+function writeLinks(links) {
+  fs.mkdirSync(LINKS_DIR, { recursive: true });
+  fs.writeFileSync(LINKS_FILE, JSON.stringify(links, null, 2), 'utf8');
+}
+
+function readSpIndex() {
+  try {
+    if (fs.existsSync(SP_INDEX_FILE)) {
+      const idx = JSON.parse(fs.readFileSync(SP_INDEX_FILE, 'utf8'));
+      return idx?.files || [];
+    }
+  } catch {}
+  return [];
+}
+
+app.get('/api/links', auth, (req, res) => {
+  res.json(readLinks());
+});
+
+app.get('/api/links/search/sp', auth, (req, res) => {
+  const query = String(req.query.q || '').trim();
+  if (!query) return res.json([]);
+  const files = readSpIndex();
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const matches = files.filter(f => {
+    const haystack = `${f.name} ${f.path} ${f.siteName} ${f.driveName}`.toLowerCase();
+    return terms.every(t => haystack.includes(t));
+  });
+  matches.sort((a, b) => (b.lastModifiedDateTime || '').localeCompare(a.lastModifiedDateTime || ''));
+  const results = matches.slice(0, 15).map(f => ({
+    name: f.name,
+    webUrl: f.webUrl,
+    driveId: f.driveId || '',
+    itemId: f.siteId + '::' + f.driveId + '::' + f.path,
+    siteName: f.siteName || '',
+    path: f.path || '',
+    size: f.size || 0,
+  }));
+  res.json(results);
+});
+
+app.get('/api/links/:entityType/:entityId', auth, (req, res) => {
+  const links = readLinks().filter(
+    l => l.entityType === req.params.entityType && l.entityId === req.params.entityId
+  );
+  res.json(links);
+});
+
+app.post('/api/links', auth, async (req, res) => {
+  try {
+    const { entityType, entityId, docType, spItemId, localPath, label } = req.body;
+    if (!entityType || !entityId || !docType || !label) {
+      return res.status(400).json({ error: 'entityType, entityId, docType, label required' });
+    }
+
+    const links = readLinks();
+    const { randomBytes } = await import('node:crypto');
+    const id = 'lnk-' + randomBytes(3).toString('hex');
+    const link = {
+      id,
+      entityType,
+      entityId,
+      docType,
+      label,
+      createdAt: new Date().toISOString(),
+    };
+
+    if (docType === 'sharepoint' && spItemId) {
+      // Look up SP details from index
+      const files = readSpIndex();
+      const match = files.find(f => {
+        const fId = f.siteId + '::' + f.driveId + '::' + f.path;
+        return fId === spItemId;
+      });
+      if (match) {
+        link.spItemId = spItemId;
+        link.spDriveId = match.driveId;
+        link.spName = match.name;
+        link.spWebUrl = match.webUrl;
+      } else {
+        link.spItemId = spItemId;
+      }
+    } else if (docType === 'local' && localPath) {
+      link.localPath = localPath;
+      link.localName = path.basename(localPath);
+    }
+
+    links.push(link);
+    writeLinks(links);
+    res.status(201).json(link);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/links/:linkId', auth, (req, res) => {
+  const links = readLinks();
+  const idx = links.findIndex(l => l.id === req.params.linkId);
+  if (idx === -1) return res.status(404).json({ error: 'Link not found' });
+  const removed = links.splice(idx, 1)[0];
+  writeLinks(links);
+  res.json(removed);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

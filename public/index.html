@@ -300,7 +300,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 async function loadTrips() {
   const c = document.getElementById('content');
   try {
-    const [trips, docs] = await Promise.all([apiFetch('/api/trips'), apiFetch('/api/documents')]);
+    const [trips, docs, allLinks] = await Promise.all([apiFetch('/api/trips'), apiFetch('/api/documents'), apiFetch('/api/links').catch(() => [])]);
     _tripsCache = trips;
     _docsCache = docs;
     if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
@@ -350,6 +350,26 @@ async function loadTrips() {
           }).join('')}
         </div>` : '';
 
+      const tripLinks = (allLinks || []).filter(l => l.entityType === 'trip' && l.entityId === t.id);
+      const linksSection = tripLinks.length ? `
+        <div class="segments">
+          <div class="seg-header">📎 Verknüpfte Dokumente (${tripLinks.length})</div>
+          ${tripLinks.map(l => {
+            const lIcon = l.docType === 'sharepoint' ? '☁️' : '📁';
+            const lName = l.docType === 'sharepoint' ? esc(l.spName || '') : esc(l.localName || '');
+            const lLink = l.docType === 'sharepoint' && l.spWebUrl
+              ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${lName}</a>`
+              : lName;
+            return `<div class="seg-row" style="display:flex;align-items:center;gap:8px">
+              <span>${lIcon}</span>
+              <span style="font-weight:500">${esc(l.label)}</span>
+              <span style="color:var(--muted);font-size:13px">— ${lLink}</span>
+              <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;margin-left:auto"
+                onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>
+            </div>`;
+          }).join('')}
+        </div>` : '';
+
       return `<div class="trip-card" id="tc-${esc(t.id)}">
         <div class="trip-top">
           <div>
@@ -357,6 +377,7 @@ async function loadTrips() {
             <div class="trip-dates">📅 ${esc(t.start_date)} → ${esc(t.end_date)} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
           </div>
           <div style="display:flex;gap:6px">
+            <button class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
             <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
             <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
           </div>
@@ -364,6 +385,7 @@ async function loadTrips() {
         <div class="trip-grid">${meta}</div>
         ${segs}
         ${docsSection}
+        ${linksSection}
       </div>`;
     }).join('');
     stamp();
@@ -756,25 +778,36 @@ function renderSleepChart(data) {
 async function loadDrafts() {
   const c = document.getElementById('content');
   try {
-    const drafts = await apiFetch('/api/drafts');
+    const [drafts, draftLinks] = await Promise.all([apiFetch('/api/drafts'), apiFetch('/api/links').catch(() => [])]);
     _draftsCache = drafts;
     if (!drafts.length) { c.innerHTML = '<div class="empty">Keine Drafts vorhanden.</div>'; return; }
     const statusBadge = s => ({'draft':'badge-yellow','approved':'badge-blue','sent':'badge-green'}[s]||'badge-muted');
-    const rows = drafts.map(d => `
+    const rows = drafts.map(d => {
+      const dLinks = (draftLinks || []).filter(l => l.entityType === 'draft' && l.entityId === d.id);
+      const dLinksHtml = dLinks.length ? dLinks.map(l => {
+        const li = l.docType === 'sharepoint' ? '☁️' : '📁';
+        const ln = l.docType === 'sharepoint' && l.spWebUrl
+          ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent)">${esc(l.spName||'')}</a>`
+          : esc(l.localName||'');
+        return `${li}${esc(l.label)}:${ln}`;
+      }).join(' ') : '';
+      return `
       <tr style="cursor:pointer" onclick="toggleDraft('${esc(d.id)}')">
         <td style="white-space:nowrap">${fmtDate(d.createdAt)}</td>
         <td><span class="badge badge-blue">${esc(d.account||'–')}</span></td>
         <td><span class="badge ${statusBadge(d.status)}">${esc(d.status||'–')}</span></td>
-        <td>${esc(d.subject||'–')}</td>
+        <td>${esc(d.subject||'–')}${dLinksHtml ? `<div style="font-size:11px;margin-top:2px">${dLinksHtml}</div>` : ''}</td>
         <td style="color:var(--muted);font-size:12px">${esc((d.to||[]).join(', '))}</td>
         <td style="white-space:nowrap" onclick="event.stopPropagation()">
+          <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="linkDocModal('draft','${esc(d.id)}','loadDraftsRefresh')">📎</button>
           <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editDraft('${esc(d.id)}')">✏️</button>
           <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
         </td>
       </tr>
       <tr id="db-${esc(d.id)}" style="display:none" class="draft-body-row">
         <td colspan="6"><div class="draft-body">${esc(d.bodyText||'(kein Body)')}</div></td>
-      </tr>`).join('');
+      </tr>`;
+    }).join('');
     c.innerHTML = `<div class="card"><table>
       <thead><tr><th>Erstellt</th><th>Konto</th><th>Status</th><th>Betreff</th><th>An</th><th>Aktionen</th></tr></thead>
       <tbody>${rows}</tbody>
@@ -840,7 +873,7 @@ function calTimePart(iso) { return (iso || '').slice(11, 16); }
 async function loadCalendar() {
   const c = document.getElementById('content');
   try {
-    const events = await apiFetch('/api/calendar');
+    const [events, calLinks] = await Promise.all([apiFetch('/api/calendar'), apiFetch('/api/links').catch(() => [])]);
     _calCache = events;
 
     const tz = 'Europe/Berlin';
@@ -868,14 +901,24 @@ async function loadCalendar() {
           const teams  = ev.onlineMeeting?.joinUrl ? '🔗 Online-Meeting' : '';
           const sub    = [loc, teams].filter(Boolean).join(' &nbsp;|&nbsp; ');
           const evId   = ev.id || '';
+          const evLinks = (calLinks || []).filter(l => l.entityType === 'calendar' && l.entityId === evId);
+          const evLinksHtml = evLinks.length ? `<div class="ev-sub" style="margin-top:4px">${evLinks.map(l => {
+            const li = l.docType === 'sharepoint' ? '☁️' : '📁';
+            const ln = l.docType === 'sharepoint' && l.spWebUrl
+              ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent)">${esc(l.spName||'')}</a>`
+              : esc(l.localName||'');
+            return `${li} ${esc(l.label)}: ${ln} <button class="btn btn-danger" style="padding:1px 5px;font-size:10px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
+          }).join(' &nbsp; ')}</div>` : '';
           return `<div class="ev-row">
             <div class="ev-time">${time}</div>
             <div class="ev-body" style="flex:1">
               <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
               ${sub ? `<div class="ev-sub">${sub}</div>` : ''}
               ${ev.bodyPreview ? `<div class="ev-sub" style="margin-top:2px">${esc(ev.bodyPreview.slice(0,120))}${ev.bodyPreview.length>120?'…':''}</div>` : ''}
+              ${evLinksHtml}
             </div>
             <div style="display:flex;gap:6px;align-items:center;white-space:nowrap">
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="linkDocModal('calendar','${esc(evId)}','loadCalendarRefresh')">📎</button>
               <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editEventModal('${esc(evId)}')">✏️</button>
               <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
             </div>
@@ -1599,6 +1642,7 @@ async function fleetDetail(id) {
   const c = document.getElementById('content');
   try {
     const v = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`);
+    const links = await fetchEntityLinks('fleet', id);
     const icon = v.type === 'car' ? '🚗' : '🚲';
     const t = tuevInfo(v.tuevDate);
     const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
@@ -1672,7 +1716,8 @@ async function fleetDetail(id) {
           <button class="btn btn-primary" style="font-size:12px" onclick="addServiceModal('${esc(v.id)}')">+ Eintrag</button>
         </div>
         ${serviceHtml}
-      </div>`;
+      </div>
+      ${renderLinksSection(links, 'fleet', id, 'fleetDetail')}`;
     stamp();
   } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
 }
@@ -1815,6 +1860,128 @@ async function saveService(vehicleId) {
     _fleetCache = await apiFetch('/api/fleet');
     fleetDetail(vehicleId);
   } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '🔧 Speichern'; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Document Links — universale Dokumenten-Verknüpfung
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+async function fetchEntityLinks(entityType, entityId) {
+  try {
+    return await apiFetch(`/api/links/${encodeURIComponent(entityType)}/${encodeURIComponent(entityId)}`);
+  } catch { return []; }
+}
+
+function renderLinksSection(links, entityType, entityId, refreshFn) {
+  const rows = links.map(l => {
+    const icon = l.docType === 'sharepoint' ? '☁️' : '📁';
+    const name = l.docType === 'sharepoint' ? esc(l.spName || '') : esc(l.localName || '');
+    const nameHtml = l.docType === 'sharepoint' && l.spWebUrl
+      ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${name}</a>`
+      : `<span>${name}</span>`;
+    return `<div class="seg-row" style="display:flex;align-items:center;gap:8px;padding:8px 12px">
+      <span title="${l.docType === 'sharepoint' ? 'SharePoint' : 'Lokal'}">${icon}</span>
+      <span style="font-weight:500">${esc(l.label)}</span>
+      <span style="color:var(--muted);font-size:13px">— ${nameHtml}</span>
+      <span style="color:var(--muted);font-size:11px;margin-left:auto">${l.id}</span>
+      <button class="btn btn-danger" style="padding:2px 8px;font-size:11px"
+        onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}',${esc(JSON.stringify(refreshFn))})">✕</button>
+    </div>`;
+  }).join('');
+
+  return `<div class="card card-pad" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <h3 style="font-size:15px">📎 Verknüpfte Dokumente (${links.length})</h3>
+      <button class="btn btn-primary" style="font-size:12px"
+        onclick="linkDocModal('${esc(entityType)}','${esc(entityId)}',${esc(JSON.stringify(refreshFn))})">+ Verknüpfen</button>
+    </div>
+    ${rows || '<span style="color:var(--muted)">Keine Dokumente verknüpft</span>'}
+  </div>`;
+}
+
+async function unlinkDoc(linkId, entityType, entityId, refreshFn) {
+  if (!confirm('Verknüpfung entfernen?')) return;
+  try {
+    await apiFetch(`/api/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
+    if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+function linkDocModal(entityType, entityId, refreshFn) {
+  openModal(`
+    <h3>📎 Dokument verknüpfen</h3>
+    <label>Label</label>
+    <input id="ld-label" placeholder="z.B. Kaufvertrag, Rechnung, …">
+    <label>SharePoint-Suche</label>
+    <div style="display:flex;gap:8px">
+      <input id="ld-search" placeholder="Suchbegriff" style="flex:1"
+        onkeydown="if(event.key==='Enter')searchSpForLink()">
+      <button class="btn btn-primary" onclick="searchSpForLink()">🔍 Suchen</button>
+    </div>
+    <div id="ld-results" style="margin-top:12px;max-height:300px;overflow-y:auto"></div>
+    <input type="hidden" id="ld-entityType" value="${esc(entityType)}">
+    <input type="hidden" id="ld-entityId" value="${esc(entityId)}">
+    <input type="hidden" id="ld-refreshFn" value="${esc(refreshFn)}">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+    </div>
+  `);
+}
+
+async function searchSpForLink() {
+  const q = document.getElementById('ld-search').value.trim();
+  const container = document.getElementById('ld-results');
+  if (!q) { container.innerHTML = '<span style="color:var(--muted)">Suchbegriff eingeben</span>'; return; }
+  container.innerHTML = '<span style="color:var(--muted)">Suche läuft…</span>';
+  try {
+    const results = await apiFetch(`/api/links/search/sp?q=${encodeURIComponent(q)}`);
+    if (!results.length) { container.innerHTML = '<span style="color:var(--muted)">Keine Treffer</span>'; return; }
+    window._spLinkResults = results;
+    container.innerHTML = results.map((r, i) => `
+      <div style="padding:8px;border-bottom:1px solid var(--border);cursor:pointer;display:flex;align-items:center;gap:8px"
+           onclick="selectSpForLink(${i})"
+           onmouseover="this.style.background='var(--hover)'" onmouseout="this.style.background=''">
+        <span>☁️</span>
+        <div style="flex:1">
+          <div style="font-weight:500">${esc(r.name)}</div>
+          <div style="color:var(--muted);font-size:12px">${esc(r.siteName)} › ${esc(r.path)}</div>
+        </div>
+        <span style="color:var(--muted);font-size:11px">${fmtSize(r.size)}</span>
+      </div>
+    `).join('');
+  } catch (e) { container.innerHTML = `<span style="color:red">Fehler: ${esc(e.message)}</span>`; }
+}
+
+async function unlinkAndReload(linkId) {
+  if (!confirm('Verknüpfung entfernen?')) return;
+  try {
+    await apiFetch(`/api/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
+    // Reload current tab
+    const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
+    if (activeTab) showTab(activeTab);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+function loadTripsRefresh() { showTab('trips'); }
+function loadCalendarRefresh() { showTab('calendar'); }
+function loadDraftsRefresh() { showTab('drafts'); }
+
+async function selectSpForLink(idx) {
+  const r = window._spLinkResults?.[idx];
+  if (!r) return;
+  const label = document.getElementById('ld-label').value.trim() || r.name;
+  const entityType = document.getElementById('ld-entityType').value;
+  const entityId = document.getElementById('ld-entityId').value;
+  const refreshFn = document.getElementById('ld-refreshFn').value;
+  try {
+    await apiFetch('/api/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entityType, entityId, docType: 'sharepoint', spItemId: r.itemId, label }),
+    });
+    closeModal();
+    if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 </script>
 </body>
