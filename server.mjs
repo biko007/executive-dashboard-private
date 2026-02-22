@@ -957,6 +957,16 @@ function writeFleet(vehicles) {
   fs.mkdirSync(FLEET_DIR, { recursive: true });
   fs.writeFileSync(FLEET_FILE, JSON.stringify(vehicles, null, 2));
 }
+function slugifyFleet(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+function makeReadableFleetId(make, model, existingIds) {
+  const base = 'v-' + slugifyFleet(make) + '-' + slugifyFleet(model);
+  if (!existingIds.includes(base)) return base;
+  let n = 2;
+  while (existingIds.includes(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
 
 // List all vehicles
 app.get('/api/fleet', auth, (req, res) => {
@@ -981,7 +991,8 @@ app.post('/api/fleet', auth, (req, res) => {
     if (!Number.isFinite(y) || y < 1900 || y > 2100) {
       return res.status(400).json({ error: 'Invalid year' });
     }
-    const id = 'v-' + Math.random().toString(16).slice(2, 8);
+    const all = readFleet();
+    const id = makeReadableFleetId(String(make), String(model), all.map(v => v.id));
     const now = new Date().toISOString();
     const vehicle = {
       id, type,
@@ -994,7 +1005,6 @@ app.post('/api/fleet', auth, (req, res) => {
       serviceLog: [], documents: [],
       createdAt: now, updatedAt: now,
     };
-    const all = readFleet();
     all.push(vehicle);
     writeFleet(all);
     res.status(201).json(vehicle);
@@ -1023,6 +1033,33 @@ app.put('/api/fleet/:id', auth, (req, res) => {
     const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'insurance'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+    }
+    // Handle ID change
+    if (req.body.newId) {
+      let newId = req.body.newId.toLowerCase();
+      if (!newId.startsWith('v-')) newId = 'v-' + newId;
+      if (!/^v-[a-z0-9]+(-[a-z0-9]+)*$/.test(newId) || newId.length < 4) {
+        return res.status(400).json({ error: 'Invalid ID format' });
+      }
+      if (all.some(v => v.id === newId)) {
+        return res.status(409).json({ error: 'ID already in use' });
+      }
+      const oldId = all[idx].id;
+      all[idx].id = newId;
+      // Rename docs directory
+      const oldDir = path.join(FLEET_DIR, 'docs', oldId);
+      const newDir = path.join(FLEET_DIR, 'docs', newId);
+      if (fs.existsSync(oldDir)) fs.renameSync(oldDir, newDir);
+      // Update link-store references
+      const links = readLinks();
+      let linksChanged = false;
+      for (const link of links) {
+        if (link.entityType === 'fleet' && link.entityId === oldId) {
+          link.entityId = newId;
+          linksChanged = true;
+        }
+      }
+      if (linksChanged) writeLinks(links);
     }
     all[idx].updatedAt = new Date().toISOString();
     writeFleet(all);

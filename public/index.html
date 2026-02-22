@@ -1729,6 +1729,9 @@ function editVehicleModal(id) {
   const tuevVal = v.tuevDate ? v.tuevDate.slice(0, 10) : '';
   openModal(`
     <h3>✏️ Fahrzeug bearbeiten</h3>
+    <label>ID</label>
+    <input id="ev-id" value="${esc(v.id)}">
+    <small style="color:var(--muted)">Nur Kleinbuchstaben, Zahlen, Bindestriche. Prefix "v-" wird automatisch ergänzt.</small>
     <label>Name</label>
     <input id="ev-name" value="${esc(v.name || '')}">
     <label>Hersteller</label>
@@ -1761,6 +1764,7 @@ function editVehicleModal(id) {
 }
 
 async function saveVehicle(id) {
+  const newIdVal = document.getElementById('ev-id').value.trim().toLowerCase();
   const name  = document.getElementById('ev-name').value.trim();
   const make  = document.getElementById('ev-make').value.trim();
   const model = document.getElementById('ev-model').value.trim();
@@ -1784,6 +1788,9 @@ async function saveVehicle(id) {
     mileage: km !== '' ? Number(km) : undefined,
     tuevDate: tuev || undefined,
   };
+  // Add newId if the ID was changed
+  const effectiveNewId = newIdVal.startsWith('v-') ? newIdVal : 'v-' + newIdVal;
+  if (effectiveNewId !== id) body.newId = effectiveNewId;
   if (insProv || insType) {
     body.insurance = {
       provider: insProv || '–',
@@ -1795,15 +1802,15 @@ async function saveVehicle(id) {
   const btn = document.getElementById('ev-save');
   btn.disabled = true; btn.textContent = 'Speichern…';
   try {
-    await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, {
+    const saved = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     closeModal();
-    // Reload cache & detail
+    // Reload cache & detail (use saved.id in case ID was changed)
     _fleetCache = await apiFetch('/api/fleet');
-    fleetDetail(id);
+    fleetDetail(saved.id);
   } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
 }
 
