@@ -362,12 +362,35 @@ app.get('/api/health', auth, (req, res) => {
     const days = Math.min(Math.max(1, Number(req.query.days) || 30), 365);
     const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
     if (!fs.existsSync(HEALTH_LOG)) return res.json([]);
-    const entries = fs.readFileSync(HEALTH_LOG, 'utf8')
+    let entries = fs.readFileSync(HEALTH_LOG, 'utf8')
       .split('\n')
       .filter(Boolean)
       .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } })
-      .filter(e => (e.timestamp || '') >= cutoff)
-      .map(e => {
+      .filter(e => (e.timestamp || '') >= cutoff);
+
+    // Aggregate sleep sessions per night (sum durations, avg quality)
+    const sleepByNight = new Map();
+    const nonSleep = [];
+    for (const e of entries) {
+      if (e.type === 'sleep' && e.value != null) {
+        const day = e.timestamp.slice(0, 10);
+        const prev = sleepByNight.get(day);
+        if (prev) {
+          prev.value += e.value;
+          prev.deep_sleep_h = (prev.deep_sleep_h || 0) + (e.deep_sleep_h || 0);
+          prev.rem_sleep_h = (prev.rem_sleep_h || 0) + (e.rem_sleep_h || 0);
+          prev.light_sleep_h = (prev.light_sleep_h || 0) + (e.light_sleep_h || 0);
+          if (e.quality && e.quality > (prev.quality || 0)) prev.quality = e.quality;
+        } else {
+          sleepByNight.set(day, { ...e });
+        }
+      } else {
+        nonSleep.push(e);
+      }
+    }
+    entries = [...nonSleep, ...sleepByNight.values()];
+
+    entries = entries.map(e => {
         // Normalize steps: value lives in e.steps, not e.value
         if (e.type === 'steps') {
           e.value = e.steps ?? 0;
@@ -388,6 +411,10 @@ app.get('/api/health', auth, (req, res) => {
           e.value = parts.join(', ') || null;
           e.unit = '';
           e.text = e.activity_type || '';
+        }
+        // Round aggregated sleep values
+        if (e.type === 'sleep') {
+          e.value = Math.round(e.value * 10) / 10;
         }
         return e;
       })
@@ -430,11 +457,27 @@ function computeWeightTrend(days) {
   };
 }
 
+// Aggregate sleep entries by night: sum durations, weighted-avg quality per date
+function aggregateSleepByNight(entries) {
+  const byDay = new Map();
+  for (const e of entries) {
+    if (e.type !== 'sleep' || e.value == null) continue;
+    const day = e.timestamp.slice(0, 10);
+    const prev = byDay.get(day) || { total: 0, qualities: [] };
+    prev.total += e.value;
+    if (e.quality != null && e.quality > 0) prev.qualities.push(e.quality);
+    byDay.set(day, prev);
+  }
+  return byDay; // Map<dateStr, { total: number, qualities: number[] }>
+}
+
 function computeSleepTrend(days) {
   const entries = readHealthEntries(days).filter(e => e.type === 'sleep' && e.value != null);
   if (!entries.length) return null;
-  const durations = entries.map(e => e.value);
-  const qualities = entries.filter(e => e.quality != null).map(e => e.quality);
+  const byNight = aggregateSleepByNight(entries);
+  const durations = Array.from(byNight.values()).map(n => n.total);
+  const qualities = Array.from(byNight.values()).flatMap(n => n.qualities);
+  if (!durations.length) return null;
   const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0;
   return {
     avgDuration: avg(durations), minDuration: +Math.min(...durations).toFixed(1),
@@ -448,13 +491,12 @@ function computeAlerts() {
   const alerts = [];
   const recent = readHealthEntries(7);
 
-  // Sleep < 6h on 3+ of last 7 nights
+  // Sleep < 6h on 3+ of last 7 nights (aggregate sessions per night)
   const sleepEntries = recent.filter(e => e.type === 'sleep' && e.value != null);
   const sleepByDay = new Map();
   for (const s of sleepEntries) {
     const day = s.timestamp.slice(0, 10);
-    const prev = sleepByDay.get(day) ?? 0;
-    if (s.value > prev) sleepByDay.set(day, s.value);
+    sleepByDay.set(day, (sleepByDay.get(day) ?? 0) + s.value);
   }
   const shortNights = Array.from(sleepByDay.values()).filter(h => h < 6).length;
   if (shortNights >= 3) {
@@ -483,12 +525,30 @@ function computeAlerts() {
   return alerts;
 }
 
+function computeHeartrateTrend(days) {
+  const entries = readHealthEntries(days).filter(e => e.type === 'heartrate' && e.hr_avg != null);
+  if (!entries.length) return null;
+  // Use hr_min as resting HR when plausible (40-100 bpm), otherwise hr_avg
+  const restingValues = entries.map(e => {
+    const min = e.hr_min;
+    return (min != null && min >= 40 && min <= 100) ? min : e.hr_avg;
+  });
+  const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(0) : 0;
+  const last = restingValues[restingValues.length - 1];
+  return {
+    current: last,
+    avg: avg(restingValues),
+    dataPoints: restingValues.length,
+  };
+}
+
 app.get('/api/health/trends', auth, (req, res) => {
   try {
     const days = Math.min(Math.max(1, Number(req.query.days) || 30), 365);
     res.json({
       weight: computeWeightTrend(days),
       sleep: computeSleepTrend(days),
+      heartrate: computeHeartrateTrend(days),
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -516,15 +576,20 @@ app.get('/api/health/chart-data', auth, (req, res) => {
         .sort((a, b) => a.date.localeCompare(b.date));
       res.json(data);
     } else if (type === 'sleep') {
-      // Deduplicate: keep longest sleep per day
+      // Aggregate: sum sleep sessions per night
       const byDay = new Map();
       for (const e of entries.filter(e => e.type === 'sleep' && e.value != null)) {
         const day = e.timestamp.slice(0, 10);
         const prev = byDay.get(day);
-        if (!prev || e.value > prev.value) {
+        if (prev) {
+          prev.duration += e.value;
+          if (e.quality != null && e.quality > (prev.quality || 0)) prev.quality = e.quality;
+        } else {
           byDay.set(day, { date: day, duration: e.value, quality: e.quality ?? null });
         }
       }
+      // Round aggregated values
+      for (const v of byDay.values()) v.duration = Math.round(v.duration * 10) / 10;
       const data = Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
       res.json(data);
     } else {

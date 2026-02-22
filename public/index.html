@@ -615,13 +615,19 @@ async function loadHealth() {
       sleepTrendHtml = `<div class="s-card"><div class="lbl">Schlaf-Trend 30 T</div><div class="val" style="font-size:22px">Ø ${st.avgDuration}h</div><div class="sub">${st.minDuration}–${st.maxDuration}h${st.avgQuality ? ' | Score '+st.avgQuality+'%' : ''}</div></div>`;
     }
 
+    const hr = trends.heartrate;
+    let hrHtml = '';
+    if (hr) {
+      hrHtml = `<div class="s-card"><div class="lbl">❤️ Ruheherzfrequenz</div><div class="val">${hr.current} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${hr.avg} bpm (30 T, ${hr.dataPoints} Messungen)</div></div>`;
+    }
+
     const summaryGrid = `<div class="summary-grid">
       ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
-      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (zuletzt)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}</div></div>` : ''}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : ''}
       ${sleepTrendHtml}
+      ${hrHtml}
       ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
-      <div class="s-card"><div class="lbl">Einträge (90 T)</div><div class="val">${entries.length}</div><div class="sub">zuletzt ${fmtDate(entries[0]?.timestamp)}</div></div>
     </div>`;
 
     // ── Weight Chart (SVG line, 90 days) ──
@@ -646,23 +652,7 @@ async function loadHealth() {
       </div>`;
     }
 
-    // ── Table ──
-    const icons = {weight:'⚖️',sleep:'😴',steps:'👟',training:'💪',symptom:'🤒',medication:'💊',note:'📝'};
-    const rows = entries.slice(0,150).map(e => {
-      const val = e.value !== undefined ? `${e.value}${e.unit?' '+e.unit:''}` : (e.text||e.note||'–');
-      return `<tr>
-        <td style="white-space:nowrap">${fmtDT(e.timestamp)}</td>
-        <td>${icons[e.type]||'📊'} ${esc(e.type)}</td>
-        <td>${esc(String(val))}</td>
-        <td>${e.source?`<span class="badge badge-blue">${esc(e.source)}</span>`:''}</td>
-      </tr>`;
-    }).join('');
-
-    c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml +
-      `<div class="card"><table>
-        <thead><tr><th>Datum</th><th>Typ</th><th>Wert</th><th>Quelle</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table></div>`;
+    c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml;
 
     // ── Render Charts ──
     if (weightData.length >= 2) renderWeightChart(weightData);
