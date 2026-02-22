@@ -1214,10 +1214,12 @@ async function loadSharePoint() {
     _spBreadcrumb = [];
 
     c.innerHTML = `
-      <div style="margin-bottom:14px">
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
+        <button onclick="_spCurrentSiteId='bikolino.sharepoint.com,a932d186-4e5a-4970-802e-72cc898bc400,c304330a-e682-4f42-b5a1-2e34c1057084';spOpenDrive('b!htEyqVpOcEmALnLMiYvEAAozBMOC5kJPtaEuNMEFcIT6iCxQaA4ZSIK_SNkppk2W',null,'Dokumente')"
+          style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s"
+          onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">📂 Dokumente (bikolino GmbH)</button>
         <a href="https://bikolino.sharepoint.com/sites/dms/Freigegebene%20Dokumente" target="_blank" rel="noopener"
-          style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:#fff;border-radius:8px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity .15s"
-          onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">📂 Dokumente (bikolino GmbH) ↗</a>
+          style="color:var(--accent);font-size:12px;white-space:nowrap">Öffnen ↗</a>
       </div>
       <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
         <input type="text" id="sp-search-input" placeholder="Volltextsuche in SharePoint…"
