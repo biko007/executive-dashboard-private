@@ -804,6 +804,123 @@ app.delete('/api/calendar/:eventId', auth, async (req, res) => {
   }
 });
 
+// ── API: Trip Segment Calendar Sync ──────────────────────────────────────────
+
+const SEGMENT_EMOJI = {
+  flight: '✈️', hotel: '🏨', transfer: '🚆', activity: '🎫', note: '📝',
+};
+
+// Sync single segment to M365 calendar
+app.post('/api/trips/:tripId/segments/:segId/calendar', auth, async (req, res) => {
+  if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
+    return res.status(503).json({ error: 'M365 credentials not configured' });
+  }
+  try {
+    const tripId = req.params.tripId.replace(/[^a-z0-9\-_]/gi, '');
+    const segId = req.params.segId;
+    const filePath = path.join(TRAVEL_DIR, `${tripId}.json`);
+    if (!filePath.startsWith(TRAVEL_DIR + path.sep)) return res.status(400).json({ error: 'Invalid path' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Trip not found' });
+
+    const trip = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const seg = (trip.segments || []).find(s => s.id === segId);
+    if (!seg) return res.status(404).json({ error: 'Segment not found' });
+
+    if (seg.calendarEventId) {
+      return res.json({ eventId: seg.calendarEventId, webLink: seg.calendarWebLink || '', skipped: true });
+    }
+
+    const emoji = SEGMENT_EMOJI[seg.type] || '📋';
+    const subject = `${trip.name} — ${emoji} ${seg.title}`;
+    const isHotel = seg.type === 'hotel';
+    const startDt = seg.datetime_local || trip.start_date + 'T12:00:00';
+    const endDate = new Date(startDt);
+    endDate.setHours(endDate.getHours() + (isHotel ? 24 : 1));
+    const endDt = endDate.toISOString().replace('Z', '');
+
+    const bodyParts = [
+      seg.confirmation && `Bestätigung: ${seg.confirmation}`,
+      seg.notes && `Notizen: ${seg.notes}`,
+      `Trip: ${trip.name} (${trip.id})`,
+    ].filter(Boolean);
+
+    const calUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events`;
+    const event = await graphRequest('POST', calUrl, {
+      subject,
+      start: { dateTime: startDt, timeZone: seg.timezone || 'Europe/Berlin' },
+      end: { dateTime: endDt, timeZone: seg.timezone || 'Europe/Berlin' },
+      location: trip.destination ? { displayName: trip.destination } : undefined,
+      body: bodyParts.length ? { contentType: 'Text', content: bodyParts.join('\n') } : undefined,
+    });
+
+    seg.calendarEventId = event.id;
+    seg.calendarWebLink = event.webLink || '';
+    trip.updated_at = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
+
+    res.status(201).json({ eventId: event.id, webLink: event.webLink || '' });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Batch sync all segments of a trip to M365 calendar
+app.post('/api/trips/:tripId/sync-calendar', auth, async (req, res) => {
+  if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
+    return res.status(503).json({ error: 'M365 credentials not configured' });
+  }
+  try {
+    const tripId = req.params.tripId.replace(/[^a-z0-9\-_]/gi, '');
+    const filePath = path.join(TRAVEL_DIR, `${tripId}.json`);
+    if (!filePath.startsWith(TRAVEL_DIR + path.sep)) return res.status(400).json({ error: 'Invalid path' });
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Trip not found' });
+
+    const trip = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    let created = 0, skipped = 0, failed = 0;
+
+    for (const seg of (trip.segments || [])) {
+      if (seg.calendarEventId) { skipped++; continue; }
+      try {
+        const emoji = SEGMENT_EMOJI[seg.type] || '📋';
+        const subject = `${trip.name} — ${emoji} ${seg.title}`;
+        const isHotel = seg.type === 'hotel';
+        const startDt = seg.datetime_local || trip.start_date + 'T12:00:00';
+        const endDate = new Date(startDt);
+        endDate.setHours(endDate.getHours() + (isHotel ? 24 : 1));
+        const endDt = endDate.toISOString().replace('Z', '');
+
+        const bodyParts = [
+          seg.confirmation && `Bestätigung: ${seg.confirmation}`,
+          seg.notes && `Notizen: ${seg.notes}`,
+          `Trip: ${trip.name} (${trip.id})`,
+        ].filter(Boolean);
+
+        const calUrl = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events`;
+        const event = await graphRequest('POST', calUrl, {
+          subject,
+          start: { dateTime: startDt, timeZone: seg.timezone || 'Europe/Berlin' },
+          end: { dateTime: endDt, timeZone: seg.timezone || 'Europe/Berlin' },
+          location: trip.destination ? { displayName: trip.destination } : undefined,
+          body: bodyParts.length ? { contentType: 'Text', content: bodyParts.join('\n') } : undefined,
+        });
+
+        seg.calendarEventId = event.id;
+        seg.calendarWebLink = event.webLink || '';
+        created++;
+      } catch (e) {
+        console.log(`[dashboard] segment calendar sync failed for ${seg.id}: ${e.message}`);
+        failed++;
+      }
+    }
+
+    trip.updated_at = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(trip, null, 2));
+    res.json({ created, skipped, failed });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: Documents ───────────────────────────────────────────────────────────
 
 function readDocsMeta() {

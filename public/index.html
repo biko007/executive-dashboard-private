@@ -442,6 +442,10 @@ async function loadTrips() {
             <span>${esc(s.title)}</span>
             <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local)} (${esc(s.timezone)})</span>
             ${s.confirmation ? `<span style="color:var(--green);font-size:12px">✔ ${esc(s.confirmation)}</span>` : ''}
+            ${s.calendarEventId
+              ? `<a href="${esc(s.calendarWebLink||'')}" target="_blank" title="Kalendereintrag öffnen" style="text-decoration:none;cursor:pointer">📅</a>`
+              : `<button class="btn" style="padding:1px 6px;font-size:12px;background:rgba(79,156,249,.12);color:var(--accent);border:1px solid rgba(79,156,249,.25)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
+            }
           </div>`).join('')}
         </div>` : '';
 
@@ -489,6 +493,7 @@ async function loadTrips() {
           </div>
           <div style="display:flex;gap:6px">
             <button class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
+            <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Sync</button>
             <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
             <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
           </div>
@@ -564,13 +569,7 @@ async function createTrip() {
 function editTrip(id) {
   const t = _tripsCache.find(x => x.id === id);
   if (!t) return alert('Trip nicht gefunden');
-  window._editSegments = (t.segments || []).map(s => ({
-    type:           s.type           || '',
-    title:          s.title          || '',
-    datetime_local: s.datetime_local || '',
-    timezone:       s.timezone       || '',
-    confirmation:   s.confirmation   || '',
-  }));
+  window._editSegments = (t.segments || []).map(s => ({ ...s }));
   const segList = () => {
     if (!window._editSegments.length) {
       return '<span style="color:var(--muted)">Keine Segmente vorhanden.</span>';
@@ -666,9 +665,32 @@ function confirmAddSegment(tripId) {
   editTrip(tripId);
 }
 
-function removeSegment(index, tripId) {
+async function removeSegment(index, tripId) {
+  const seg = window._editSegments[index];
+  if (seg && seg.calendarEventId) {
+    try {
+      await apiFetch(`/api/calendar/${encodeURIComponent(seg.calendarEventId)}`, { method: 'DELETE' });
+    } catch (e) { console.warn('Calendar delete failed:', e); }
+  }
   window._editSegments.splice(index, 1);
   editTrip(tripId);
+}
+
+/* ── Trip Segment Calendar Sync ── */
+async function syncSegCal(tripId, segId) {
+  try {
+    const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(segId)}/calendar`, { method: 'POST' });
+    if (result.skipped) { alert('Kalendereintrag existiert bereits.'); }
+    showTab('trips');
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+async function syncAllSegCal(tripId) {
+  try {
+    const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/sync-calendar`, { method: 'POST' });
+    alert(`Kalender-Sync: ✅ ${result.created} erstellt, ⏭ ${result.skipped} vorhanden, ❌ ${result.failed} fehlgeschlagen`);
+    showTab('trips');
+  } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
