@@ -50,6 +50,10 @@ const FLEET_FILE  = path.join(FLEET_DIR, 'vehicles.json');
 const LINKS_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/links');
 const LINKS_FILE  = path.join(LINKS_DIR, 'links.json');
 const SP_INDEX_FILE = path.join(HOME, '.openclaw/workspace/artifacts/personal/sharepoint/sharepoint-index.json');
+const ASSETS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/assets');
+const PROPERTIES_FILE = path.join(ASSETS_DIR, 'properties.json');
+const LEASES_FILE = path.join(ASSETS_DIR, 'leases.json');
+const COSTS_DIR   = path.join(ASSETS_DIR, 'operating-costs');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -1286,6 +1290,314 @@ app.delete('/api/links/:linkId', auth, (req, res) => {
   const removed = links.splice(idx, 1)[0];
   writeLinks(links);
   res.json(removed);
+});
+
+// ── Assets (Immobilien) ──────────────────────────────────────────────────────
+
+function readProperties() {
+  try { return JSON.parse(fs.readFileSync(PROPERTIES_FILE, 'utf8')); } catch { return []; }
+}
+function writeProperties(props) {
+  fs.mkdirSync(ASSETS_DIR, { recursive: true });
+  fs.writeFileSync(PROPERTIES_FILE, JSON.stringify(props, null, 2));
+}
+function readLeases() {
+  try { return JSON.parse(fs.readFileSync(LEASES_FILE, 'utf8')); } catch { return []; }
+}
+function writeLeases(leases) {
+  fs.mkdirSync(ASSETS_DIR, { recursive: true });
+  fs.writeFileSync(LEASES_FILE, JSON.stringify(leases, null, 2));
+}
+function readCosts(propertyId, year) {
+  const fp = path.join(COSTS_DIR, `${propertyId}-${year}.json`);
+  try { return JSON.parse(fs.readFileSync(fp, 'utf8')); } catch { return null; }
+}
+function writeCosts(propertyId, year, data) {
+  fs.mkdirSync(COSTS_DIR, { recursive: true });
+  fs.writeFileSync(path.join(COSTS_DIR, `${propertyId}-${year}.json`), JSON.stringify(data, null, 2));
+}
+
+// List all properties
+app.get('/api/assets/properties', auth, (req, res) => {
+  try { res.json(readProperties()); }
+  catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get single property
+app.get('/api/assets/properties/:id', auth, (req, res) => {
+  try {
+    const p = readProperties().find(p => p.id === req.params.id);
+    if (!p) return res.status(404).json({ error: 'Property not found' });
+    res.json(p);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update property fields
+app.put('/api/assets/properties/:id', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const idx = all.findIndex(p => p.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Property not found' });
+    const allowed = ['label', 'address', 'type', 'owner'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+    }
+    all[idx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    res.json(all[idx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Add unit to property
+app.post('/api/assets/properties/:id/units', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const idx = all.findIndex(p => p.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Property not found' });
+    const { id, label, floor, sqm, rentType, tenant } = req.body;
+    if (!id || !label) return res.status(400).json({ error: 'id and label required' });
+    if (all[idx].units.some(u => u.id === id)) return res.status(409).json({ error: 'Unit ID exists' });
+    const unit = {
+      id: String(id), label: String(label), floor: String(floor || ''),
+      sqm: sqm != null ? Number(sqm) : null,
+      rentType: rentType || 'vacant', tenant: tenant || '',
+      lease: null, currentRent: null,
+    };
+    all[idx].units.push(unit);
+    all[idx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    res.status(201).json(all[idx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update unit
+app.put('/api/assets/properties/:propId/units/:unitId', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const pIdx = all.findIndex(p => p.id === req.params.propId);
+    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
+    const uIdx = all[pIdx].units.findIndex(u => u.id === req.params.unitId);
+    if (uIdx === -1) return res.status(404).json({ error: 'Unit not found' });
+    const allowed = ['label', 'floor', 'sqm', 'rentType', 'tenant', 'currentRent'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) all[pIdx].units[uIdx][key] = req.body[key];
+    }
+    all[pIdx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    res.json(all[pIdx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete unit
+app.delete('/api/assets/properties/:propId/units/:unitId', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const pIdx = all.findIndex(p => p.id === req.params.propId);
+    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
+    all[pIdx].units = all[pIdx].units.filter(u => u.id !== req.params.unitId);
+    all[pIdx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    // Remove related leases
+    const leases = readLeases().filter(l => !(l.propertyId === req.params.propId && l.unitId === req.params.unitId));
+    writeLeases(leases);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Set distribution key
+app.put('/api/assets/properties/:id/distribution-keys', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const pIdx = all.findIndex(p => p.id === req.params.id);
+    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
+    const { id, label, values } = req.body;
+    if (!id || !label) return res.status(400).json({ error: 'id and label required' });
+    const kIdx = all[pIdx].distributionKeys.findIndex(k => k.id === id);
+    const key = { id: String(id), label: String(label), values: values || {} };
+    if (kIdx === -1) all[pIdx].distributionKeys.push(key);
+    else all[pIdx].distributionKeys[kIdx] = key;
+    all[pIdx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    res.json(all[pIdx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete distribution key
+app.delete('/api/assets/properties/:propId/distribution-keys/:keyId', auth, (req, res) => {
+  try {
+    const all = readProperties();
+    const pIdx = all.findIndex(p => p.id === req.params.propId);
+    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
+    all[pIdx].distributionKeys = all[pIdx].distributionKeys.filter(k => k.id !== req.params.keyId);
+    all[pIdx].updatedAt = new Date().toISOString();
+    writeProperties(all);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// List leases (optionally filtered by propertyId)
+app.get('/api/assets/leases', auth, (req, res) => {
+  try {
+    let leases = readLeases();
+    if (req.query.propertyId) leases = leases.filter(l => l.propertyId === req.query.propertyId);
+    res.json(leases);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create/update lease
+app.put('/api/assets/leases/:propId/:unitId', auth, (req, res) => {
+  try {
+    const { propId, unitId } = req.params;
+    const { tenant, startDate, endDate, rentNet, operatingCosts, depositAmount, linkedDocs } = req.body;
+    const all = readLeases();
+    const now = new Date().toISOString();
+    const existIdx = all.findIndex(l => l.unitId === unitId && l.propertyId === propId);
+
+    if (existIdx !== -1) {
+      if (tenant !== undefined) all[existIdx].tenant = tenant;
+      if (startDate !== undefined) all[existIdx].startDate = startDate;
+      if (endDate !== undefined) all[existIdx].endDate = endDate;
+      if (rentNet !== undefined) all[existIdx].rentNet = Number(rentNet);
+      if (operatingCosts !== undefined) all[existIdx].operatingCosts = Number(operatingCosts);
+      if (depositAmount !== undefined) all[existIdx].depositAmount = Number(depositAmount);
+      if (linkedDocs !== undefined) all[existIdx].linkedDocs = linkedDocs;
+      all[existIdx].updatedAt = now;
+      writeLeases(all);
+      // Sync unit data
+      syncUnitFromLease(propId, unitId, all[existIdx]);
+      res.json(all[existIdx]);
+    } else {
+      const lease = {
+        id: `lease-${propId}-${unitId}`,
+        unitId, propertyId: propId,
+        tenant: tenant || '', startDate: startDate || now.slice(0, 10),
+        endDate: endDate || null,
+        rentNet: Number(rentNet || 0), operatingCosts: Number(operatingCosts || 0),
+        depositAmount: Number(depositAmount || 0),
+        linkedDocs: linkedDocs || [],
+        createdAt: now, updatedAt: now,
+      };
+      all.push(lease);
+      writeLeases(all);
+      syncUnitFromLease(propId, unitId, lease);
+      res.status(201).json(lease);
+    }
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+function syncUnitFromLease(propId, unitId, lease) {
+  try {
+    const all = readProperties();
+    const pIdx = all.findIndex(p => p.id === propId);
+    if (pIdx === -1) return;
+    const uIdx = all[pIdx].units.findIndex(u => u.id === unitId);
+    if (uIdx === -1) return;
+    all[pIdx].units[uIdx].lease = lease.id;
+    all[pIdx].units[uIdx].currentRent = lease.rentNet;
+    all[pIdx].units[uIdx].tenant = lease.tenant;
+    writeProperties(all);
+  } catch {}
+}
+
+// Delete lease
+app.delete('/api/assets/leases/:id', auth, (req, res) => {
+  try {
+    const all = readLeases();
+    const idx = all.findIndex(l => l.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Lease not found' });
+    const lease = all[idx];
+    all.splice(idx, 1);
+    writeLeases(all);
+    // Clear unit reference
+    try {
+      const props = readProperties();
+      const pIdx = props.findIndex(p => p.id === lease.propertyId);
+      if (pIdx !== -1) {
+        const uIdx = props[pIdx].units.findIndex(u => u.id === lease.unitId);
+        if (uIdx !== -1) {
+          props[pIdx].units[uIdx].lease = null;
+          props[pIdx].units[uIdx].currentRent = null;
+          props[pIdx].units[uIdx].tenant = '';
+          writeProperties(props);
+        }
+      }
+    } catch {}
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get operating costs
+app.get('/api/assets/costs/:propId/:year', auth, (req, res) => {
+  try {
+    const data = readCosts(req.params.propId, req.params.year);
+    if (!data) return res.json({ propertyId: req.params.propId, year: Number(req.params.year), distributionKeyId: '', costs: {}, updatedAt: null });
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Set operating costs
+app.put('/api/assets/costs/:propId/:year', auth, (req, res) => {
+  try {
+    const { costs, distributionKeyId } = req.body;
+    const data = {
+      propertyId: req.params.propId,
+      year: Number(req.params.year),
+      distributionKeyId: distributionKeyId || '',
+      costs: costs || {},
+      updatedAt: new Date().toISOString(),
+    };
+    writeCosts(req.params.propId, req.params.year, data);
+    res.json(data);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Calculate Nebenkostenabrechnung
+app.get('/api/assets/nk/:propId/:year', auth, (req, res) => {
+  try {
+    const propId = req.params.propId;
+    const year = Number(req.params.year);
+    const props = readProperties();
+    const prop = props.find(p => p.id === propId);
+    if (!prop) return res.status(404).json({ error: 'Property not found' });
+
+    const oc = readCosts(propId, year);
+    if (!oc) return res.status(404).json({ error: `No operating costs for ${year}` });
+
+    const dk = prop.distributionKeys.find(k => k.id === oc.distributionKeyId);
+    if (!dk) return res.status(400).json({ error: `Distribution key ${oc.distributionKeyId} not found` });
+
+    const COST_LABELS = {
+      heizung: 'Heizung', wasser: 'Wasser', abwasser: 'Abwasser', muell: 'Müll',
+      hausmeister: 'Hausmeister', versicherung: 'Versicherung', grundsteuer: 'Grundsteuer',
+      allgemeinstrom: 'Allgemeinstrom', aufzug: 'Aufzug',
+    };
+
+    const totalCosts = Object.values(oc.costs).reduce((s, v) => s + (v || 0), 0);
+    const leases = readLeases().filter(l => l.propertyId === propId);
+
+    const results = [];
+    for (const unit of prop.units) {
+      if (unit.rentType === 'vacant') continue;
+      const share = dk.values[unit.id] || 0;
+      const unitCost = totalCosts * (share / 100);
+      const lease = leases.find(l => l.unitId === unit.id);
+      const prepaid = (lease?.operatingCosts || 0) * 12;
+      const balance = prepaid - unitCost;
+      const details = Object.entries(oc.costs)
+        .filter(([, v]) => v && v > 0)
+        .map(([cat, amount]) => ({
+          category: COST_LABELS[cat] || cat,
+          amount: Math.round((amount * share / 100) * 100) / 100,
+        }));
+      results.push({
+        unitId: unit.id, unitLabel: unit.label, tenant: unit.tenant || '–',
+        share, totalCost: Math.round(unitCost * 100) / 100,
+        prepaid: Math.round(prepaid * 100) / 100,
+        balance: Math.round(balance * 100) / 100, details,
+      });
+    }
+    res.json(results);
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

@@ -148,6 +148,26 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .tuev-yellow { color: var(--yellow); }
 .tuev-red    { color: var(--red); }
 .tuev-none   { color: var(--muted); }
+
+/* ── Assets ── */
+.asset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.asset-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; }
+.asset-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.asset-card-header .asset-icon { font-size: 28px; }
+.asset-card-header h3 { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; }
+.asset-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 13px; }
+.asset-meta .al { color: var(--muted); }
+.asset-actions { display: flex; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+.unit-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.unit-row:last-child { border-bottom: none; }
+.unit-row:hover { background: rgba(255,255,255,.018); }
+.unit-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.unit-status.permanent { background: var(--green); }
+.unit-status.temporary { background: var(--yellow); }
+.unit-status.vacant    { background: var(--muted); }
+.nk-result { background: var(--bg); border-radius: 6px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
+.nk-positive { color: var(--green); font-weight: 600; }
+.nk-negative { color: var(--red); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -180,6 +200,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('documents')"       >📁 Dokumente</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
     <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
+    <button onclick="showTab('assets')"          >🏠 Assets</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -251,11 +272,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet'];
+  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet','assets'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet })[tab]();
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -1516,6 +1537,8 @@ async function spUploadFile() {
 ═══════════════════════════════════════════════════════════════════════════ */
 
 let _fleetCache = [];
+let _assetsCache = [];
+let _leasesCache = [];
 
 function tuevInfo(tuevDate) {
   if (!tuevDate) return { cls: 'tuev-none', text: 'kein TÜV' };
@@ -1990,6 +2013,572 @@ async function selectSpForLink(idx) {
     closeModal();
     if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
   } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ASSETS — Immobilienverwaltung
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const COST_CATS = [
+  { key: 'heizung', label: 'Heizung' }, { key: 'wasser', label: 'Wasser' },
+  { key: 'abwasser', label: 'Abwasser' }, { key: 'muell', label: 'Müll' },
+  { key: 'hausmeister', label: 'Hausmeister' }, { key: 'versicherung', label: 'Versicherung' },
+  { key: 'grundsteuer', label: 'Grundsteuer' }, { key: 'allgemeinstrom', label: 'Allgemeinstrom' },
+  { key: 'aufzug', label: 'Aufzug' },
+];
+
+const RENT_LABELS = { permanent: 'Dauerhaft', temporary: 'Temporär', vacant: 'Leer' };
+const OWNER_LABELS = { personal: 'Privat', laperlgmbh: 'Laperl GmbH' };
+const TYPE_LABELS = { residential: 'Wohngebäude', commercial: 'Gewerbe' };
+function fmtEur(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '–'; }
+
+async function loadAssets() {
+  const c = document.getElementById('content');
+  try {
+    const [properties, leases] = await Promise.all([
+      apiFetch('/api/assets/properties'),
+      apiFetch('/api/assets/leases'),
+    ]);
+    _assetsCache = properties;
+    _leasesCache = leases;
+
+    if (!properties.length) {
+      c.innerHTML = '<div class="empty">Keine Immobilien vorhanden.</div>';
+      return;
+    }
+
+    // Summary cards
+    const totalUnits = properties.reduce((s, p) => s + p.units.length, 0);
+    const occupied = properties.reduce((s, p) => s + p.units.filter(u => u.rentType !== 'vacant').length, 0);
+    const totalRent = properties.reduce((s, p) => s + p.units.reduce((us, u) => us + (u.currentRent || 0), 0), 0);
+
+    const summaryHtml = `<div class="summary-grid">
+      <div class="s-card"><div class="lbl">Gebäude</div><div class="val">${properties.length}</div></div>
+      <div class="s-card"><div class="lbl">Einheiten</div><div class="val">${totalUnits}</div><div class="sub">${occupied} vermietet</div></div>
+      <div class="s-card"><div class="lbl">Mieteinnahmen</div><div class="val" style="font-size:20px">${fmtEur(totalRent)}</div><div class="sub">pro Monat</div></div>
+      <div class="s-card"><div class="lbl">Jahreseinnahmen</div><div class="val" style="font-size:20px">${fmtEur(totalRent * 12)}</div></div>
+    </div>`;
+
+    const cards = properties.map(p => {
+      const icon = p.type === 'residential' ? '🏠' : '🏭';
+      const occ = p.units.filter(u => u.rentType !== 'vacant').length;
+      const rent = p.units.reduce((s, u) => s + (u.currentRent || 0), 0);
+      return `<div class="asset-card">
+        <div class="asset-card-header">
+          <span class="asset-icon">${icon}</span>
+          <h3>${esc(p.label)} <span class="badge badge-blue">${esc(p.id)}</span></h3>
+        </div>
+        <div class="asset-meta">
+          <div><span class="al">Adresse</span> ${esc(p.address)}</div>
+          <div><span class="al">Eigentümer</span> ${OWNER_LABELS[p.owner] || p.owner}</div>
+          <div><span class="al">Einheiten</span> ${p.units.length} (${occ} vermietet)</div>
+          <div><span class="al">Miete/Monat</span> ${rent > 0 ? fmtEur(rent) : '–'}</div>
+        </div>
+        <div class="asset-actions">
+          <button class="btn btn-primary" onclick="assetDetail('${esc(p.id)}')">Details</button>
+          <button class="btn btn-primary" onclick="editPropertyModal('${esc(p.id)}')">✏️</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    c.innerHTML = summaryHtml + `<div class="asset-grid">${cards}</div>`;
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ── Property Detail ── */
+async function assetDetail(id) {
+  const c = document.getElementById('content');
+  try {
+    const [p, leases] = await Promise.all([
+      apiFetch(`/api/assets/properties/${encodeURIComponent(id)}`),
+      apiFetch(`/api/assets/leases?propertyId=${encodeURIComponent(id)}`),
+    ]);
+    _leasesCache = leases;
+    const icon = p.type === 'residential' ? '🏠' : '🏭';
+    const totalRent = p.units.reduce((s, u) => s + (u.currentRent || 0), 0);
+
+    // Units section
+    const unitRows = p.units.map(u => {
+      const lease = leases.find(l => l.unitId === u.id);
+      const rent = u.currentRent != null ? fmtEur(u.currentRent) : '–';
+      const sqm = u.sqm != null ? `${u.sqm} m²` : '–';
+      const nkPrepaid = lease ? fmtEur(lease.operatingCosts) : '–';
+      return `<div class="unit-row" style="justify-content:space-between;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:8px;min-width:200px">
+          <span class="unit-status ${u.rentType}"></span>
+          <strong>${esc(u.label)}</strong>
+          <span style="color:var(--muted);font-size:12px">${esc(u.id)}</span>
+        </div>
+        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+          <span>${esc(u.floor)}</span>
+          <span>${sqm}</span>
+          <span class="badge ${u.rentType === 'permanent' ? 'badge-green' : u.rentType === 'temporary' ? 'badge-yellow' : 'badge-muted'}">${RENT_LABELS[u.rentType]}</span>
+          <span>${rent}</span>
+          <span style="color:var(--muted);font-size:12px">NK: ${nkPrepaid}</span>
+          <span style="color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(u.tenant || '–')}</span>
+          <button class="btn btn-primary" style="font-size:11px;padding:3px 8px" onclick="editUnitModal('${esc(p.id)}','${esc(u.id)}')">✏️</button>
+          <button class="btn btn-primary" style="font-size:11px;padding:3px 8px" onclick="editLeaseModal('${esc(p.id)}','${esc(u.id)}')">📄</button>
+          <button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="deleteUnit('${esc(p.id)}','${esc(u.id)}','${esc(u.label)}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    // Distribution keys section
+    const dkHtml = p.distributionKeys.map(dk => {
+      const vals = Object.entries(dk.values).map(([uid, pct]) => `${uid}: ${pct}%`).join(', ');
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 14px;border-bottom:1px solid var(--border);font-size:13px">
+        <div><strong>${esc(dk.label)}</strong><br><span style="color:var(--muted)">${vals || '–'}</span></div>
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-primary" style="font-size:11px;padding:3px 8px" onclick="editDkModal('${esc(p.id)}','${esc(dk.id)}')">✏️</button>
+          <button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="deleteDk('${esc(p.id)}','${esc(dk.id)}')">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    c.innerHTML = `
+      <div style="margin-bottom:16px">
+        <button class="btn-ghost" onclick="showTab('assets')">← Zurück</button>
+      </div>
+      <div class="card card-pad">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+          <span style="font-size:36px">${icon}</span>
+          <div>
+            <h2 style="font-size:20px;font-weight:700">${esc(p.label)}</h2>
+            <span style="color:var(--muted);font-size:13px">ID: ${esc(p.id)} · ${esc(p.address)}</span>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <button class="btn btn-primary" onclick="editPropertyModal('${esc(p.id)}')">✏️ Bearbeiten</button>
+          </div>
+        </div>
+        <div class="asset-meta" style="margin-bottom:12px">
+          <div><span class="al">Typ</span> ${TYPE_LABELS[p.type] || p.type}</div>
+          <div><span class="al">Eigentümer</span> ${OWNER_LABELS[p.owner] || p.owner}</div>
+          <div><span class="al">Miete/Monat</span> ${fmtEur(totalRent)}</div>
+          <div><span class="al">Miete/Jahr</span> ${fmtEur(totalRent * 12)}</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3 style="font-size:15px">📋 Einheiten (${p.units.length})</h3>
+          <button class="btn btn-primary" style="font-size:12px" onclick="addUnitModal('${esc(p.id)}')">+ Einheit</button>
+        </div>
+        ${unitRows || '<div style="padding:20px;color:var(--muted)">Keine Einheiten</div>'}
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <h3 style="font-size:15px">📊 Verteilungsschlüssel (${p.distributionKeys.length})</h3>
+          <button class="btn btn-primary" style="font-size:12px" onclick="addDkModal('${esc(p.id)}')">+ Schlüssel</button>
+        </div>
+        ${dkHtml || '<div style="padding:20px;color:var(--muted)">Keine Verteilungsschlüssel</div>'}
+      </div>
+
+      <div class="card card-pad" style="margin-top:16px">
+        <h3 style="font-size:15px;margin-bottom:12px">📊 Nebenkostenabrechnung</h3>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="nk-year" type="number" value="${new Date().getFullYear() - 1}" style="width:100px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px 10px;color:var(--text);font-size:13px">
+          <button class="btn btn-primary" onclick="editCostsModal('${esc(p.id)}')">💰 Kosten eingeben</button>
+          <button class="btn btn-primary" onclick="generateNk('${esc(p.id)}')">📊 Abrechnung</button>
+        </div>
+        <div id="nk-results" style="margin-top:14px"></div>
+      </div>`;
+    stamp();
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+/* ── Edit property ── */
+function editPropertyModal(id) {
+  const p = _assetsCache.find(x => x.id === id);
+  if (!p) return alert('Gebäude nicht gefunden');
+  openModal(`
+    <h3>✏️ Gebäude bearbeiten</h3>
+    <label>Name</label>
+    <input id="ep-label" value="${esc(p.label)}">
+    <label>Adresse</label>
+    <input id="ep-address" value="${esc(p.address)}">
+    <label>Typ</label>
+    <select id="ep-type">
+      <option value="residential" ${p.type === 'residential' ? 'selected' : ''}>🏠 Wohngebäude</option>
+      <option value="commercial" ${p.type === 'commercial' ? 'selected' : ''}>🏭 Gewerbe</option>
+    </select>
+    <label>Eigentümer</label>
+    <select id="ep-owner">
+      <option value="personal" ${p.owner === 'personal' ? 'selected' : ''}>Privat</option>
+      <option value="laperlgmbh" ${p.owner === 'laperlgmbh' ? 'selected' : ''}>Laperl GmbH</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="ep-save" onclick="saveProperty('${esc(id)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveProperty(id) {
+  const btn = document.getElementById('ep-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: document.getElementById('ep-label').value.trim(),
+        address: document.getElementById('ep-address').value.trim(),
+        type: document.getElementById('ep-type').value,
+        owner: document.getElementById('ep-owner').value,
+      }),
+    });
+    closeModal();
+    assetDetail(id);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+/* ── Add unit ── */
+function addUnitModal(propId) {
+  openModal(`
+    <h3>➕ Einheit hinzufügen</h3>
+    <label>ID (z.B. ${propId}-w5)</label>
+    <input id="au-id" placeholder="${propId}-" value="${propId}-">
+    <label>Bezeichnung</label>
+    <input id="au-label" placeholder="z.B. EG links, OG rechts, Halle">
+    <label>Etage</label>
+    <input id="au-floor" placeholder="z.B. EG, OG, 1.OG">
+    <label>Quadratmeter</label>
+    <input id="au-sqm" type="number" placeholder="0">
+    <label>Miettyp</label>
+    <select id="au-renttype">
+      <option value="vacant">Leer</option>
+      <option value="permanent">Dauerhaft vermietet</option>
+      <option value="temporary">Temporär vermietet</option>
+    </select>
+    <label>Mieter</label>
+    <input id="au-tenant" placeholder="">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="au-save" onclick="createUnit('${esc(propId)}')">➕ Anlegen</button>
+    </div>
+  `);
+}
+
+async function createUnit(propId) {
+  const id = document.getElementById('au-id').value.trim();
+  const label = document.getElementById('au-label').value.trim();
+  if (!id || !label) return alert('ID und Bezeichnung sind Pflicht.');
+  const btn = document.getElementById('au-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(propId)}/units`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id, label,
+        floor: document.getElementById('au-floor').value.trim(),
+        sqm: document.getElementById('au-sqm').value ? Number(document.getElementById('au-sqm').value) : null,
+        rentType: document.getElementById('au-renttype').value,
+        tenant: document.getElementById('au-tenant').value.trim(),
+      }),
+    });
+    closeModal();
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '➕ Anlegen'; }
+}
+
+/* ── Edit unit ── */
+function editUnitModal(propId, unitId) {
+  const p = _assetsCache.find(x => x.id === propId);
+  const u = p?.units?.find(x => x.id === unitId);
+  if (!u) return alert('Einheit nicht gefunden');
+  openModal(`
+    <h3>✏️ Einheit bearbeiten — ${esc(u.label)}</h3>
+    <label>Bezeichnung</label>
+    <input id="eu-label" value="${esc(u.label)}">
+    <label>Etage</label>
+    <input id="eu-floor" value="${esc(u.floor || '')}">
+    <label>Quadratmeter</label>
+    <input id="eu-sqm" type="number" value="${u.sqm ?? ''}">
+    <label>Miettyp</label>
+    <select id="eu-renttype">
+      <option value="vacant" ${u.rentType === 'vacant' ? 'selected' : ''}>Leer</option>
+      <option value="permanent" ${u.rentType === 'permanent' ? 'selected' : ''}>Dauerhaft vermietet</option>
+      <option value="temporary" ${u.rentType === 'temporary' ? 'selected' : ''}>Temporär vermietet</option>
+    </select>
+    <label>Mieter</label>
+    <input id="eu-tenant" value="${esc(u.tenant || '')}">
+    <label>Kaltmiete (€)</label>
+    <input id="eu-rent" type="number" value="${u.currentRent ?? ''}">
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="eu-save" onclick="saveUnit('${esc(propId)}','${esc(unitId)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveUnit(propId, unitId) {
+  const btn = document.getElementById('eu-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(propId)}/units/${encodeURIComponent(unitId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: document.getElementById('eu-label').value.trim(),
+        floor: document.getElementById('eu-floor').value.trim(),
+        sqm: document.getElementById('eu-sqm').value ? Number(document.getElementById('eu-sqm').value) : null,
+        rentType: document.getElementById('eu-renttype').value,
+        tenant: document.getElementById('eu-tenant').value.trim(),
+        currentRent: document.getElementById('eu-rent').value ? Number(document.getElementById('eu-rent').value) : null,
+      }),
+    });
+    closeModal();
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+async function deleteUnit(propId, unitId, label) {
+  if (!confirm(`Einheit "${label}" wirklich löschen?`)) return;
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(propId)}/units/${encodeURIComponent(unitId)}`, { method: 'DELETE' });
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── Lease modal ── */
+function editLeaseModal(propId, unitId) {
+  const lease = _leasesCache.find(l => l.unitId === unitId && l.propertyId === propId);
+  openModal(`
+    <h3>📄 Mietvertrag — ${esc(unitId)}</h3>
+    <label>Mieter</label>
+    <input id="el-tenant" value="${esc(lease?.tenant || '')}">
+    <label>Mietbeginn</label>
+    <input id="el-start" type="date" value="${lease?.startDate || ''}">
+    <label>Mietende (leer = unbefristet)</label>
+    <input id="el-end" type="date" value="${lease?.endDate || ''}">
+    <label>Kaltmiete (€)</label>
+    <input id="el-rent" type="number" value="${lease?.rentNet ?? ''}">
+    <label>NK-Vorauszahlung (€/Monat)</label>
+    <input id="el-nk" type="number" value="${lease?.operatingCosts ?? ''}">
+    <label>Kaution (€)</label>
+    <input id="el-deposit" type="number" value="${lease?.depositAmount ?? ''}">
+    <div class="modal-actions">
+      ${lease ? `<button class="btn btn-danger" onclick="deleteLease('${esc(lease.id)}','${esc(propId)}')">🗑 Löschen</button>` : ''}
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="el-save" onclick="saveLease('${esc(propId)}','${esc(unitId)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveLease(propId, unitId) {
+  const btn = document.getElementById('el-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/leases/${encodeURIComponent(propId)}/${encodeURIComponent(unitId)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant: document.getElementById('el-tenant').value.trim(),
+        startDate: document.getElementById('el-start').value || new Date().toISOString().slice(0, 10),
+        endDate: document.getElementById('el-end').value || null,
+        rentNet: Number(document.getElementById('el-rent').value || 0),
+        operatingCosts: Number(document.getElementById('el-nk').value || 0),
+        depositAmount: Number(document.getElementById('el-deposit').value || 0),
+      }),
+    });
+    closeModal();
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+async function deleteLease(leaseId, propId) {
+  if (!confirm('Mietvertrag wirklich löschen?')) return;
+  try {
+    await apiFetch(`/api/assets/leases/${encodeURIComponent(leaseId)}`, { method: 'DELETE' });
+    closeModal();
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── Distribution key modals ── */
+function addDkModal(propId) {
+  const p = _assetsCache.find(x => x.id === propId);
+  const unitInputs = (p?.units || []).map(u =>
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <span style="min-width:120px;font-size:13px">${esc(u.label)} (${esc(u.id)})</span>
+      <input id="dk-val-${esc(u.id)}" type="number" step="0.1" min="0" max="100" value="0" style="width:80px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px">
+      <span style="color:var(--muted);font-size:12px">%</span>
+    </div>`
+  ).join('');
+
+  openModal(`
+    <h3>➕ Verteilungsschlüssel</h3>
+    <label>ID (z.B. ${propId}-wohnflaeche)</label>
+    <input id="dk-id" placeholder="${propId}-" value="${propId}-">
+    <label>Bezeichnung</label>
+    <input id="dk-label" placeholder="z.B. Wohnfläche, Miteigentumsanteil">
+    <label style="margin-top:16px">Anteile pro Einheit</label>
+    ${unitInputs}
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="dk-save" onclick="saveDk('${esc(propId)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+function editDkModal(propId, dkId) {
+  const p = _assetsCache.find(x => x.id === propId);
+  const dk = p?.distributionKeys?.find(k => k.id === dkId);
+  if (!dk) return alert('Schlüssel nicht gefunden');
+
+  const unitInputs = (p?.units || []).map(u =>
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <span style="min-width:120px;font-size:13px">${esc(u.label)} (${esc(u.id)})</span>
+      <input id="dk-val-${esc(u.id)}" type="number" step="0.1" min="0" max="100" value="${dk.values[u.id] ?? 0}" style="width:80px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px">
+      <span style="color:var(--muted);font-size:12px">%</span>
+    </div>`
+  ).join('');
+
+  openModal(`
+    <h3>✏️ Verteilungsschlüssel — ${esc(dk.label)}</h3>
+    <label>Bezeichnung</label>
+    <input id="dk-label" value="${esc(dk.label)}">
+    <input type="hidden" id="dk-id" value="${esc(dk.id)}">
+    <label style="margin-top:16px">Anteile pro Einheit</label>
+    ${unitInputs}
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="dk-save" onclick="saveDk('${esc(propId)}')">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveDk(propId) {
+  const p = _assetsCache.find(x => x.id === propId);
+  const dkId = document.getElementById('dk-id').value.trim();
+  const label = document.getElementById('dk-label').value.trim();
+  if (!dkId || !label) return alert('ID und Bezeichnung sind Pflicht.');
+
+  const values = {};
+  for (const u of (p?.units || [])) {
+    const el = document.getElementById(`dk-val-${u.id}`);
+    if (el) values[u.id] = Number(el.value) || 0;
+  }
+
+  const btn = document.getElementById('dk-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(propId)}/distribution-keys`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: dkId, label, values }),
+    });
+    closeModal();
+    // refresh cache
+    _assetsCache = await apiFetch('/api/assets/properties');
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+async function deleteDk(propId, dkId) {
+  if (!confirm('Verteilungsschlüssel wirklich löschen?')) return;
+  try {
+    await apiFetch(`/api/assets/properties/${encodeURIComponent(propId)}/distribution-keys/${encodeURIComponent(dkId)}`, { method: 'DELETE' });
+    _assetsCache = await apiFetch('/api/assets/properties');
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); }
+}
+
+/* ── Operating costs modal ── */
+async function editCostsModal(propId) {
+  const year = Number(document.getElementById('nk-year')?.value || new Date().getFullYear() - 1);
+  const p = _assetsCache.find(x => x.id === propId);
+  let existing;
+  try { existing = await apiFetch(`/api/assets/costs/${encodeURIComponent(propId)}/${year}`); } catch { existing = null; }
+
+  const dkOptions = (p?.distributionKeys || []).map(dk =>
+    `<option value="${esc(dk.id)}" ${existing?.distributionKeyId === dk.id ? 'selected' : ''}>${esc(dk.label)}</option>`
+  ).join('');
+
+  const costInputs = COST_CATS.map(c =>
+    `<div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+      <span style="min-width:140px;font-size:13px">${c.label}</span>
+      <input id="oc-${c.key}" type="number" step="0.01" min="0" value="${existing?.costs?.[c.key] ?? ''}" placeholder="0" style="width:120px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:13px">
+      <span style="color:var(--muted);font-size:12px">€</span>
+    </div>`
+  ).join('');
+
+  openModal(`
+    <h3>💰 Nebenkosten ${propId} / ${year}</h3>
+    <label>Verteilungsschlüssel</label>
+    <select id="oc-dk">${dkOptions || '<option value="">– Bitte erst Schlüssel anlegen –</option>'}</select>
+    <label style="margin-top:16px">Kosten (Gesamtbeträge pro Jahr)</label>
+    ${costInputs}
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" id="oc-save" onclick="saveCosts('${esc(propId)}',${year})">💾 Speichern</button>
+    </div>
+  `);
+}
+
+async function saveCosts(propId, year) {
+  const dkId = document.getElementById('oc-dk').value;
+  if (!dkId) return alert('Bitte Verteilungsschlüssel wählen.');
+  const costs = {};
+  for (const c of COST_CATS) {
+    const el = document.getElementById(`oc-${c.key}`);
+    if (el && el.value) costs[c.key] = Number(el.value);
+  }
+
+  const btn = document.getElementById('oc-save');
+  btn.disabled = true; btn.textContent = 'Speichern…';
+  try {
+    await apiFetch(`/api/assets/costs/${encodeURIComponent(propId)}/${year}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ costs, distributionKeyId: dkId }),
+    });
+    closeModal();
+    assetDetail(propId);
+  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+}
+
+/* ── Nebenkostenabrechnung ── */
+async function generateNk(propId) {
+  const year = Number(document.getElementById('nk-year')?.value || new Date().getFullYear() - 1);
+  const target = document.getElementById('nk-results');
+  if (!target) return;
+  target.innerHTML = '<div class="spinner">Berechne…</div>';
+
+  try {
+    const results = await apiFetch(`/api/assets/nk/${encodeURIComponent(propId)}/${year}`);
+    if (!results.length) {
+      target.innerHTML = '<div style="color:var(--muted)">Keine abrechnungsrelevanten Einheiten.</div>';
+      return;
+    }
+
+    const html = results.map(r => {
+      const balClass = r.balance >= 0 ? 'nk-positive' : 'nk-negative';
+      const balLabel = r.balance >= 0 ? 'Guthaben' : 'Nachzahlung';
+      const detailRows = r.details.map(d => `<div style="display:flex;justify-content:space-between;font-size:12px;color:var(--muted)"><span>${d.category}</span><span>${fmtEur(d.amount)}</span></div>`).join('');
+      return `<div class="nk-result">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <strong>${esc(r.unitLabel)}</strong>
+          <span style="color:var(--muted);font-size:12px">${esc(r.tenant)} · ${r.share}%</span>
+        </div>
+        ${detailRows}
+        <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between">
+          <span>Anteilige Kosten: <strong>${fmtEur(r.totalCost)}</strong></span>
+          <span>Vorauszahlung: ${fmtEur(r.prepaid)}</span>
+        </div>
+        <div style="text-align:right;margin-top:6px;font-size:15px">
+          <span class="${balClass}">${balLabel}: ${fmtEur(Math.abs(r.balance))}</span>
+        </div>
+      </div>`;
+    }).join('');
+
+    target.innerHTML = `<h4 style="font-size:14px;margin-bottom:10px">Abrechnung ${propId} / ${year}</h4>${html}`;
+  } catch (e) {
+    target.innerHTML = `<div style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
 }
 </script>
 </body>
