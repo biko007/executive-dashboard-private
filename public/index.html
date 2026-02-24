@@ -168,6 +168,20 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .nk-result { background: var(--bg); border-radius: 6px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
 .nk-positive { color: var(--green); font-weight: 600; }
 .nk-negative { color: var(--red); font-weight: 600; }
+
+/* ── Entity images ── */
+.entity-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: var(--r) var(--r) 0 0; overflow: hidden; cursor: pointer; }
+.entity-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.img-placeholder { width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 32px; transition: background .15s; }
+.entity-img-wrap:hover .img-placeholder { background: rgba(79,156,249,.08); }
+.entity-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
+.entity-img-wrap input[type=file] { display: none; }
+.detail-img-wrap { position: relative; width: 100%; max-width: 400px; aspect-ratio: 16/9; border-radius: var(--r); overflow: hidden; cursor: pointer; margin-bottom: 16px; }
+.detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.detail-img-wrap .img-placeholder { border-radius: var(--r); }
+.detail-img-wrap:hover .img-placeholder { background: rgba(79,156,249,.08); }
+.detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
+.detail-img-wrap input[type=file] { display: none; }
 </style>
 </head>
 <body>
@@ -294,6 +308,53 @@ const fmtDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/B
 const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso)) : '–';
 const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso)) : '–';
 
+/* ── Image upload helpers ── */
+function imgUrl(entityType, entityId) {
+  return `/dashboard/api/images/${entityType}-${entityId}.jpg?token=${encodeURIComponent(TOKEN)}&_t=${Date.now()}`;
+}
+
+function entityImgHtml(entityType, entityId, cssClass) {
+  const cls = cssClass || 'entity-img-wrap';
+  const src = imgUrl(entityType, entityId);
+  return `<div class="${cls}" onclick="triggerImgUpload(this,'${esc(entityType)}','${esc(entityId)}')">
+    <img src="${src}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:block">
+    <div class="img-placeholder" style="display:none">📷</div>
+    <input type="file" accept="image/*" onchange="uploadImage(this,'${esc(entityType)}','${esc(entityId)}')">
+  </div>`;
+}
+
+function triggerImgUpload(wrap, entityType, entityId) {
+  wrap.querySelector('input[type=file]').click();
+}
+
+async function uploadImage(input, entityType, entityId) {
+  const file = input.files[0];
+  if (!file) return;
+  const wrap = input.closest('.entity-img-wrap, .detail-img-wrap');
+  const placeholder = wrap.querySelector('.img-placeholder');
+  if (placeholder) { placeholder.textContent = '⏳'; placeholder.style.display = 'flex'; }
+  const img = wrap.querySelector('img');
+  if (img) img.style.display = 'none';
+  try {
+    const fd = new FormData();
+    fd.append('image', file);
+    fd.append('entityType', entityType);
+    fd.append('entityId', entityId);
+    const res = await fetch('/dashboard/api/upload/image?token=' + encodeURIComponent(TOKEN), { method: 'POST', body: fd });
+    if (!res.ok) throw new Error('Upload fehlgeschlagen');
+    const data = await res.json();
+    if (img) {
+      img.src = '/dashboard' + data.imagePath + '?token=' + encodeURIComponent(TOKEN) + '&_t=' + Date.now();
+      img.style.display = 'block';
+      if (placeholder) placeholder.style.display = 'none';
+    }
+  } catch (e) {
+    alert('Bild-Upload fehlgeschlagen: ' + e.message);
+    if (placeholder) { placeholder.textContent = '📷'; }
+  }
+  input.value = '';
+}
+
 const DOC_CAT_LABELS = { vertraege: 'Verträge', rechnungen: 'Rechnungen', notizen: 'Notizen', sonstiges: 'Sonstiges' };
 function fmtSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
@@ -395,7 +456,9 @@ async function loadTrips() {
           }).join('')}
         </div>` : '';
 
-      return `<div class="trip-card" id="tc-${esc(t.id)}">
+      return `<div class="trip-card" id="tc-${esc(t.id)}" style="padding:0;overflow:hidden;border-radius:var(--r)">
+        ${entityImgHtml('trip', t.id, 'entity-img-wrap')}
+        <div style="padding:20px">
         <div class="trip-top">
           <div>
             <h3>${esc(t.name)} ${badge}</h3>
@@ -411,6 +474,7 @@ async function loadTrips() {
         ${segs}
         ${docsSection}
         ${linksSection}
+        </div>
       </div>`;
     }).join('');
     stamp();
@@ -1567,7 +1631,9 @@ async function loadFleet() {
       const plate = v.plate ? `<span class="badge badge-blue">${esc(v.plate)}</span>` : '';
       const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
       const t = tuevInfo(v.tuevDate);
-      return `<div class="fleet-card" id="fc-${esc(v.id)}">
+      return `<div class="fleet-card" id="fc-${esc(v.id)}" style="padding:0;overflow:hidden">
+        ${entityImgHtml('fleet', v.id, 'entity-img-wrap')}
+        <div style="padding:20px">
         <div class="fleet-card-header">
           <span class="fleet-icon">${icon}</span>
           <h3>${esc(v.name)} ${plate}</h3>
@@ -1583,6 +1649,7 @@ async function loadFleet() {
         <div class="fleet-actions">
           <button class="btn btn-primary" onclick="fleetDetail('${esc(v.id)}')">Details</button>
           <button class="btn btn-danger" onclick="deleteVehicle('${esc(v.id)}','${esc(v.name)}')">🗑</button>
+        </div>
         </div>
       </div>`;
     }).join('');
@@ -1707,6 +1774,7 @@ async function fleetDetail(id) {
       <div style="margin-bottom:16px">
         <button class="btn-ghost" onclick="showTab('fleet')">← Zurück</button>
       </div>
+      ${entityImgHtml('fleet', v.id, 'detail-img-wrap')}
       <div class="card card-pad">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
           <span style="font-size:36px">${icon}</span>
@@ -2063,7 +2131,9 @@ async function loadAssets() {
       const icon = p.type === 'residential' ? '🏠' : '🏭';
       const occ = p.units.filter(u => u.rentType !== 'vacant').length;
       const rent = p.units.reduce((s, u) => s + (u.currentRent || 0), 0);
-      return `<div class="asset-card">
+      return `<div class="asset-card" style="padding:0;overflow:hidden">
+        ${entityImgHtml('property', p.id, 'entity-img-wrap')}
+        <div style="padding:20px">
         <div class="asset-card-header">
           <span class="asset-icon">${icon}</span>
           <h3>${esc(p.label)} <span class="badge badge-blue">${esc(p.id)}</span></h3>
@@ -2077,6 +2147,7 @@ async function loadAssets() {
         <div class="asset-actions">
           <button class="btn btn-primary" onclick="assetDetail('${esc(p.id)}')">Details</button>
           <button class="btn btn-primary" onclick="editPropertyModal('${esc(p.id)}')">✏️</button>
+        </div>
         </div>
       </div>`;
     }).join('');
@@ -2140,6 +2211,7 @@ async function assetDetail(id) {
       <div style="margin-bottom:16px">
         <button class="btn-ghost" onclick="showTab('assets')">← Zurück</button>
       </div>
+      ${entityImgHtml('property', p.id, 'detail-img-wrap')}
       <div class="card card-pad">
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
           <span style="font-size:36px">${icon}</span>

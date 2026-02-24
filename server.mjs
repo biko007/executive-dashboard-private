@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import multer from 'multer';
+import sharp from 'sharp';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -54,6 +55,7 @@ const ASSETS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/asse
 const PROPERTIES_FILE = path.join(ASSETS_DIR, 'properties.json');
 const LEASES_FILE = path.join(ASSETS_DIR, 'leases.json');
 const COSTS_DIR   = path.join(ASSETS_DIR, 'operating-costs');
+const IMAGES_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/images');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -207,6 +209,51 @@ app.use(express.json());
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── API: Images ──────────────────────────────────────────────────────────────
+
+const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+// Serve images (token required via query param)
+app.get('/api/images/:filename', auth, (req, res) => {
+  const filename = req.params.filename.replace(/[^a-zA-Z0-9._\-]/g, '');
+  const fp = path.join(IMAGES_DIR, filename);
+  if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Image not found' });
+  res.setHeader('Content-Type', 'image/jpeg');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.sendFile(fp);
+});
+
+// Upload + resize image
+app.post('/api/upload/image', auth, imageUpload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No image file provided' });
+    const entityType = String(req.body.entityType || '').replace(/[^a-z]/g, '');
+    const entityId = String(req.body.entityId || '').replace(/[^a-zA-Z0-9._\-]/g, '');
+    if (!entityType || !entityId) return res.status(400).json({ error: 'entityType and entityId required' });
+
+    fs.mkdirSync(IMAGES_DIR, { recursive: true });
+    const filename = `${entityType}-${entityId}.jpg`;
+    const outPath = path.join(IMAGES_DIR, filename);
+
+    await sharp(req.file.buffer)
+      .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 82 })
+      .toFile(outPath);
+
+    res.json({ imagePath: `/api/images/${filename}` });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete image
+app.delete('/api/images/:filename', auth, (req, res) => {
+  const filename = req.params.filename.replace(/[^a-zA-Z0-9._\-]/g, '');
+  const fp = path.join(IMAGES_DIR, filename);
+  if (fs.existsSync(fp)) fs.unlinkSync(fp);
+  res.json({ ok: true });
+});
 
 // ── API: Trips ────────────────────────────────────────────────────────────────
 
