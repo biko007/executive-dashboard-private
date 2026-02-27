@@ -96,6 +96,13 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .seg-row:last-child { border-bottom: none; }
 
+/* ── Traveled (past trips collapsible) ── */
+.traveled-section { margin-top: 24px; }
+.traveled-section summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 10px 0; border-top: 1px solid var(--border); list-style: none; display: flex; align-items: center; gap: 8px; }
+.traveled-section summary::before { content: '▶'; font-size: 10px; transition: transform .2s; }
+.traveled-section[open] summary::before { transform: rotate(90deg); }
+.traveled-section summary::-webkit-details-marker { display: none; }
+
 /* ── Calendar ── */
 .day-group { margin-bottom: 22px; }
 .day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
@@ -414,7 +421,8 @@ async function loadTrips() {
     _docsCache = docs;
     if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
     const today = new Date().toISOString().slice(0,10);
-    c.innerHTML = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newTrip()">+ Neue Reise</button></div>' + trips.map(t => {
+
+    function renderTripCard(t) {
       const active   = t.start_date <= today && t.end_date >= today;
       const upcoming = !active && t.start_date > today;
       const badge = active
@@ -504,7 +512,20 @@ async function loadTrips() {
         ${linksSection}
         </div>
       </div>`;
-    }).join('');
+    }
+
+    const current = trips.filter(t => !t.end_date || t.end_date >= today);
+    const past    = trips.filter(t => t.end_date && t.end_date < today).reverse();
+
+    let html = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newTrip()">+ Neue Reise</button></div>';
+    html += current.map(renderTripCard).join('');
+    if (past.length) {
+      html += `<details class="traveled-section">
+        <summary>Traveled (${past.length})</summary>
+        ${past.map(renderTripCard).join('')}
+      </details>`;
+    }
+    c.innerHTML = html;
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
 }

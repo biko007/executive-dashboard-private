@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Instagram Dashboard — Mockup</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #0c0c18; }
+  button { cursor: pointer; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a40; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState } = React;
+
+const MOCK_DATA = {
+  account: {
+    username: "jurgen_bickel",
+    followers: 14700,
+    followersChange: 127,
+    posts: 285,
+    engagement: 2.13,
+    reach7d: 23400,
+    impressions7d: 41200,
+  },
+  followerHistory: [
+    { date: "01.02", value: 14280 },
+    { date: "05.02", value: 14340 },
+    { date: "09.02", value: 14390 },
+    { date: "13.02", value: 14450 },
+    { date: "17.02", value: 14520 },
+    { date: "21.02", value: 14600 },
+    { date: "25.02", value: 14700 },
+  ],
+  engagementHistory: [
+    { date: "KW5", value: 1.8 },
+    { date: "KW6", value: 2.4 },
+    { date: "KW7", value: 1.9 },
+    { date: "KW8", value: 2.7 },
+    { date: "KW9", value: 2.13 },
+  ],
+  topPosts: [
+    { id: 1, type: "reel", caption: "3 Investment-Regeln die ich gerne fr\u00fcher gewusst h\u00e4tte", likes: 892, comments: 67, engagement: 6.5, date: "2026-02-15" },
+    { id: 2, type: "carousel", caption: "Mein Immobilien-Portfolio: Lessons Learned", likes: 634, comments: 45, engagement: 4.6, date: "2026-02-08" },
+    { id: 3, type: "image", caption: "Behind the scenes: Renovierung D4 Wurmlingen", likes: 521, comments: 38, engagement: 3.8, date: "2026-02-20" },
+    { id: 4, type: "reel", caption: "Morgenroutine als Investor", likes: 478, comments: 29, engagement: 3.4, date: "2026-02-03" },
+    { id: 5, type: "image", caption: "Tuttlingen \u2192 Dubai: Business Trip Insights", likes: 412, comments: 34, engagement: 3.0, date: "2026-01-28" },
+  ],
+  contentCalendar: [
+    { id: "p1", day: "Mo 03.03", time: "18:00", type: "image", title: "Behind the scenes: Objektbesichtigung", status: "draft", draftId: "insta-001" },
+    { id: "p2", day: "Mi 05.03", time: "12:00", type: "reel", title: "3 Dinge die ich als Investor gelernt habe", status: "review", draftId: "insta-002" },
+    { id: "p3", day: "Fr 07.03", time: "19:00", type: "carousel", title: "Wochenr\u00fcckblick: Portfolio-Update", status: "idea", draftId: null },
+    { id: "p4", day: "Mo 10.03", time: "18:00", type: "reel", title: "Immobilien vs. Aktien \u2014 was ist besser?", status: "idea", draftId: null },
+    { id: "p5", day: "Mi 12.03", time: "12:00", type: "image", title: "Workspace Tour: Mein Setup", status: "idea", draftId: null },
+  ],
+  drafts: [
+    { id: "insta-001", title: "Behind the scenes: Objektbesichtigung", type: "image", status: "draft", scheduled: "2026-03-03T18:00", caption: "Heute wieder unterwegs \u2014 Objektbesichtigung in Tuttlingen. Was ich bei jeder Besichtigung als erstes pr\u00fcfe...", hashtags: 18 },
+    { id: "insta-002", title: "3 Dinge die ich als Investor gelernt habe", type: "reel", status: "review", scheduled: "2026-03-05T12:00", caption: "Diese 3 Lektionen haben mein Investment-Denken komplett ver\u00e4ndert. Nummer 2 hat mich am meisten \u00fcberrascht...", hashtags: 22 },
+  ],
+  insights: {
+    bestTime: "Di/Do 18:00\u201319:00",
+    bestFormat: "Reels (4.8% \u00d8 Engagement)",
+    topHashtags: ["#privatinvestor", "#immobilien", "#realestate", "#tuttlingen", "#investment"],
+    audienceGrowth: "+0.87% / Woche",
+  },
+  tokenExpiry: 55,
+};
+
+const typeIcon = (type) => {
+  switch (type) {
+    case "reel": return "\ud83c\udfac";
+    case "carousel": return "\ud83d\udcf8";
+    case "image": return "\ud83d\uddbc\ufe0f";
+    case "story": return "\ud83d\udcf1";
+    default: return "\ud83d\udcc4";
+  }
+};
+
+const statusBadge = (status) => {
+  const styles = {
+    idea:      { bg: "#2a2a3e", color: "#8888aa", label: "Idee" },
+    draft:     { bg: "#1a2a3a", color: "#4a9eff", label: "Entwurf" },
+    review:    { bg: "#2a2a1a", color: "#e8b830", label: "Review" },
+    ready:     { bg: "#1a2a1a", color: "#4ade80", label: "Bereit" },
+    published: { bg: "#1a2a2a", color: "#2dd4bf", label: "Live" },
+  };
+  const s = styles[status] || styles.idea;
+  return (
+    <span style={{
+      background: s.bg, color: s.color,
+      padding: "2px 8px", borderRadius: "4px",
+      fontSize: "11px", fontWeight: 600,
+      letterSpacing: "0.5px", textTransform: "uppercase",
+    }}>{s.label}</span>
+  );
+};
+
+const MiniChart = ({ data, color, height = 48, showArea = true }) => {
+  const values = data.map(d => d.value);
+  const min = Math.min(...values) * 0.995;
+  const max = Math.max(...values) * 1.005;
+  const w = 200, h = height;
+  const points = values.map((v, i) => ({
+    x: (i / (values.length - 1)) * w,
+    y: h - ((v - min) / (max - min)) * h,
+  }));
+  const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const area = `${line} L${w},${h} L0,${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} style={{ width: "100%", height }}>
+      {showArea && <path d={area} fill={`${color}15`} />}
+      <path d={line} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {points.map((p, i) => i === points.length - 1 && (
+        <circle key={i} cx={p.x} cy={p.y} r="3" fill={color} />
+      ))}
+    </svg>
+  );
+};
+
+const KPICard = ({ label, value, sub, trend, chart }) => (
+  <div style={{
+    background: "#141420", borderRadius: "12px",
+    padding: "16px 20px", border: "1px solid #1e1e30",
+    flex: 1, minWidth: 0,
+  }}>
+    <div style={{ color: "#666680", fontSize: "11px", fontWeight: 600, letterSpacing: "1px", textTransform: "uppercase", marginBottom: "8px" }}>
+      {label}
+    </div>
+    <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+      <span style={{ color: "#e8e8f0", fontSize: "28px", fontWeight: 700, fontFamily: "'DM Sans', sans-serif" }}>{value}</span>
+      {trend && (
+        <span style={{
+          color: trend.startsWith("+") ? "#4ade80" : "#f87171",
+          fontSize: "13px", fontWeight: 600,
+        }}>{trend}</span>
+      )}
+    </div>
+    {sub && <div style={{ color: "#555568", fontSize: "12px", marginTop: "2px" }}>{sub}</div>}
+    {chart && <div style={{ marginTop: "10px" }}>{chart}</div>}
+  </div>
+);
+
+function InstagramDashboard() {
+  const [activeTab, setActiveTab] = useState("overview");
+  const d = MOCK_DATA;
+
+  return (
+    <div style={{
+      background: "#0c0c18", minHeight: "100vh", color: "#e8e8f0",
+      fontFamily: "'DM Sans', -apple-system, sans-serif", padding: "24px",
+    }}>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,500;0,9..40,700;1,9..40,400&display=swap" rel="stylesheet" />
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "40px", height: "40px", borderRadius: "10px",
+            background: "linear-gradient(135deg, #833ab4, #fd1d1d, #fcb045)",
+            display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px",
+          }}>{"\ud83d\udcf7"}</div>
+          <div>
+            <div style={{ fontSize: "20px", fontWeight: 700 }}>Instagram</div>
+            <div style={{ fontSize: "12px", color: "#666680" }}>@jurgen_bickel &middot; verifiziert</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            background: d.tokenExpiry > 30 ? "#1a2a1a" : d.tokenExpiry > 7 ? "#2a2a1a" : "#2a1a1a",
+            color: d.tokenExpiry > 30 ? "#4ade80" : d.tokenExpiry > 7 ? "#e8b830" : "#f87171",
+            padding: "6px 12px", borderRadius: "8px", fontSize: "12px", fontWeight: 600,
+          }}>{"\ud83d\udd11"} Token: {d.tokenExpiry} Tage</div>
+          <div style={{
+            background: "#1a1a2e", color: "#8888cc",
+            padding: "6px 12px", borderRadius: "8px", fontSize: "12px",
+            cursor: "pointer", border: "1px solid #2a2a40",
+          }}>{"\u21bb"} Sync</div>
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "24px", borderBottom: "1px solid #1e1e30", paddingBottom: "0" }}>
+        {[
+          { id: "overview", label: "\u00dcbersicht" },
+          { id: "content",  label: "Content-Plan" },
+          { id: "drafts",   label: "Drafts" },
+          { id: "analytics", label: "Analyse" },
+        ].map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{
+            background: "none", border: "none",
+            borderBottom: activeTab === tab.id ? "2px solid #8868e8" : "2px solid transparent",
+            color: activeTab === tab.id ? "#e8e8f0" : "#555568",
+            padding: "8px 16px", fontSize: "13px", fontWeight: 600,
+            cursor: "pointer", transition: "all 0.2s",
+            marginBottom: "-1px", fontFamily: "inherit",
+          }}>{tab.label}</button>
+        ))}
+      </div>
+
+      {/* ── Overview Tab ── */}
+      {activeTab === "overview" && (
+        <div>
+          <div style={{ display: "flex", gap: "16px", marginBottom: "24px", flexWrap: "wrap" }}>
+            <KPICard label="Follower" value={d.account.followers.toLocaleString("de-DE")} trend={`+${d.account.followersChange}`} sub="diese Woche"
+              chart={<MiniChart data={d.followerHistory} color="#8868e8" />} />
+            <KPICard label="Engagement" value={`${d.account.engagement}%`} trend="+0.3%" sub={"\u00d8 letzte 30 Tage"}
+              chart={<MiniChart data={d.engagementHistory} color="#4ade80" />} />
+            <KPICard label="Reach (7 Tage)" value={d.account.reach7d.toLocaleString("de-DE")}
+              sub={`${d.account.impressions7d.toLocaleString("de-DE")} Impressions`} />
+            <KPICard label="Beitr\u00e4ge" value={d.account.posts} sub="gesamt" />
+          </div>
+
+          {/* Top Posts */}
+          <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px", marginBottom: "24px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "16px" }}>
+              Top-Beitr\u00e4ge (30 Tage)
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "1px" }}>
+              {d.topPosts.map((post, i) => (
+                <div key={post.id} style={{
+                  display: "flex", alignItems: "center", gap: "12px", padding: "10px 0",
+                  borderBottom: i < d.topPosts.length - 1 ? "1px solid #1a1a2a" : "none",
+                }}>
+                  <span style={{ color: "#444458", fontSize: "14px", fontWeight: 700, width: "20px" }}>{i + 1}</span>
+                  <span style={{ fontSize: "16px", width: "28px", textAlign: "center" }}>{typeIcon(post.type)}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: "13px", fontWeight: 500, color: "#d0d0e0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{post.caption}</div>
+                    <div style={{ fontSize: "11px", color: "#555568", marginTop: "2px" }}>{post.date}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "16px", fontSize: "12px", color: "#888898", flexShrink: 0 }}>
+                    <span>{"\u2764\ufe0f"} {post.likes}</span>
+                    <span>{"\ud83d\udcac"} {post.comments}</span>
+                    <span style={{
+                      color: post.engagement > 4 ? "#4ade80" : post.engagement > 2.5 ? "#e8b830" : "#888898",
+                      fontWeight: 700,
+                    }}>{post.engagement}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Insights */}
+          <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "16px" }}>
+              Quick Insights
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+              <div>
+                <div style={{ fontSize: "11px", color: "#555568", marginBottom: "4px" }}>Beste Posting-Zeit</div>
+                <div style={{ fontSize: "14px", fontWeight: 600 }}>{d.insights.bestTime}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "11px", color: "#555568", marginBottom: "4px" }}>Top-Format</div>
+                <div style={{ fontSize: "14px", fontWeight: 600 }}>{d.insights.bestFormat}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "11px", color: "#555568", marginBottom: "4px" }}>Wachstum</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "#4ade80" }}>{d.insights.audienceGrowth}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: "11px", color: "#555568", marginBottom: "4px" }}>Top Hashtags</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  {d.insights.topHashtags.slice(0, 3).map(tag => (
+                    <span key={tag} style={{ background: "#1a1a2e", color: "#8868e8", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>{tag}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Content Plan Tab ── */}
+      {activeTab === "content" && (
+        <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase" }}>
+              Content-Kalender — KW 10–11
+            </div>
+            <div style={{
+              background: "linear-gradient(135deg, #8868e8, #6844cc)", color: "#fff",
+              padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontWeight: 600, cursor: "pointer",
+            }}>+ Neuen Plan generieren</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+            {d.contentCalendar.map((item) => (
+              <div key={item.id} style={{
+                display: "flex", alignItems: "center", gap: "16px",
+                padding: "14px 12px", borderRadius: "8px", background: "#0c0c18",
+                cursor: "pointer", transition: "background 0.15s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#16162a"}
+              onMouseLeave={e => e.currentTarget.style.background = "#0c0c18"}>
+                <div style={{ width: "90px", flexShrink: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#d0d0e0" }}>{item.day}</div>
+                  <div style={{ fontSize: "11px", color: "#555568" }}>{item.time}</div>
+                </div>
+                <span style={{ fontSize: "18px", width: "28px", textAlign: "center" }}>{typeIcon(item.type)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 500, color: "#d0d0e0" }}>{item.title}</div>
+                </div>
+                {statusBadge(item.status)}
+                {item.draftId && <span style={{ fontSize: "11px", color: "#555568" }}>{"\u2192"} {item.draftId}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Drafts Tab ── */}
+      {activeTab === "drafts" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {d.drafts.map(draft => (
+            <div key={draft.id} style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span style={{ fontSize: "20px" }}>{typeIcon(draft.type)}</span>
+                  <div>
+                    <div style={{ fontSize: "15px", fontWeight: 600, color: "#e8e8f0" }}>{draft.title}</div>
+                    <div style={{ fontSize: "11px", color: "#555568", marginTop: "2px" }}>
+                      {draft.id} &middot; Geplant: {new Date(draft.scheduled).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })} {new Date(draft.scheduled).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </div>
+                {statusBadge(draft.status)}
+              </div>
+              <div style={{
+                background: "#0c0c18", borderRadius: "8px", padding: "14px",
+                fontSize: "13px", color: "#aaaabc", lineHeight: "1.6",
+                marginBottom: "14px", borderLeft: "3px solid #2a2a40",
+              }}>{draft.caption}</div>
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <span style={{
+                  background: "#1a1a2e", color: "#8868e8",
+                  padding: "4px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: 600,
+                }}>#{draft.hashtags} Hashtags</span>
+                <div style={{ flex: 1 }} />
+                <button style={{
+                  background: "#1a1a2e", border: "1px solid #2a2a40", color: "#8888cc",
+                  padding: "6px 14px", borderRadius: "8px", fontSize: "12px", fontFamily: "inherit",
+                }}>Bearbeiten</button>
+                {draft.status === "review" && (
+                  <button style={{
+                    background: "linear-gradient(135deg, #4ade80, #22c55e)", border: "none",
+                    color: "#0a1a0a", padding: "6px 14px", borderRadius: "8px",
+                    fontSize: "12px", fontWeight: 700, fontFamily: "inherit",
+                  }}>{"\u2713"} Freigeben</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Analytics Tab ── */}
+      {activeTab === "analytics" && (
+        <div>
+          <div style={{ display: "flex", gap: "16px", marginBottom: "24px" }}>
+            <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px", flex: 1 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "16px" }}>
+                Follower-Entwicklung (30 Tage)
+              </div>
+              <MiniChart data={d.followerHistory} color="#8868e8" height={120} />
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: "8px" }}>
+                {d.followerHistory.map(p => (
+                  <span key={p.date} style={{ fontSize: "10px", color: "#444458" }}>{p.date}</span>
+                ))}
+              </div>
+            </div>
+            <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px", flex: 1 }}>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "16px" }}>
+                Engagement-Rate (Wochen)
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "12px", height: "120px", paddingTop: "8px" }}>
+                {d.engagementHistory.map((item, idx) => {
+                  const maxVal = Math.max(...d.engagementHistory.map(x => x.value));
+                  const h = (item.value / maxVal) * 100;
+                  return (
+                    <div key={item.date} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                      <span style={{ fontSize: "11px", color: "#888898", fontWeight: 600 }}>{item.value}%</span>
+                      <div style={{
+                        width: "100%", height: `${h}px`,
+                        background: idx === d.engagementHistory.length - 1
+                          ? "linear-gradient(180deg, #8868e8, #6844cc)" : "#1e1e30",
+                        borderRadius: "4px 4px 0 0", transition: "height 0.3s",
+                      }} />
+                      <span style={{ fontSize: "10px", color: "#444458" }}>{item.date}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Content Type Performance */}
+          <div style={{ background: "#141420", borderRadius: "12px", border: "1px solid #1e1e30", padding: "20px", marginBottom: "24px" }}>
+            <div style={{ fontSize: "13px", fontWeight: 700, color: "#888898", letterSpacing: "1px", textTransform: "uppercase", marginBottom: "16px" }}>
+              Performance nach Content-Typ
+            </div>
+            <div style={{ display: "flex", gap: "16px" }}>
+              {[
+                { type: "Reels",     icon: "\ud83c\udfac", engagement: 4.8, reach: 8200, color: "#f87171" },
+                { type: "Carousels", icon: "\ud83d\udcf8", engagement: 3.2, reach: 5400, color: "#e8b830" },
+                { type: "Bilder",    icon: "\ud83d\uddbc\ufe0f", engagement: 1.9, reach: 3100, color: "#4a9eff" },
+                { type: "Stories",   icon: "\ud83d\udcf1", engagement: 1.2, reach: 2800, color: "#4ade80" },
+              ].map(ct => (
+                <div key={ct.type} style={{ flex: 1, background: "#0c0c18", borderRadius: "10px", padding: "16px", textAlign: "center" }}>
+                  <div style={{ fontSize: "28px", marginBottom: "8px" }}>{ct.icon}</div>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: "#d0d0e0", marginBottom: "8px" }}>{ct.type}</div>
+                  <div style={{ fontSize: "22px", fontWeight: 700, color: ct.color, marginBottom: "2px" }}>{ct.engagement}%</div>
+                  <div style={{ fontSize: "11px", color: "#555568" }}>{"\u00d8"} Engagement</div>
+                  <div style={{ fontSize: "12px", color: "#888898", marginTop: "8px" }}>{ct.reach.toLocaleString("de-DE")} Reach</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* AI Recommendation */}
+          <div style={{
+            background: "linear-gradient(135deg, #1a1535, #141420)",
+            borderRadius: "12px", border: "1px solid #2a2050", padding: "20px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+              <span style={{ fontSize: "16px" }}>{"\ud83e\udd16"}</span>
+              <div style={{ fontSize: "13px", fontWeight: 700, color: "#8868e8", letterSpacing: "1px", textTransform: "uppercase" }}>
+                KI-Empfehlung
+              </div>
+            </div>
+            <div style={{ fontSize: "13px", color: "#c0c0d8", lineHeight: "1.7" }}>
+              Deine Reels performen 2.5x besser als Bilder. Empfehlung: Fokus auf kurze Reels (15–30s) mit Investment-Tipps — die haben die h&ouml;chste Engagement-Rate. Optimaler Posting-Zeitpunkt: Dienstag und Donnerstag zwischen 18:00–19:00 Uhr. Carousels mit Mehrwert-Content (z.B. &quot;5 Tipps&quot;) performen als zweitbestes Format.
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<InstagramDashboard />);
+</script>
+</body>
+</html>
