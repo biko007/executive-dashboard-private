@@ -103,6 +103,14 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .traveled-section[open] summary::before { transform: rotate(90deg); }
 .traveled-section summary::-webkit-details-marker { display: none; }
 
+/* ── Instagram Live Feed Grid ── */
+.insta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
+.insta-grid-item { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--bg); border: 1px solid var(--border); }
+.insta-grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
+.insta-grid-item:hover img { opacity: .75; }
+.insta-grid-item .ig-type { position: absolute; top: 6px; right: 6px; font-size: 14px; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
+.insta-grid-item .ig-likes { position: absolute; bottom: 0; left: 0; right: 0; padding: 4px 8px; font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+
 /* ── Calendar ── */
 .day-group { margin-bottom: 22px; }
 .day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
@@ -222,6 +230,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
     <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
     <button onclick="showTab('assets')"          >🏠 Assets</button>
+    <button onclick="showTab('instagram')"       >📷 Instagram</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -293,11 +302,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet','assets'];
+  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet','assets','instagram'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets })[tab]();
+  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -753,7 +762,9 @@ async function loadHealth() {
     const byType = t => entries.filter(e => e.type === t);
     const weights = byType('weight');
     const lastW = weights[0];
-    const lastSleep = byType('sleep')[0];
+    const sleepAll = byType('sleep');
+    const todayDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const lastSleep = sleepAll.length && new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(sleepAll[0].timestamp)) === todayDate ? sleepAll[0] : null;
     const lastStep = byType('steps')[0];
 
     const wt = trends.weight;
@@ -779,7 +790,7 @@ async function loadHealth() {
     const summaryGrid = `<div class="summary-grid">
       ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
-      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : ''}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
       ${sleepTrendHtml}
       ${hrHtml}
       ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
@@ -2718,6 +2729,266 @@ async function generateNk(propId) {
     target.innerHTML = `<div style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
   }
 }
+/* ── Instagram Tab ── */
+
+const _INSTA_MOCK = {
+  account: { username: "jurgen_bickel", followers: 14700, followersChange: 127, posts: 285, engagement: 2.13, reach7d: 23400, impressions7d: 41200 },
+  followerHistory: [
+    { d: "01.02", v: 14280 }, { d: "05.02", v: 14340 }, { d: "09.02", v: 14390 },
+    { d: "13.02", v: 14450 }, { d: "17.02", v: 14520 }, { d: "21.02", v: 14600 }, { d: "25.02", v: 14700 },
+  ],
+  engagementHistory: [
+    { d: "KW5", v: 1.8 }, { d: "KW6", v: 2.4 }, { d: "KW7", v: 1.9 }, { d: "KW8", v: 2.7 }, { d: "KW9", v: 2.13 },
+  ],
+  topPosts: [
+    { type: "reel", caption: "3 Investment-Regeln die ich gerne früher gewusst hätte", likes: 892, comments: 67, eng: 6.5, date: "2026-02-15" },
+    { type: "carousel", caption: "Mein Immobilien-Portfolio: Lessons Learned", likes: 634, comments: 45, eng: 4.6, date: "2026-02-08" },
+    { type: "image", caption: "Behind the scenes: Renovierung D4 Wurmlingen", likes: 521, comments: 38, eng: 3.8, date: "2026-02-20" },
+    { type: "reel", caption: "Morgenroutine als Investor", likes: 478, comments: 29, eng: 3.4, date: "2026-02-03" },
+    { type: "image", caption: "Tuttlingen → Dubai: Business Trip Insights", likes: 412, comments: 34, eng: 3.0, date: "2026-01-28" },
+  ],
+  calendar: [
+    { day: "Mo 03.03", time: "18:00", type: "image", title: "Behind the scenes: Objektbesichtigung", status: "draft", draftId: "insta-001" },
+    { day: "Mi 05.03", time: "12:00", type: "reel", title: "3 Dinge die ich als Investor gelernt habe", status: "review", draftId: "insta-002" },
+    { day: "Fr 07.03", time: "19:00", type: "carousel", title: "Wochenrückblick: Portfolio-Update", status: "idea", draftId: null },
+    { day: "Mo 10.03", time: "18:00", type: "reel", title: "Immobilien vs. Aktien — was ist besser?", status: "idea", draftId: null },
+    { day: "Mi 12.03", time: "12:00", type: "image", title: "Workspace Tour: Mein Setup", status: "idea", draftId: null },
+  ],
+  drafts: [
+    { id: "insta-001", title: "Behind the scenes: Objektbesichtigung", type: "image", status: "draft", scheduled: "03.03. 18:00", caption: "Heute wieder unterwegs — Objektbesichtigung in Tuttlingen. Was ich bei jeder Besichtigung als erstes prüfe...", hashtags: 18 },
+    { id: "insta-002", title: "3 Dinge die ich als Investor gelernt habe", type: "reel", status: "review", scheduled: "05.03. 12:00", caption: "Diese 3 Lektionen haben mein Investment-Denken komplett verändert. Nummer 2 hat mich am meisten überrascht...", hashtags: 22 },
+  ],
+  insights: { bestTime: "Di/Do 18:00–19:00", bestFormat: "Reels (4.8% Ø Engagement)", topHashtags: ["#privatinvestor", "#immobilien", "#realestate", "#tuttlingen", "#investment"], growth: "+0.87% / Woche" },
+  tokenExpiry: 55,
+};
+
+function _instaTypeIcon(t) { return { reel: '🎬', carousel: '📸', image: '🖼️', story: '📱' }[t] || '📄'; }
+
+function _instaStatusBadge(s) {
+  const m = { idea: ['badge-muted','Idee'], draft: ['badge-blue','Entwurf'], review: ['badge-yellow','Review'], ready: ['badge-green','Bereit'], published: ['badge-green','Live'] };
+  const [cls, lbl] = m[s] || m.idea;
+  return `<span class="badge ${cls}">${lbl}</span>`;
+}
+
+function _instaMiniSvg(data, color, h) {
+  const vals = data.map(d => d.v);
+  const min = Math.min(...vals) * 0.995, max = Math.max(...vals) * 1.005, w = 200;
+  const pts = vals.map((v, i) => ({ x: (i / (vals.length - 1)) * w, y: h - ((v - min) / (max - min)) * h }));
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const last = pts[pts.length - 1];
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">
+    <path d="${line} L${w},${h} L0,${h} Z" fill="${color}15"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3" fill="${color}"/>
+  </svg>`;
+}
+
+let _instaSubTab = 'overview';
+let _instaMediaCache = null;
+
+async function loadInstagram() {
+  const c = document.getElementById('content');
+  const d = _INSTA_MOCK;
+
+  if (!_instaMediaCache) {
+    try { _instaMediaCache = await apiFetch('/api/instagram/media'); } catch { _instaMediaCache = { items: [] }; }
+  }
+
+  const tabBtn = (id, label) => `<button onclick="_instaSubTab='${id}';loadInstagram()" style="
+    background:none;border:none;border-bottom:2px solid ${_instaSubTab === id ? 'var(--accent)' : 'transparent'};
+    color:${_instaSubTab === id ? 'var(--text)' : 'var(--muted)'};padding:8px 16px;font-size:13px;font-weight:600;
+    cursor:pointer;font-family:var(--font);margin-bottom:-1px">${label}</button>`;
+
+  const tokenColor = d.tokenExpiry > 30 ? 'var(--green)' : d.tokenExpiry > 7 ? 'var(--yellow)' : 'var(--red)';
+  const tokenBg = d.tokenExpiry > 30 ? 'rgba(74,222,128,.1)' : d.tokenExpiry > 7 ? 'rgba(251,191,36,.1)' : 'rgba(248,113,113,.1)';
+
+  let header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
+      <div>
+        <div style="font-size:16px;font-weight:700">Instagram</div>
+        <div style="font-size:12px;color:var(--muted)">@${esc(d.account.username)}</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600">🔑 Token: ${d.tokenExpiry} Tage</span>
+      <button class="btn btn-primary" style="font-size:12px;padding:5px 12px">↻ Sync</button>
+    </div>
+  </div>`;
+
+  let tabs = `<div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+    ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Drafts')}${tabBtn('analytics','Analyse')}
+  </div>`;
+
+  let body = '';
+
+  if (_instaSubTab === 'overview') {
+    const feedItems = (_instaMediaCache?.items || []).slice(0, 12);
+    const liveFeed = feedItems.length ? `
+      <div class="card card-pad" style="margin-bottom:20px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Live Feed</div>
+        <div class="insta-grid">
+          ${feedItems.map(p => {
+            const thumb = p.thumbnail_url || p.media_url || '';
+            const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
+            const imgTag = thumb
+              ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+              : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted)">${icon}</div>`;
+            return `<a href="${esc(p.permalink)}" target="_blank" rel="noopener" class="insta-grid-item" title="${esc((p.caption || '').slice(0, 80))}">
+              ${imgTag}
+              <span class="ig-type">${icon}</span>
+              <span class="ig-likes">❤️ ${(p.like_count || 0).toLocaleString('de-DE')}</span>
+            </a>`;
+          }).join('')}
+        </div>
+      </div>` : '';
+
+    const kpi = (label, value, trend, sub, chart) => `<div class="s-card" style="flex:1;min-width:0">
+      <div class="lbl">${label}</div>
+      <div style="display:flex;align-items:baseline;gap:8px">
+        <span class="val" style="font-size:26px">${value}</span>
+        ${trend ? `<span style="color:${trend.startsWith('+') ? 'var(--green)' : 'var(--red)'};font-size:13px;font-weight:600">${trend}</span>` : ''}
+      </div>
+      ${sub ? `<div class="sub">${sub}</div>` : ''}
+      ${chart ? `<div style="margin-top:10px">${chart}</div>` : ''}
+    </div>`;
+
+    body = liveFeed + `
+      <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        ${kpi('Follower', d.account.followers.toLocaleString('de-DE'), '+' + d.account.followersChange, 'diese Woche', _instaMiniSvg(d.followerHistory, '#4f9cf9', 48))}
+        ${kpi('Engagement', d.account.engagement + '%', '+0.3%', 'Ø letzte 30 Tage', _instaMiniSvg(d.engagementHistory, '#4ade80', 48))}
+        ${kpi('Reach (7 Tage)', d.account.reach7d.toLocaleString('de-DE'), null, d.account.impressions7d.toLocaleString('de-DE') + ' Impressions', '')}
+        ${kpi('Beiträge', d.account.posts, null, 'gesamt', '')}
+      </div>
+
+      <div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge (30 Tage)</div>
+        <table><thead><tr><th>#</th><th>Typ</th><th>Caption</th><th>❤️</th><th>💬</th><th>Eng.</th><th>Datum</th></tr></thead><tbody>
+        ${d.topPosts.map((p, i) => {
+          const engColor = p.eng > 4 ? 'var(--green)' : p.eng > 2.5 ? 'var(--yellow)' : 'var(--muted)';
+          return `<tr>
+            <td style="color:var(--muted);font-weight:700">${i + 1}</td>
+            <td>${_instaTypeIcon(p.type)}</td>
+            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.caption)}</td>
+            <td>${p.likes}</td><td>${p.comments}</td>
+            <td style="color:${engColor};font-weight:700">${p.eng}%</td>
+            <td style="color:var(--muted);font-size:12px">${p.date}</td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>
+      </div>
+
+      <div class="card card-pad">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Quick Insights</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Beste Posting-Zeit</div><div style="font-weight:600">${d.insights.bestTime}</div></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Top-Format</div><div style="font-weight:600">${d.insights.bestFormat}</div></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Wachstum</div><div style="font-weight:600;color:var(--green)">${d.insights.growth}</div></div>
+          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Top Hashtags</div>
+            <div style="display:flex;flex-wrap:wrap;gap:4px">${d.insights.topHashtags.slice(0, 4).map(t => `<span class="badge badge-blue">${esc(t)}</span>`).join('')}</div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  if (_instaSubTab === 'content') {
+    body = `<div class="card card-pad">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Content-Kalender — KW 10–11</div>
+        <button class="btn btn-primary">+ Neuen Plan generieren</button>
+      </div>
+      <table><thead><tr><th>Tag</th><th>Zeit</th><th>Typ</th><th>Titel</th><th>Status</th><th>Draft</th></tr></thead><tbody>
+      ${d.calendar.map(item => `<tr>
+        <td style="font-weight:600;white-space:nowrap">${esc(item.day)}</td>
+        <td style="color:var(--muted)">${item.time}</td>
+        <td>${_instaTypeIcon(item.type)}</td>
+        <td>${esc(item.title)}</td>
+        <td>${_instaStatusBadge(item.status)}</td>
+        <td style="color:var(--muted);font-size:12px">${item.draftId ? '→ ' + esc(item.draftId) : '–'}</td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>`;
+  }
+
+  if (_instaSubTab === 'drafts') {
+    body = d.drafts.map(dr => `<div class="card card-pad" style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:20px">${_instaTypeIcon(dr.type)}</span>
+          <div>
+            <div style="font-size:15px;font-weight:600">${esc(dr.title)}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dr.id)} · Geplant: ${esc(dr.scheduled)}</div>
+          </div>
+        </div>
+        ${_instaStatusBadge(dr.status)}
+      </div>
+      <div style="background:var(--bg);border-radius:6px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;border-left:3px solid var(--border)">${esc(dr.caption)}</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="badge badge-blue">#${dr.hashtags} Hashtags</span>
+        <div style="flex:1"></div>
+        <button class="btn" style="background:var(--surface);border:1px solid var(--border);color:var(--muted)">✏️ Bearbeiten</button>
+        ${dr.status === 'review' ? '<button class="btn" style="background:var(--green);color:#0a1a0a;font-weight:700">✓ Freigeben</button>' : ''}
+      </div>
+    </div>`).join('');
+  }
+
+  if (_instaSubTab === 'analytics') {
+    const maxEng = Math.max(...d.engagementHistory.map(x => x.v));
+    const engBars = d.engagementHistory.map((item, idx) => {
+      const h = Math.round((item.v / maxEng) * 100);
+      const isLast = idx === d.engagementHistory.length - 1;
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
+        <span style="font-size:11px;color:var(--muted);font-weight:600">${item.v}%</span>
+        <div style="width:100%;height:${h}px;background:${isLast ? 'var(--accent)' : 'var(--border)'};border-radius:4px 4px 0 0"></div>
+        <span style="font-size:10px;color:var(--muted)">${item.d}</span>
+      </div>`;
+    }).join('');
+
+    const ctPerf = [
+      { type: 'Reels', icon: '🎬', eng: 4.8, reach: 8200, color: 'var(--red)' },
+      { type: 'Carousels', icon: '📸', eng: 3.2, reach: 5400, color: 'var(--yellow)' },
+      { type: 'Bilder', icon: '🖼️', eng: 1.9, reach: 3100, color: 'var(--accent)' },
+      { type: 'Stories', icon: '📱', eng: 1.2, reach: 2800, color: 'var(--green)' },
+    ].map(ct => `<div style="flex:1;background:var(--bg);border-radius:8px;padding:16px;text-align:center">
+      <div style="font-size:28px;margin-bottom:8px">${ct.icon}</div>
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">${ct.type}</div>
+      <div style="font-size:22px;font-weight:700;color:${ct.color}">${ct.eng}%</div>
+      <div style="font-size:11px;color:var(--muted)">Ø Engagement</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:8px">${ct.reach.toLocaleString('de-DE')} Reach</div>
+    </div>`).join('');
+
+    body = `<div style="display:flex;gap:16px;margin-bottom:20px">
+      <div class="card card-pad" style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Follower-Entwicklung (30 Tage)</div>
+        ${_instaMiniSvg(d.followerHistory, '#4f9cf9', 120)}
+        <div style="display:flex;justify-content:space-between;margin-top:8px">${d.followerHistory.map(p => `<span style="font-size:10px;color:var(--muted)">${p.d}</span>`).join('')}</div>
+      </div>
+      <div class="card card-pad" style="flex:1">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Engagement-Rate (Wochen)</div>
+        <div style="display:flex;align-items:flex-end;gap:12px;height:120px;padding-top:8px">${engBars}</div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Performance nach Content-Typ</div>
+      <div style="display:flex;gap:12px">${ctPerf}</div>
+    </div>
+
+    <div class="card card-pad" style="border-color:rgba(79,156,249,.2);background:linear-gradient(135deg,rgba(79,156,249,.04),var(--surface))">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+        <span style="font-size:16px">🤖</span>
+        <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.4px">KI-Empfehlung</div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.7">
+        Deine Reels performen 2.5× besser als Bilder. Empfehlung: Fokus auf kurze Reels (15–30s) mit Investment-Tipps — die haben die höchste Engagement-Rate. Optimaler Posting-Zeitpunkt: Dienstag und Donnerstag zwischen 18:00–19:00 Uhr. Carousels mit Mehrwert-Content (z.B. "5 Tipps") performen als zweitbestes Format.
+      </div>
+    </div>`;
+  }
+
+  c.innerHTML = header + tabs + body;
+  stamp();
+}
+
 </script>
 </body>
 </html>

@@ -51,6 +51,7 @@ const FLEET_FILE  = path.join(FLEET_DIR, 'vehicles.json');
 const LINKS_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/links');
 const LINKS_FILE  = path.join(LINKS_DIR, 'links.json');
 const SP_INDEX_FILE = path.join(HOME, '.openclaw/workspace/artifacts/personal/sharepoint/sharepoint-index.json');
+const INSTA_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/instagram');
 const ASSETS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/assets');
 const PROPERTIES_FILE = path.join(ASSETS_DIR, 'properties.json');
 const LEASES_FILE = path.join(ASSETS_DIR, 'leases.json');
@@ -253,6 +254,19 @@ app.delete('/api/images/:filename', auth, (req, res) => {
   const fp = path.join(IMAGES_DIR, filename);
   if (fs.existsSync(fp)) fs.unlinkSync(fp);
   res.json({ ok: true });
+});
+
+// ── API: Instagram Media Cache ────────────────────────────────────────────────
+
+app.get('/api/instagram/media', auth, (req, res) => {
+  try {
+    const file = path.join(INSTA_DIR, 'media-cache.json');
+    if (!fs.existsSync(file)) return res.json({ items: [] });
+    const cache = JSON.parse(fs.readFileSync(file, 'utf8'));
+    res.json(cache);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ── API: Trips ────────────────────────────────────────────────────────────────
