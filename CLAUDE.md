@@ -1,11 +1,12 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-02-24**
+**Stand: 2026-03-01**
 
 ## Projekt
 
 OpenClaw Executive Dashboard (Web UI) auf Hetzner VPS.
-URL: `https://46.62.153.181:8443/dashboard/?token=<DASHBOARD_TOKEN>`
+URL: `https://app.bikobickel.de/?token=<DASHBOARD_TOKEN>`
+Legacy: `https://46.62.153.181:8443/dashboard/?token=<DASHBOARD_TOKEN>`
 
 ## Starten
 
@@ -46,14 +47,15 @@ journalctl --user -u openclaw-dashboard.service -n 20 --no-pager
 ## nginx
 
 ```
-Config:  /etc/nginx/sites-available/openclaw-withings
-Port:    8443 → Dashboard auf 18800
-Reload:  sudo nginx -t && sudo systemctl reload nginx
+Dashboard: /etc/nginx/sites-available/app-bikobickel   (app.bikobickel.de:443 → 18800)
+Legacy:    /etc/nginx/sites-available/openclaw-withings (IP:8443 → 18800)
+Cert:      Let's Encrypt (auto-renew via certbot)
+Reload:    sudo nginx -t && sudo systemctl reload nginx
 ```
 
 ## Tabs im Dashboard
 
-Trips | Health | Drafts | Kalender | Fuhrpark | Assets | SharePoint | Dokumente
+Trips | Health | Drafts | Kalender | Fuhrpark | Assets | SharePoint | Dokumente | Instagram
 
 ## Grundregeln
 
