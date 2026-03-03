@@ -1,11 +1,11 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-03-01**
+**Stand: 2026-03-03**
 
 ## Projekt
 
 OpenClaw Executive Dashboard (Web UI) auf Hetzner VPS.
-URL: `https://app.bikobickel.de/?token=<DASHBOARD_TOKEN>`
+URL: `https://app.bikobickel.de/dashboard/?token=<DASHBOARD_TOKEN>`
 Legacy: `https://46.62.153.181:8443/dashboard/?token=<DASHBOARD_TOKEN>`
 
 ## Starten
@@ -47,8 +47,13 @@ journalctl --user -u openclaw-dashboard.service -n 20 --no-pager
 ## nginx
 
 ```
-Dashboard: /etc/nginx/sites-available/app-bikobickel   (app.bikobickel.de:443 → 18800)
-Legacy:    /etc/nginx/sites-available/openclaw-withings (IP:8443 → 18800)
+Alle externen Endpoints über nginx + Let's Encrypt SSL (app.bikobickel.de:443):
+
+  /dashboard/*  → 127.0.0.1:18800  (Dashboard)
+  /location     → 127.0.0.1:18790  (Location-API)
+
+Config:    /etc/nginx/sites-available/app-bikobickel
+Legacy:    /etc/nginx/sites-available/openclaw-withings (IP:8443)
 Cert:      Let's Encrypt (auto-renew via certbot)
 Reload:    sudo nginx -t && sudo systemctl reload nginx
 ```
