@@ -1277,7 +1277,7 @@ app.put('/api/fleet/:id', auth, (req, res) => {
     const all = readFleet();
     const idx = all.findIndex(v => v.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Vehicle not found' });
-    const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'insurance'];
+    const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'vehicleTax', 'insurance'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) all[idx][key] = req.body[key];
     }

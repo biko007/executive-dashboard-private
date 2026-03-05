@@ -490,10 +490,11 @@ async function loadTrips() {
             const lLink = l.docType === 'sharepoint' && l.spWebUrl
               ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${lName}</a>`
               : lName;
+            const lShowLabel = l.label && l.label !== (l.docType === 'sharepoint' ? (l.spName || '') : (l.localName || ''));
             return `<div class="seg-row" style="display:flex;align-items:center;gap:8px">
               <span>${lIcon}</span>
-              <span style="font-weight:500">${esc(l.label)}</span>
-              <span style="color:var(--muted);font-size:13px">— ${lLink}</span>
+              ${lShowLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
+              <span style="${lShowLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${lLink}</span>
               <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;margin-left:auto"
                 onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>
             </div>`;
@@ -1696,7 +1697,10 @@ function tuevInfo(tuevDate) {
 async function loadFleet() {
   const c = document.getElementById('content');
   try {
-    const vehicles = await apiFetch('/api/fleet');
+    const [vehicles, allLinks] = await Promise.all([
+      apiFetch('/api/fleet'),
+      apiFetch('/api/links').catch(() => [])
+    ]);
     _fleetCache = vehicles;
     if (!vehicles.length) {
       c.innerHTML = '<div class="empty">Keine Fahrzeuge im Fuhrpark.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newVehicleModal()">+ Fahrzeug anlegen</button></div>';
@@ -1708,6 +1712,31 @@ async function loadFleet() {
       const plate = v.plate ? `<span class="badge badge-blue">${esc(v.plate)}</span>` : '';
       const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
       const t = tuevInfo(v.tuevDate);
+
+      // Cost line: KFZ-Steuer + Versicherung
+      const costParts = [];
+      if (v.vehicleTax != null) costParts.push(`<span class="fl">KFZ-Steuer</span> ${Number(v.vehicleTax).toLocaleString('de-DE')} €/J`);
+      if (v.insurance?.annualCost != null) costParts.push(`<span class="fl">Versicherung</span> ${Number(v.insurance.annualCost).toLocaleString('de-DE')} €/J`);
+      const costHtml = costParts.length ? costParts.map(p => `<div>${p}</div>`).join('') : '';
+
+      // Document quick-links from linked documents
+      const vLinks = (allLinks || []).filter(l => l.entityType === 'fleet' && l.entityId === v.id);
+      const scheinLink = vLinks.find(l => {
+        const n = ((l.spName || l.localName || l.label) || '').toLowerCase();
+        return n.includes('fahrzeugschein');
+      });
+      const briefLink = vLinks.find(l => {
+        const n = ((l.spName || l.localName || l.label) || '').toLowerCase();
+        return n.includes('brief') || n.includes('zulassung');
+      });
+      let docBtns = '';
+      if (scheinLink || briefLink) {
+        const btns = [];
+        if (scheinLink && scheinLink.spWebUrl) btns.push(`<a href="${esc(scheinLink.spWebUrl)}" target="_blank" class="btn-ghost" style="font-size:12px;padding:4px 8px;text-decoration:none" title="Fahrzeugschein öffnen">📄 Schein</a>`);
+        if (briefLink && briefLink.spWebUrl) btns.push(`<a href="${esc(briefLink.spWebUrl)}" target="_blank" class="btn-ghost" style="font-size:12px;padding:4px 8px;text-decoration:none" title="Fahrzeugbrief öffnen">📋 Brief</a>`);
+        if (btns.length) docBtns = `<div style="display:flex;gap:6px;margin-top:8px">${btns.join('')}</div>`;
+      }
+
       return `<div class="fleet-card" id="fc-${esc(v.id)}" style="padding:0;overflow:hidden">
         ${entityImgHtml('fleet', v.id, 'entity-img-wrap')}
         <div style="padding:20px">
@@ -1722,7 +1751,8 @@ async function loadFleet() {
           <div><span class="fl">km-Stand</span> ${km}</div>
           ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
           <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
-        </div>
+          ${costHtml}
+        </div>${docBtns}
         <div class="fleet-actions">
           <button class="btn btn-primary" onclick="fleetDetail('${esc(v.id)}')">Details</button>
           <button class="btn btn-danger" onclick="deleteVehicle('${esc(v.id)}','${esc(v.name)}')">🗑</button>
@@ -1873,6 +1903,7 @@ async function fleetDetail(id) {
           ${v.vin ? `<div><span class="fl">FIN</span> ${esc(v.vin)}</div>` : ''}
           ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
           <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
+          ${v.vehicleTax != null ? `<div><span class="fl">KFZ-Steuer</span> ${Number(v.vehicleTax).toLocaleString('de-DE')} €/Jahr</div>` : ''}
         </div>
       </div>
       <div class="card card-pad" style="margin-top:16px">
@@ -1919,6 +1950,8 @@ function editVehicleModal(id) {
     <input id="ev-km" type="number" value="${v.mileage ?? ''}">
     <label>TÜV-Datum</label>
     <input id="ev-tuev" type="date" value="${tuevVal}">
+    <label>KFZ-Steuer/Jahr (€)</label>
+    <input id="ev-tax" type="number" value="${v.vehicleTax ?? ''}">
     <label>Versicherung — Anbieter</label>
     <input id="ev-ins-prov" value="${esc(v.insurance?.provider || '')}">
     <label>Versicherung — Typ</label>
@@ -1943,6 +1976,7 @@ async function saveVehicle(id) {
   const color = document.getElementById('ev-color').value.trim();
   const km    = document.getElementById('ev-km').value;
   const tuev  = document.getElementById('ev-tuev').value;
+  const tax     = document.getElementById('ev-tax').value;
   const insProv = document.getElementById('ev-ins-prov').value.trim();
   const insType = document.getElementById('ev-ins-type').value.trim();
   const insCost = document.getElementById('ev-ins-cost').value;
@@ -1956,6 +1990,7 @@ async function saveVehicle(id) {
     color: color || undefined,
     mileage: km !== '' ? Number(km) : undefined,
     tuevDate: tuev || undefined,
+    vehicleTax: tax !== '' ? Number(tax) : undefined,
   };
   // Add newId if the ID was changed
   const effectiveNewId = newIdVal.startsWith('v-') ? newIdVal : 'v-' + newIdVal;
@@ -2055,10 +2090,11 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
     const nameHtml = l.docType === 'sharepoint' && l.spWebUrl
       ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${name}</a>`
       : `<span>${name}</span>`;
+    const showLabel = l.label && l.label !== (l.docType === 'sharepoint' ? (l.spName || '') : (l.localName || ''));
     return `<div class="seg-row" style="display:flex;align-items:center;gap:8px;padding:8px 12px">
       <span title="${l.docType === 'sharepoint' ? 'SharePoint' : 'Lokal'}">${icon}</span>
-      <span style="font-weight:500">${esc(l.label)}</span>
-      <span style="color:var(--muted);font-size:13px">— ${nameHtml}</span>
+      ${showLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
+      <span style="${showLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${nameHtml}</span>
       <span style="color:var(--muted);font-size:11px;margin-left:auto">${l.id}</span>
       <button class="btn btn-danger" style="padding:2px 8px;font-size:11px"
         onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">✕</button>
