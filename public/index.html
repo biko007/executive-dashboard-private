@@ -222,15 +222,15 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     </div>
   </header>
   <nav>
-    <button onclick="showTab('trips')"    class="active">✈️ Trips</button>
-    <button onclick="showTab('health')"          >🏥 Health</button>
-    <button onclick="showTab('drafts')"          >📬 Drafts</button>
+    <button onclick="showTab('health')"   class="active">🏥 Health</button>
+    <button onclick="showTab('trips')"           >✈️ Trips</button>
     <button onclick="showTab('calendar')"        >📅 Kalender</button>
-    <button onclick="showTab('documents')"       >📁 Dokumente</button>
-    <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
     <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
     <button onclick="showTab('assets')"          >🏠 Assets</button>
+    <button onclick="showTab('trading')"         >📈 Trading</button>
+    <button onclick="showTab('pe')"              >💼 Private Equity</button>
     <button onclick="showTab('instagram')"       >📷 Instagram</button>
+    <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -259,7 +259,7 @@ let _docsCache = [];
   TOKEN = localStorage.getItem('token') || '';
   if (TOKEN) {
     showApp();
-    showTab('trips');
+    showTab('health');
   } else {
     document.getElementById('login').style.display = 'flex';
   }
@@ -278,7 +278,7 @@ async function submitToken() {
     localStorage.setItem('token', TOKEN);
     document.getElementById('login').style.display = 'none';
     showApp();
-    showTab('trips');
+    showTab('health');
   } catch {
     document.getElementById('loginErr').textContent = 'Token ungültig oder Server nicht erreichbar.';
     TOKEN = '';
@@ -302,11 +302,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['trips','health','drafts','calendar','documents','sharepoint','fleet','assets','instagram'];
+  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ trips: loadTrips, health: loadHealth, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram })[tab]();
+  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -592,7 +592,7 @@ async function createTrip() {
       body: JSON.stringify({ id, name, destination, start_date, end_date, climate, activities })
     });
     closeModal();
-    showTab('trips');
+    showTab('health');
   } catch(e) { alert(`Fehler: ${e.message}`); }
 }
 
@@ -653,7 +653,7 @@ async function saveTrip(id) {
       body: JSON.stringify({ name, destination, start_date, end_date, climate, activities, segments })
     });
     closeModal();
-    showTab('trips');
+    showTab('health');
   } catch(e) { alert(`Fehler: ${e.message}`); }
 }
 
@@ -712,7 +712,7 @@ async function syncSegCal(tripId, segId) {
   try {
     const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(segId)}/calendar`, { method: 'POST' });
     if (result.skipped) { alert('Kalendereintrag existiert bereits.'); }
-    showTab('trips');
+    showTab('health');
   } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 
@@ -720,7 +720,7 @@ async function syncAllSegCal(tripId) {
   try {
     const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/sync-calendar`, { method: 'POST' });
     alert(`Kalender-Sync: ✅ ${result.created} erstellt, ⏭ ${result.skipped} vorhanden, ❌ ${result.failed} fehlgeschlagen`);
-    showTab('trips');
+    showTab('health');
   } catch (e) { alert(`Fehler: ${e.message}`); }
 }
 
@@ -1708,7 +1708,7 @@ async function loadFleet() {
     }
 
     const cards = vehicles.map(v => {
-      const icon = v.type === 'car' ? '🚗' : '🚲';
+      const icon = v.type === 'car' ? '🚗' : v.type === 'boat' ? '🚤' : '🚲';
       const plate = v.plate ? `<span class="badge badge-blue">${esc(v.plate)}</span>` : '';
       const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
       const t = tuevInfo(v.tuevDate);
@@ -1749,6 +1749,7 @@ async function loadFleet() {
           <div><span class="fl">Modell</span> ${esc(v.model)}</div>
           <div><span class="fl">Baujahr</span> ${v.year}</div>
           <div><span class="fl">km-Stand</span> ${km}</div>
+          ${v.purchasePrice != null ? `<div><span class="fl">Kaufpreis</span> ${Number(v.purchasePrice).toLocaleString('de-DE')} €</div>` : ''}
           ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
           <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
           ${costHtml}
@@ -1775,6 +1776,7 @@ function newVehicleModal() {
     <select id="fv-type">
       <option value="car">🚗 Auto</option>
       <option value="bike">🚲 Fahrrad</option>
+      <option value="boat">🚤 Boot</option>
     </select>
     <label>Hersteller</label>
     <input id="fv-make" placeholder="z.B. Tesla, BMW, Canyon">
@@ -1841,7 +1843,7 @@ async function fleetDetail(id) {
   try {
     const v = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`);
     const links = await fetchEntityLinks('fleet', id);
-    const icon = v.type === 'car' ? '🚗' : '🚲';
+    const icon = v.type === 'car' ? '🚗' : v.type === 'boat' ? '🚤' : '🚲';
     const t = tuevInfo(v.tuevDate);
     const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
 
@@ -1948,6 +1950,8 @@ function editVehicleModal(id) {
     <input id="ev-color" value="${esc(v.color || '')}">
     <label>km-Stand</label>
     <input id="ev-km" type="number" value="${v.mileage ?? ''}">
+    <label>Kaufpreis (€)</label>
+    <input id="ev-price" type="number" min="0" step="100" value="${v.purchasePrice ?? ''}">
     <label>TÜV-Datum</label>
     <input id="ev-tuev" type="date" value="${tuevVal}">
     <label>KFZ-Steuer/Jahr (€)</label>
@@ -1975,6 +1979,7 @@ async function saveVehicle(id) {
   const vin   = document.getElementById('ev-vin').value.trim();
   const color = document.getElementById('ev-color').value.trim();
   const km    = document.getElementById('ev-km').value;
+  const price = document.getElementById('ev-price').value;
   const tuev  = document.getElementById('ev-tuev').value;
   const tax     = document.getElementById('ev-tax').value;
   const insProv = document.getElementById('ev-ins-prov').value.trim();
@@ -1989,6 +1994,7 @@ async function saveVehicle(id) {
     vin: vin || undefined,
     color: color || undefined,
     mileage: km !== '' ? Number(km) : undefined,
+    purchasePrice: price !== '' ? Number(price) : undefined,
     tuevDate: tuev || undefined,
     vehicleTax: tax !== '' ? Number(tax) : undefined,
   };
@@ -2256,6 +2262,7 @@ async function loadAssets() {
           <div><span class="al">Eigentümer</span> ${OWNER_LABELS[p.owner] || p.owner}</div>
           <div><span class="al">Einheiten</span> ${p.units.length} (${occ} vermietet)</div>
           <div><span class="al">Miete/Monat</span> ${rent > 0 ? fmtEur(rent) : '–'}</div>
+          <div><span class="al">Kaufpreis</span> ${p.purchasePrice != null ? fmtEur(p.purchasePrice) : '–'}</div>
         </div>
         <div class="asset-actions">
           <button class="btn btn-primary" onclick="assetDetail('${esc(p.id)}')">Details</button>
@@ -2393,6 +2400,8 @@ function editPropertyModal(id) {
       <option value="personal" ${p.owner === 'personal' ? 'selected' : ''}>Privat</option>
       <option value="laperlgmbh" ${p.owner === 'laperlgmbh' ? 'selected' : ''}>Laperl GmbH</option>
     </select>
+    <label>Kaufpreis (€)</label>
+    <input id="ep-purchasePrice" type="number" min="0" step="1000" value="${p.purchasePrice != null ? p.purchasePrice : ''}">
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" id="ep-save" onclick="saveProperty('${esc(id)}')">💾 Speichern</button>
@@ -2412,6 +2421,7 @@ async function saveProperty(id) {
         address: document.getElementById('ep-address').value.trim(),
         type: document.getElementById('ep-type').value,
         owner: document.getElementById('ep-owner').value,
+        purchasePrice: document.getElementById('ep-purchasePrice').value ? Number(document.getElementById('ep-purchasePrice').value) : null,
       }),
     });
     closeModal();
@@ -3023,6 +3033,474 @@ async function loadInstagram() {
 
   c.innerHTML = header + tabs + body;
   stamp();
+}
+
+/* ── Trading ── */
+let _tradingRefresh = null;
+function fmtUsd(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $' : '–'; }
+function pnlColor(n) { return n > 0 ? 'var(--green)' : n < 0 ? 'var(--red)' : 'var(--muted)'; }
+function pnlPrefix(n) { return n > 0 ? '+' : ''; }
+
+async function loadTrading() {
+  const c = document.getElementById('content');
+  if (_tradingRefresh) { clearInterval(_tradingRefresh); _tradingRefresh = null; }
+
+  async function render() {
+    let status, watchlist, strategies, universe, universeConfig, universeTop;
+    try {
+      [status, watchlist, strategies, universe, universeConfig, universeTop] = await Promise.all([
+        apiFetch('/api/trading/status'),
+        apiFetch('/api/trading/watchlist'),
+        apiFetch('/api/trading/strategies'),
+        apiFetch('/api/trading/universe').catch(() => null),
+        apiFetch('/api/trading/universe/config').catch(() => null),
+        apiFetch('/api/trading/universe/top').catch(() => null),
+      ]);
+    } catch { status = null; watchlist = []; strategies = {}; universe = null; universeConfig = null; universeTop = null; }
+
+    if (!status || status.error) {
+      c.innerHTML = `<div class="empty" style="text-align:center;padding:60px 20px">
+        <div style="font-size:48px;margin-bottom:16px">📈</div>
+        <h2 style="margin-bottom:8px;color:var(--fg)">Trading</h2>
+        <p style="color:var(--muted);font-size:14px">Service nicht verbunden.</p>
+        <p style="color:var(--muted);font-size:12px;margin-top:8px">${esc(status?.error || 'Trading-Agent ist nicht erreichbar.')}</p>
+      </div>`;
+      stamp();
+      return;
+    }
+
+    const modeLabel = status.mode === 1 ? 'Monitoring' : status.mode === 2 ? 'Semi-Auto' : 'Full-Auto';
+    const modeBadge = status.mode === 1 ? 'badge-blue' : status.mode === 2 ? 'badge-yellow' : 'badge-red';
+    const connBadge = status.connected ? 'badge-green' : 'badge-red';
+    const connLabel = status.connected ? 'Verbunden' : 'Nicht verbunden';
+
+    // KPI cards
+    const kpiHtml = `<div class="summary-grid">
+      <div class="s-card"><div class="lbl">Modus</div><div class="val" style="font-size:18px"><span class="badge ${modeBadge}">${modeLabel}</span></div></div>
+      <div class="s-card"><div class="lbl">Verbindung</div><div class="val" style="font-size:18px"><span class="badge ${connBadge}">${connLabel}</span></div><div class="sub">${status.paperMode ? 'Paper Trading' : 'Live'}</div></div>
+      <div class="s-card"><div class="lbl">Tages-P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.dailyPnl)}">${pnlPrefix(status.dailyPnl)}${fmtUsd(status.dailyPnl)}</div></div>
+      <div class="s-card"><div class="lbl">Unrealisiert P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.unrealizedPnl)}">${pnlPrefix(status.unrealizedPnl)}${fmtUsd(status.unrealizedPnl)}</div></div>
+      <div class="s-card"><div class="lbl">Net Liquidation</div><div class="val" style="font-size:22px">${fmtUsd(status.netLiquidation)}</div></div>
+      <div class="s-card"><div class="lbl">Cash</div><div class="val" style="font-size:22px">${fmtUsd(status.cashBalance)}</div></div>
+    </div>`;
+
+    // Positions table
+    let posHtml = '';
+    if (status.positions && status.positions.length > 0) {
+      const rows = status.positions.map(p => `<tr>
+        <td><strong>${esc(p.symbol)}</strong></td>
+        <td>${esc(p.exchange)}</td>
+        <td style="text-align:right">${p.quantity}</td>
+        <td style="text-align:right">${fmtUsd(p.avgCost)}</td>
+        <td style="text-align:right">${fmtUsd(p.marketPrice)}</td>
+        <td style="text-align:right">${fmtUsd(p.marketValue)}</td>
+        <td style="text-align:right;color:${pnlColor(p.unrealizedPnl)}">${pnlPrefix(p.unrealizedPnl)}${fmtUsd(p.unrealizedPnl)}</td>
+      </tr>`).join('');
+      posHtml = `<h3 style="margin:20px 0 10px">Positionen</h3>
+      <div style="overflow-x:auto"><table class="data-table" style="width:100%">
+        <thead><tr><th>Symbol</th><th>Exchange</th><th style="text-align:right">Menge</th><th style="text-align:right">Avg Kurs</th><th style="text-align:right">Marktpreis</th><th style="text-align:right">Marktwert</th><th style="text-align:right">P&amp;L</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>`;
+    } else {
+      posHtml = `<div class="empty" style="margin:20px 0;padding:24px">Keine offenen Positionen.</div>`;
+    }
+
+    // Watchlist
+    const wlRows = (watchlist || []).map(w => `<tr>
+      <td><strong>${esc(w.symbol)}</strong></td>
+      <td>${esc(w.exchange)}</td>
+      <td>${esc(w.currency)}</td>
+      <td style="text-align:right">${w.lastPrice ? fmtUsd(w.lastPrice) : '–'}</td>
+      <td><button class="btn btn-sm" onclick="tradingRemoveWatch('${esc(w.symbol)}')" style="padding:2px 8px;font-size:11px">Entfernen</button></td>
+    </tr>`).join('');
+
+    const wlHtml = `<h3 style="margin:20px 0 10px">Watchlist</h3>
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
+      <input id="wl-symbol" placeholder="Symbol" style="width:90px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <input id="wl-exchange" placeholder="Exchange" value="SMART" style="width:80px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <input id="wl-currency" placeholder="Currency" value="USD" style="width:60px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <button class="btn btn-primary" onclick="tradingAddWatch()" style="padding:6px 12px;font-size:13px">+ Hinzufugen</button>
+    </div>
+    ${wlRows ? `<div style="overflow-x:auto"><table class="data-table" style="width:100%">
+      <thead><tr><th>Symbol</th><th>Exchange</th><th>Wahrung</th><th style="text-align:right">Letzter Kurs</th><th></th></tr></thead>
+      <tbody>${wlRows}</tbody>
+    </table></div>` : '<div class="empty" style="padding:16px">Watchlist ist leer.</div>'}`;
+
+    // Strategy cards
+    const strats = strategies || {};
+    const stratCards = [
+      { key: 'momentum', label: 'Momentum', icon: '🚀' },
+      { key: 'meanReversion', label: 'Mean Reversion', icon: '🔄' },
+      { key: 'newsTrading', label: 'News Trading', icon: '📰' },
+    ].map(s => {
+      const cfg = strats[s.key] || { enabled: false };
+      const badge = cfg.enabled ? '<span class="badge badge-green">Aktiv</span>' : '<span class="badge badge-muted">Inaktiv</span>';
+      return `<div class="s-card"><div class="lbl">${s.icon} ${s.label}</div><div class="val" style="font-size:16px;margin-top:8px">${badge}</div></div>`;
+    }).join('');
+
+    const stratHtml = `<h3 style="margin:20px 0 10px">Strategien</h3><div class="summary-grid">${stratCards}</div>`;
+
+    // Universe section
+    let uniHtml = '';
+    if (universe || universeConfig) {
+      const uniSymbols = universe?.symbols || [];
+      const byIndex = {};
+      for (const s of uniSymbols) { byIndex[s.index] = (byIndex[s.index] || 0) + 1; }
+      const indexStats = Object.entries(byIndex).map(([idx, cnt]) =>
+        `<span class="badge badge-blue" style="margin:2px">${esc(idx)}: ${cnt}</span>`
+      ).join(' ');
+
+      // Index toggles
+      const indices = universeConfig?.indices || {};
+      const indexToggles = Object.entries(indices).map(([name, cfg]) => {
+        const cls = cfg.enabled ? 'badge-green' : 'badge-muted';
+        return `<button class="badge ${cls}" style="cursor:pointer;margin:2px;border:none;padding:4px 10px" onclick="toggleUniverseIndex('${esc(name)}',${!cfg.enabled})">${esc(name)}</button>`;
+      }).join(' ');
+
+      // Top candidates table
+      const topItems = universeTop || [];
+      let topHtml = '';
+      if (topItems.length > 0) {
+        const topRows = topItems.map(r => `<tr>
+          <td><strong>${esc(r.symbol)}</strong></td>
+          <td>${esc(r.signal)}</td>
+          <td style="text-align:right">${Number(r.strength).toFixed(1)}</td>
+          <td>${r.timestamp ? r.timestamp.slice(11, 19) : ''}</td>
+        </tr>`).join('');
+        topHtml = `<div style="overflow-x:auto;margin-top:12px"><table class="data-table" style="width:100%">
+          <thead><tr><th>Symbol</th><th>Signal</th><th style="text-align:right">Stärke</th><th>Zeit</th></tr></thead>
+          <tbody>${topRows}</tbody>
+        </table></div>`;
+      } else {
+        topHtml = '<div style="color:var(--muted);font-size:13px;margin-top:8px">Keine aktuellen Kandidaten (letzte 2h)</div>';
+      }
+
+      const lastBuild = universe?.lastBuild ? universe.lastBuild.slice(0, 19).replace('T', ' ') + ' UTC' : '—';
+
+      uniHtml = `<h3 style="margin:20px 0 10px">Universum</h3>
+      <div class="summary-grid">
+        <div class="s-card"><div class="lbl">Symbole</div><div class="val" style="font-size:22px">${uniSymbols.length}</div></div>
+        <div class="s-card"><div class="lbl">Indizes</div><div class="val" style="font-size:14px;margin-top:6px">${indexStats || '—'}</div></div>
+        <div class="s-card"><div class="lbl">Letzter Build</div><div class="val" style="font-size:13px;margin-top:6px">${lastBuild}</div></div>
+        <div class="s-card"><div class="lbl">Scan</div><div class="val" style="margin-top:6px"><button class="btn btn-primary" onclick="triggerUniverseScan()" style="padding:4px 12px;font-size:12px" id="uni-scan-btn">Scan starten</button></div></div>
+      </div>
+      <div style="margin:12px 0">
+        <span style="font-size:12px;color:var(--muted);margin-right:8px">Indizes:</span>${indexToggles}
+      </div>
+      <h4 style="margin:16px 0 8px;font-size:13px;color:var(--muted)">Top-Kandidaten</h4>
+      ${topHtml}`;
+    }
+
+    c.innerHTML = kpiHtml + posHtml + uniHtml + wlHtml + stratHtml;
+    stamp();
+  }
+
+  await render();
+  _tradingRefresh = setInterval(() => { if (currentTab === 'trading') render(); }, 30000);
+}
+
+async function tradingAddWatch() {
+  const symbol = document.getElementById('wl-symbol').value.trim().toUpperCase();
+  const exchange = document.getElementById('wl-exchange').value.trim() || 'SMART';
+  const currency = document.getElementById('wl-currency').value.trim() || 'USD';
+  if (!symbol) return;
+  try {
+    await apiFetch('/api/trading/watchlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol, exchange, currency }) });
+    loadTrading();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function tradingRemoveWatch(symbol) {
+  try {
+    await apiFetch('/api/trading/watchlist/' + encodeURIComponent(symbol), { method: 'DELETE' });
+    loadTrading();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function toggleUniverseIndex(name, enabled) {
+  try {
+    await apiFetch('/api/trading/universe/config', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ indices: { [name]: { enabled } } }),
+    });
+    loadTrading();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function triggerUniverseScan() {
+  const btn = document.getElementById('uni-scan-btn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Scannt...'; }
+  try {
+    const result = await apiFetch('/api/trading/universe/scan', { method: 'POST' });
+    if (result) alert(`Scan fertig: ${result.universe} Symbole, ${result.momentum} Momentum, ${result.meanReversion} Mean-Rev`);
+    loadTrading();
+  } catch (e) {
+    alert('Scan-Fehler: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Scan starten'; }
+  }
+}
+
+/* ── Private Equity ── */
+let _peCache = [];
+
+async function loadPrivateEquity() {
+  const c = document.getElementById('content');
+  try {
+    const investments = await apiFetch('/api/pe');
+    _peCache = investments;
+
+    if (!investments.length) {
+      c.innerHTML = `<div class="empty">Keine Private-Equity-Beteiligungen vorhanden.<br>
+        <button class="btn btn-primary" style="margin-top:12px" onclick="peNewModal()">+ Neue Beteiligung</button></div>`;
+      return;
+    }
+
+    const totalInvested = investments.reduce((s, i) => s + (i.investedAmount || 0), 0);
+    const totalValuation = investments.reduce((s, i) => s + (i.currentValuation || 0), 0);
+    const active = investments.filter(i => i.status === 'active').length;
+    const totalIRR = totalInvested > 0 ? ((totalValuation / totalInvested - 1) * 100) : 0;
+
+    const summaryHtml = `<div class="summary-grid">
+      <div class="s-card"><div class="lbl">Total investiert</div><div class="val" style="font-size:20px">${fmtEur(totalInvested)}</div></div>
+      <div class="s-card"><div class="lbl">Aktuelle Bewertung</div><div class="val" style="font-size:20px">${fmtEur(totalValuation)}</div></div>
+      <div class="s-card"><div class="lbl">Gesamt-IRR</div><div class="val" style="font-size:20px;color:${totalIRR >= 0 ? 'var(--green)' : 'var(--red)'}">${totalIRR.toFixed(1)}%</div></div>
+      <div class="s-card"><div class="lbl">Beteiligungen</div><div class="val">${investments.length}</div><div class="sub">${active} aktiv</div></div>
+    </div>`;
+
+    const cards = investments.map(inv => {
+      const irr = peCalcIRR(inv);
+      const statusBadge = inv.status === 'active' ? '<span class="badge badge-green">Aktiv</span>'
+        : inv.status === 'exited' ? '<span class="badge badge-blue">Exited</span>'
+        : '<span class="badge badge-red">Written-off</span>';
+      return `<div class="card card-pad" style="cursor:pointer" onclick="peShowDetail('${esc(inv.id)}')">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:15px">${esc(inv.company)}</div>
+            <div style="font-size:12px;color:var(--muted)">${esc(inv.sector)}</div>
+          </div>
+          ${statusBadge}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-top:12px">
+          <div><span class="fl">Anteil</span> ${inv.ownershipPct}%</div>
+          <div><span class="fl">Investiert</span> ${fmtEur(inv.investedAmount)}</div>
+          <div><span class="fl">Bewertung</span> ${fmtEur(inv.currentValuation)}</div>
+          <div><span class="fl">IRR</span> <span style="color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</span></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">ID: ${esc(inv.id)} | Bewertung: ${inv.valuationDate || '–'}</div>
+      </div>`;
+    }).join('');
+
+    c.innerHTML = summaryHtml +
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 12px">
+        <h3 style="margin:0;font-size:16px">Beteiligungen</h3>
+        <button class="btn btn-primary" onclick="peNewModal()">+ Neue Beteiligung</button>
+      </div>
+      <div class="grid">${cards}</div>`;
+    stamp();
+  } catch (e) {
+    c.innerHTML = `<div class="empty">Fehler beim Laden: ${esc(e.message)}</div>`;
+  }
+}
+
+function peCalcIRR(inv) {
+  if (!inv.investmentDate || !inv.valuationDate || !inv.investedAmount || inv.investedAmount <= 0) return 0;
+  const start = new Date(inv.investmentDate), end = new Date(inv.valuationDate);
+  const years = (end - start) / (365.25 * 86400000);
+  if (years <= 0) return 0;
+  const ratio = inv.currentValuation / inv.investedAmount;
+  if (ratio <= 0) return -100;
+  return (Math.pow(ratio, 1 / years) - 1) * 100;
+}
+
+async function peShowDetail(id) {
+  const c = document.getElementById('content');
+  try {
+    const [inv, valuations] = await Promise.all([
+      apiFetch('/api/pe/' + encodeURIComponent(id)),
+      apiFetch('/api/pe/' + encodeURIComponent(id) + '/valuations').catch(() => [])
+    ]);
+    const irr = peCalcIRR(inv);
+    const statusBadge = inv.status === 'active' ? '<span class="badge badge-green">Aktiv</span>'
+      : inv.status === 'exited' ? '<span class="badge badge-blue">Exited</span>'
+      : '<span class="badge badge-red">Written-off</span>';
+
+    let valHtml = '';
+    if (valuations.length) {
+      const rows = valuations.map(v => `<tr>
+        <td>${esc(v.date)}</td>
+        <td style="text-align:right">${fmtEur(v.amount)}</td>
+        <td>${esc(v.method || '–')}</td>
+        <td>${esc(v.notes || '–')}</td>
+      </tr>`).join('');
+      valHtml = `<div class="card card-pad" style="margin-top:16px">
+        <h4 style="margin:0 0 12px">Bewertungshistorie (${valuations.length})</h4>
+        <table style="width:100%;font-size:13px;border-collapse:collapse">
+          <thead><tr style="border-bottom:1px solid var(--border);text-align:left">
+            <th style="padding:6px 8px">Datum</th><th style="padding:6px 8px;text-align:right">Betrag</th><th style="padding:6px 8px">Methode</th><th style="padding:6px 8px">Notizen</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+    }
+
+    c.innerHTML = `<div style="margin-bottom:16px">
+      <button class="btn-ghost" onclick="loadPrivateEquity()">&larr; Zurück</button>
+    </div>
+    <div class="card card-pad">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px">
+        <div>
+          <h2 style="margin:0 0 4px">${esc(inv.company)}</h2>
+          <div style="color:var(--muted)">${esc(inv.sector)}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${statusBadge}
+          <button class="btn-ghost" onclick="peEditModal('${esc(inv.id)}')">Bearbeiten</button>
+          <button class="btn-ghost" style="color:var(--red)" onclick="peDelete('${esc(inv.id)}')">Löschen</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px">
+        <div><span class="fl">Investiert</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.investedAmount)}</div><div style="font-size:12px;color:var(--muted)">${esc(inv.investmentDate)}</div></div>
+        <div><span class="fl">Aktuelle Bewertung</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.currentValuation)}</div><div style="font-size:12px;color:var(--muted)">${esc(inv.valuationDate)} (${esc(inv.valuationMethod)})</div></div>
+        <div><span class="fl">IRR</span><div style="font-size:18px;font-weight:700;color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px;margin-top:16px">
+        <div><span class="fl">Anteile</span> ${Number(inv.shares).toLocaleString('de-DE')} / ${Number(inv.totalShares).toLocaleString('de-DE')}</div>
+        <div><span class="fl">Anteil</span> ${inv.ownershipPct}%</div>
+        <div><span class="fl">Kontakt</span> ${esc(inv.contactPerson || '–')}</div>
+      </div>
+      ${inv.notes ? `<div style="margin-top:16px;font-size:13px;color:var(--muted)"><span class="fl">Notizen</span> ${esc(inv.notes)}</div>` : ''}
+      <div style="margin-top:16px;display:flex;gap:8px">
+        <button class="btn btn-primary" onclick="peValuationModal('${esc(inv.id)}')">+ Bewertung</button>
+      </div>
+    </div>
+    ${valHtml}`;
+  } catch (e) {
+    c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+function peNewModal() {
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = `<div class="modal">
+    <h3>Neue Beteiligung</h3>
+    <label>Firma *<input id="pe-company" placeholder="TobaGrown GmbH"></label>
+    <label>Sektor<input id="pe-sector" placeholder="Cannabis / Agriculture"></label>
+    <label>Investierter Betrag (€) *<input id="pe-amount" type="number" step="0.01" placeholder="50000"></label>
+    <label>Anteile *<input id="pe-shares" type="number" placeholder="500"></label>
+    <label>Gesamt-Anteile *<input id="pe-totalshares" type="number" placeholder="10000"></label>
+    <label>Investitionsdatum<input id="pe-date" type="date"></label>
+    <label>Bewertungsmethode<input id="pe-method" placeholder="cost" value="cost"></label>
+    <label>Kontaktperson<input id="pe-contact" placeholder="Max Mustermann"></label>
+    <label>Notizen<textarea id="pe-notes" rows="2" placeholder="Optionale Notizen..."></textarea></label>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" onclick="peCreate()">Anlegen</button>
+      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+async function peCreate() {
+  const company = document.getElementById('pe-company').value.trim();
+  const sector = document.getElementById('pe-sector').value.trim();
+  const amount = Number(document.getElementById('pe-amount').value);
+  const shares = Number(document.getElementById('pe-shares').value);
+  const totalShares = Number(document.getElementById('pe-totalshares').value);
+  const investmentDate = document.getElementById('pe-date').value || undefined;
+  const valuationMethod = document.getElementById('pe-method').value.trim() || undefined;
+  const contactPerson = document.getElementById('pe-contact').value.trim() || undefined;
+  const notes = document.getElementById('pe-notes').value.trim() || undefined;
+  if (!company || !amount || !shares || !totalShares) return alert('Firma, Betrag, Anteile und Gesamt-Anteile sind Pflichtfelder.');
+  try {
+    await apiFetch('/api/pe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ company, sector, investedAmount: amount, shares, totalShares, investmentDate, valuationMethod, contactPerson, notes }) });
+    document.querySelector('.modal-overlay').remove();
+    loadPrivateEquity();
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+function peEditModal(id) {
+  const inv = _peCache.find(i => i.id === id);
+  if (!inv) return;
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = `<div class="modal">
+    <h3>Beteiligung bearbeiten</h3>
+    <label>Firma<input id="pe-e-company" value="${esc(inv.company)}"></label>
+    <label>Sektor<input id="pe-e-sector" value="${esc(inv.sector)}"></label>
+    <label>Status<select id="pe-e-status">
+      <option value="active" ${inv.status === 'active' ? 'selected' : ''}>Aktiv</option>
+      <option value="exited" ${inv.status === 'exited' ? 'selected' : ''}>Exited</option>
+      <option value="written-off" ${inv.status === 'written-off' ? 'selected' : ''}>Written-off</option>
+    </select></label>
+    <label>Investierter Betrag (€)<input id="pe-e-amount" type="number" step="0.01" value="${inv.investedAmount}"></label>
+    <label>Anteile<input id="pe-e-shares" type="number" value="${inv.shares}"></label>
+    <label>Gesamt-Anteile<input id="pe-e-totalshares" type="number" value="${inv.totalShares}"></label>
+    <label>Investitionsdatum<input id="pe-e-date" type="date" value="${inv.investmentDate || ''}"></label>
+    <label>Kontaktperson<input id="pe-e-contact" value="${esc(inv.contactPerson || '')}"></label>
+    <label>Notizen<textarea id="pe-e-notes" rows="2">${esc(inv.notes || '')}</textarea></label>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" onclick="peSaveEdit('${esc(inv.id)}')">Speichern</button>
+      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+async function peSaveEdit(id) {
+  const body = {
+    company: document.getElementById('pe-e-company').value.trim(),
+    sector: document.getElementById('pe-e-sector').value.trim(),
+    status: document.getElementById('pe-e-status').value,
+    investedAmount: Number(document.getElementById('pe-e-amount').value),
+    shares: Number(document.getElementById('pe-e-shares').value),
+    totalShares: Number(document.getElementById('pe-e-totalshares').value),
+    investmentDate: document.getElementById('pe-e-date').value || undefined,
+    contactPerson: document.getElementById('pe-e-contact').value.trim() || undefined,
+    notes: document.getElementById('pe-e-notes').value.trim() || undefined,
+  };
+  try {
+    await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    document.querySelector('.modal-overlay').remove();
+    peShowDetail(id);
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+function peValuationModal(id) {
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = `<div class="modal">
+    <h3>Neue Bewertung</h3>
+    <label>Betrag (€) *<input id="pe-v-amount" type="number" step="0.01" placeholder="75000"></label>
+    <label>Methode<input id="pe-v-method" placeholder="DCF, Comparable, Revenue Multiple..."></label>
+    <label>Notizen<textarea id="pe-v-notes" rows="2" placeholder="Optionale Notizen..."></textarea></label>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary" onclick="peSaveValuation('${esc(id)}')">Bewertung speichern</button>
+      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+async function peSaveValuation(id) {
+  const amount = Number(document.getElementById('pe-v-amount').value);
+  const method = document.getElementById('pe-v-method').value.trim() || undefined;
+  const notes = document.getElementById('pe-v-notes').value.trim() || undefined;
+  if (!amount) return alert('Betrag ist ein Pflichtfeld.');
+  try {
+    await apiFetch('/api/pe/' + encodeURIComponent(id) + '/valuation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, method, notes }) });
+    document.querySelector('.modal-overlay').remove();
+    peShowDetail(id);
+  } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+async function peDelete(id) {
+  if (!confirm('Beteiligung wirklich löschen?')) return;
+  try {
+    await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'DELETE' });
+    loadPrivateEquity();
+  } catch (e) { alert('Fehler: ' + e.message); }
 }
 
 </script>

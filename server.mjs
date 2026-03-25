@@ -57,6 +57,9 @@ const PROPERTIES_FILE = path.join(ASSETS_DIR, 'properties.json');
 const LEASES_FILE = path.join(ASSETS_DIR, 'leases.json');
 const COSTS_DIR   = path.join(ASSETS_DIR, 'operating-costs');
 const IMAGES_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/images');
+const PE_DIR      = path.join(HOME, '.openclaw/workspace/artifacts/personal/private-equity');
+const PE_FILE     = path.join(PE_DIR, 'investments.json');
+const PE_VAL_FILE = path.join(PE_DIR, 'valuations.jsonl');
 
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
@@ -1277,7 +1280,7 @@ app.put('/api/fleet/:id', auth, (req, res) => {
     const all = readFleet();
     const idx = all.findIndex(v => v.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Vehicle not found' });
-    const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'vehicleTax', 'insurance'];
+    const allowed = ['name', 'plate', 'vin', 'make', 'model', 'year', 'color', 'mileage', 'tuevDate', 'purchasePrice', 'vehicleTax', 'insurance'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) all[idx][key] = req.body[key];
     }
@@ -1516,7 +1519,7 @@ app.put('/api/assets/properties/:id', auth, (req, res) => {
     const all = readProperties();
     const idx = all.findIndex(p => p.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: 'Property not found' });
-    const allowed = ['label', 'address', 'type', 'owner'];
+    const allowed = ['label', 'address', 'type', 'owner', 'purchasePrice'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) all[idx][key] = req.body[key];
     }
@@ -1776,6 +1779,269 @@ app.get('/api/assets/nk/:propId/:year', auth, (req, res) => {
     }
     res.json(results);
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── API: Private Equity ───────────────────────────────────────────────────────
+
+function readPE() {
+  try { return JSON.parse(fs.readFileSync(PE_FILE, 'utf8')); } catch { return []; }
+}
+function writePE(investments) {
+  fs.mkdirSync(PE_DIR, { recursive: true });
+  fs.writeFileSync(PE_FILE, JSON.stringify(investments, null, 2));
+}
+function slugifyPE(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+}
+function makePEId(company, existingIds) {
+  const base = slugifyPE(company);
+  if (!base) return 'pe-' + Date.now();
+  if (!existingIds.includes(base)) return base;
+  let n = 2;
+  while (existingIds.includes(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
+}
+
+// List investments
+app.get('/api/pe', auth, (req, res) => {
+  try { res.json(readPE()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Create investment
+app.post('/api/pe', auth, (req, res) => {
+  try {
+    const { company, sector, investedAmount, shares, totalShares, investmentDate, valuationMethod, contactPerson, notes, status } = req.body;
+    if (!company || investedAmount == null || shares == null || totalShares == null) {
+      return res.status(400).json({ error: 'company, investedAmount, shares, totalShares are required' });
+    }
+    const amt = Number(investedAmount), sh = Number(shares), ts = Number(totalShares);
+    const all = readPE();
+    const now = new Date().toISOString();
+    const ownershipPct = ts > 0 ? Math.round((sh / ts) * 10000) / 100 : 0;
+    const inv = {
+      id: makePEId(String(company), all.map(i => i.id)),
+      company: String(company),
+      sector: String(sector || ''),
+      investmentDate: investmentDate || now.slice(0, 10),
+      shares: sh, totalShares: ts, ownershipPct,
+      investedAmount: amt,
+      currentValuation: amt,
+      valuationDate: now.slice(0, 10),
+      valuationMethod: valuationMethod || 'cost',
+      status: status || 'active',
+      contactPerson: contactPerson || undefined,
+      notes: notes || undefined,
+      createdAt: now, updatedAt: now,
+    };
+    all.push(inv);
+    writePE(all);
+    res.status(201).json(inv);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get single investment
+app.get('/api/pe/:id', auth, (req, res) => {
+  try {
+    const inv = readPE().find(i => i.id === req.params.id);
+    if (!inv) return res.status(404).json({ error: 'Investment not found' });
+    res.json(inv);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Update investment
+app.put('/api/pe/:id', auth, (req, res) => {
+  try {
+    const all = readPE();
+    const idx = all.findIndex(i => i.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Investment not found' });
+    const allowed = ['company', 'sector', 'investmentDate', 'shares', 'totalShares', 'investedAmount', 'currentValuation', 'valuationDate', 'valuationMethod', 'status', 'contactPerson', 'notes'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+    }
+    // Recalc ownership
+    const sh = Number(all[idx].shares), ts = Number(all[idx].totalShares);
+    all[idx].ownershipPct = ts > 0 ? Math.round((sh / ts) * 10000) / 100 : 0;
+    all[idx].updatedAt = new Date().toISOString();
+    writePE(all);
+    res.json(all[idx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Delete investment
+app.delete('/api/pe/:id', auth, (req, res) => {
+  try {
+    const all = readPE();
+    const idx = all.findIndex(i => i.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Investment not found' });
+    all.splice(idx, 1);
+    writePE(all);
+    res.json({ ok: true });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Add valuation
+app.post('/api/pe/:id/valuation', auth, (req, res) => {
+  try {
+    const all = readPE();
+    const idx = all.findIndex(i => i.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: 'Investment not found' });
+    const { amount, method, notes } = req.body;
+    if (amount == null) return res.status(400).json({ error: 'amount is required' });
+    const now = new Date().toISOString();
+    const entry = { investmentId: req.params.id, date: now.slice(0, 10), amount: Number(amount), method: method || all[idx].valuationMethod, notes: notes || undefined };
+    fs.mkdirSync(PE_DIR, { recursive: true });
+    fs.appendFileSync(PE_VAL_FILE, JSON.stringify(entry) + '\n', 'utf8');
+    all[idx].currentValuation = Number(amount);
+    all[idx].valuationDate = entry.date;
+    if (method) all[idx].valuationMethod = method;
+    all[idx].updatedAt = now;
+    writePE(all);
+    res.status(201).json(all[idx]);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Get valuation history
+app.get('/api/pe/:id/valuations', auth, (req, res) => {
+  try {
+    if (!fs.existsSync(PE_VAL_FILE)) return res.json([]);
+    const entries = fs.readFileSync(PE_VAL_FILE, 'utf8')
+      .split('\n').filter(l => l.trim())
+      .map(l => JSON.parse(l))
+      .filter(e => e.investmentId === req.params.id);
+    res.json(entries);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Trading Proxy ────────────────────────────────────────────────────────────
+
+const TRADING_URL = 'http://127.0.0.1:18793';
+
+app.get('/api/trading/status', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/status`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json({ connected: false, error: 'Service nicht erreichbar' });
+  }
+});
+
+app.get('/api/trading/watchlist', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/watchlist`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json([]);
+  }
+});
+
+app.post('/api/trading/watchlist', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/watchlist`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'Service nicht erreichbar' });
+  }
+});
+
+app.delete('/api/trading/watchlist/:symbol', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/watchlist/${req.params.symbol}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'Service nicht erreichbar' });
+  }
+});
+
+app.get('/api/trading/strategies', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/strategies`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json({});
+  }
+});
+
+// ── Trading Universe Proxy ────────────────────────────────────────────────────
+
+app.get('/api/trading/universe', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json({ symbols: [], lastBuild: '', totalScanned: 0 });
+  }
+});
+
+app.get('/api/trading/universe/config', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe/config`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json({});
+  }
+});
+
+app.put('/api/trading/universe/config', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe/config`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'Service nicht erreichbar' });
+  }
+});
+
+app.get('/api/trading/universe/scan', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe/scan`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json([]);
+  }
+});
+
+app.post('/api/trading/universe/scan', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe/scan`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(120000),
+    });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.status(503).json({ error: 'Scan fehlgeschlagen oder Timeout' });
+  }
+});
+
+app.get('/api/trading/universe/top', auth, async (req, res) => {
+  try {
+    const r = await fetch(`${TRADING_URL}/universe/top`, { signal: AbortSignal.timeout(5000) });
+    if (!r.ok) return res.status(r.status).json({ error: await r.text() });
+    res.json(await r.json());
+  } catch {
+    res.json([]);
+  }
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
