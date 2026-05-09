@@ -215,6 +215,23 @@ app.use(express.json());
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ── API: Status ─────────────────────────────────────────────────────────────
+
+app.get('/api/status', auth, async (_req, res) => {
+  const check = async (port) => {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(3000) });
+      return r.ok || r.status < 500;
+    } catch { return false; }
+  };
+  const [gateway, trading] = await Promise.all([check(18789), check(18793)]);
+  res.json({
+    status: gateway ? 'ok' : 'degraded',
+    services: { gateway, dashboard: true, trading },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // ── API: Images ──────────────────────────────────────────────────────────────
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });

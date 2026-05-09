@@ -32,6 +32,7 @@ GET/POST  /api/health
 GET/POST  /api/drafts
 GET/POST  /api/calendar
 GET/POST  /api/assets
+GET       /api/status
 POST      /api/upload/image
 GET       /api/images/:filename
 ```
