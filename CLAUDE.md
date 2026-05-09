@@ -114,6 +114,26 @@ engineering best practices.
 - Eine einfachere Lösung existiert
 - Widerspruch zu bestehenden Architektur-Entscheidungen
 
+## Naming Conventions (PFLICHT — gilt für alle Entities)
+
+IDs sind immer sprechend: `<prefix>-<kontext>-<DDMM>`
+
+Kontext = erster bedeutsamer Begriff aus: Ort, Anlass, Thema, Caption, Titel.
+Kleinbuchstaben, nur a-z und Bindestriche, max 20 Zeichen gesamt.
+
+Beispiele:
+- `sub-sannicandro-0506`   (Instagram Submission)
+- `insta-solaredge-0506`   (Instagram Draft)
+- `trip-barcelona-0415`    (Reise)
+- `fleet-service-0304`     (Fuhrpark-Eintrag)
+- `lease-mueller-0101`     (Mietvertrag)
+
+Fallback wenn kein Kontext: `<prefix>-<DDMMYY>`
+Niemals: zufällige Zeichenketten (`insta-nqx2n5mj`), reine Timestamps (`sub_1234567890`),
+UUIDs oder andere nicht-lesbare Formate.
+
+Diese Regel gilt für ALLE neuen und bestehenden ID-Generierungen im System.
+
 ## Trading Safety
 
 - Paper Trading Account: DUP514636 — kein echtes Geld

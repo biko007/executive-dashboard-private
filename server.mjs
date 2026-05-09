@@ -52,6 +52,7 @@ const LINKS_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/link
 const LINKS_FILE  = path.join(LINKS_DIR, 'links.json');
 const SP_INDEX_FILE = path.join(HOME, '.openclaw/workspace/artifacts/personal/sharepoint/sharepoint-index.json');
 const INSTA_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/instagram');
+const RAW_DIR     = path.join(INSTA_DIR, 'raw');
 const ASSETS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/assets');
 const PROPERTIES_FILE = path.join(ASSETS_DIR, 'properties.json');
 const LEASES_FILE = path.join(ASSETS_DIR, 'leases.json');
@@ -267,6 +268,156 @@ app.get('/api/instagram/media', auth, (req, res) => {
     if (!fs.existsSync(file)) return res.json({ items: [] });
     const cache = JSON.parse(fs.readFileSync(file, 'utf8'));
     res.json(cache);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Raw Session Helpers ──────────────────────────────────────────────────────
+
+function loadRawSession(id) {
+  try { return JSON.parse(fs.readFileSync(path.join(RAW_DIR, id, 'session.json'), 'utf-8')); }
+  catch { return null; }
+}
+
+function saveRawSession(session) {
+  fs.writeFileSync(path.join(RAW_DIR, session.id, 'session.json'), JSON.stringify(session, null, 2));
+}
+
+function listRawSessions() {
+  if (!fs.existsSync(RAW_DIR)) return [];
+  return fs.readdirSync(RAW_DIR)
+    .map(name => loadRawSession(name))
+    .filter(s => s !== null)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at));
+}
+
+function generateRawSessionId(context) {
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, '0');
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  let base = 'raw';
+  if (context) {
+    const slug = context.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 12);
+    if (slug) base = `raw-${slug}`;
+  }
+  const candidate = `${base}-${dd}${mm}`;
+  if (!fs.existsSync(path.join(RAW_DIR, candidate))) return candidate;
+  for (let i = 2; i <= 20; i++) {
+    const alt = `${candidate}-${i}`;
+    if (!fs.existsSync(path.join(RAW_DIR, alt))) return alt;
+  }
+  return `${candidate}-${Date.now().toString(36).slice(-4)}`;
+}
+
+function detectMediaType(filename) {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+  if (['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'].includes(ext)) return 'image';
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext)) return 'video';
+  if (['pdf', 'doc', 'docx', 'txt', 'zip'].includes(ext)) return 'document';
+  return null;
+}
+
+// ── API: Raw Sessions ────────────────────────────────────────────────────────
+
+// List all raw sessions
+app.get('/api/instagram/raw', auth, (req, res) => {
+  try {
+    const sessions = listRawSessions().map(s => {
+      const origDir = path.join(RAW_DIR, s.id, 'original');
+      let fileCount = 0, mediaCount = 0;
+      try {
+        const entries = fs.readdirSync(origDir);
+        fileCount = entries.length;
+        mediaCount = entries.filter(f => {
+          const t = detectMediaType(f);
+          return t === 'image' || t === 'video';
+        }).length;
+      } catch {}
+      return { ...s, fileCount, mediaCount };
+    });
+    res.json(sessions);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Session detail with file list
+app.get('/api/instagram/raw/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    const session = loadRawSession(id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const origDir = path.join(RAW_DIR, id, 'original');
+    let files = [];
+    try {
+      files = fs.readdirSync(origDir).map(name => {
+        const stat = fs.statSync(path.join(origDir, name));
+        return { name, size: stat.size, type: detectMediaType(name) || 'document', mtime: stat.mtime.toISOString() };
+      });
+    } catch {}
+    res.json({ session, files });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Create new raw session
+app.post('/api/instagram/raw', auth, (req, res) => {
+  try {
+    const { id: customId, context } = req.body || {};
+    const id = customId ? String(customId).replace(/[^a-z0-9\-]/g, '').slice(0, 30) : generateRawSessionId(context);
+    const dir = path.join(RAW_DIR, id);
+    if (fs.existsSync(dir)) return res.status(409).json({ error: 'Session already exists' });
+    fs.mkdirSync(path.join(dir, 'original'), { recursive: true });
+    fs.mkdirSync(path.join(dir, 'processed'), { recursive: true });
+    const session = { id, created_at: new Date().toISOString(), mode: 'upload', status: 'active', files: [] };
+    fs.writeFileSync(path.join(dir, 'session.json'), JSON.stringify(session, null, 2));
+    res.status(201).json({ session });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete raw session
+app.delete('/api/instagram/raw/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    const dir = path.join(RAW_DIR, id);
+    if (!fs.existsSync(dir)) return res.status(404).json({ error: 'Session not found' });
+    fs.rmSync(dir, { recursive: true, force: true });
+    res.json({ deleted: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Upload file to raw session
+const rawStorage = multer.diskStorage({
+  destination(req, _file, cb) {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    const dest = path.join(RAW_DIR, id, 'original');
+    fs.mkdirSync(dest, { recursive: true });
+    cb(null, dest);
+  },
+  filename(_req, file, cb) {
+    const safe = file.originalname.replace(/[^a-zA-Z0-9._\-äöüÄÖÜß ]/g, '_');
+    cb(null, safe);
+  },
+});
+const rawUpload = multer({ storage: rawStorage, limits: { fileSize: 100 * 1024 * 1024 } });
+
+app.post('/api/instagram/raw/:id/upload', auth, rawUpload.single('file'), (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    const session = loadRawSession(id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const type = detectMediaType(req.file.originalname) || 'document';
+    const entry = { name: req.file.filename, size: req.file.size, type, addedAt: new Date().toISOString() };
+    session.files.push(entry);
+    saveRawSession(session);
+    res.status(201).json({ file: { name: req.file.filename, size: req.file.size, type } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
