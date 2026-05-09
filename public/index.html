@@ -231,6 +231,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('pe')"              >💼 Private Equity</button>
     <button onclick="showTab('instagram')"       >📷 Instagram</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
+    <button onclick="showTab('agents')"          >🤖 Agents</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -302,11 +303,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint'];
+  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint','agents'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity })[tab]();
+  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity, agents: loadAgents })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -3416,6 +3417,26 @@ async function triggerUniverseScan() {
 
 /* ── Private Equity ── */
 let _peCache = [];
+
+/* ── Agents Tab ── */
+function loadAgents() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div style="padding:20px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
+        <div style="font-size:16px;font-weight:700">Agents &amp; Automation</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+        <a href="https://app.bikobickel.de/n8n/" target="_blank" rel="noopener"
+           style="display:block;padding:20px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:inherit;transition:border-color .2s"
+           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+          <div style="font-size:24px;margin-bottom:8px">⚡</div>
+          <div style="font-weight:600;margin-bottom:4px">n8n Workflow Automation</div>
+          <div style="font-size:13px;color:var(--muted)">Workflows erstellen, Webhooks verwalten, Automatisierungen konfigurieren</div>
+        </a>
+      </div>
+    </div>`;
+}
 
 async function loadPrivateEquity() {
   const c = document.getElementById('content');
