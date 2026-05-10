@@ -290,6 +290,28 @@ app.get('/api/instagram/media', auth, (req, res) => {
   }
 });
 
+// ── API: Instagram Drafts ────────────────────────────────────────────────────
+
+const INSTA_DRAFTS_DIR = path.join(INSTA_DIR, 'drafts');
+
+app.get('/api/instagram/drafts', auth, (req, res) => {
+  try {
+    if (!fs.existsSync(INSTA_DRAFTS_DIR)) return res.json([]);
+    const files = fs.readdirSync(INSTA_DRAFTS_DIR).filter(f => f.endsWith('.json'));
+    const drafts = [];
+    for (const f of files) {
+      try {
+        const d = JSON.parse(fs.readFileSync(path.join(INSTA_DRAFTS_DIR, f), 'utf8'));
+        if (d?.id && d?.status) drafts.push(d);
+      } catch { /* skip broken file */ }
+    }
+    drafts.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    res.json(drafts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Raw Session Helpers ──────────────────────────────────────────────────────
 
 function loadRawSession(id) {

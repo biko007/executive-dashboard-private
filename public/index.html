@@ -2818,7 +2818,9 @@ function _instaStatusBadge(s) {
     active: ['badge-blue','Aktiv'], closed: ['badge-muted','Geschlossen'],
     scanning: ['badge-yellow','Wird gescannt'], scanned: ['badge-green','Gescannt'],
     crafting: ['badge-yellow','In Craft'], cutting: ['badge-yellow','Wird geschnitten'],
-    cut_done: ['badge-green','Geschnitten']
+    cut_done: ['badge-green','Geschnitten'],
+    entwurf: ['badge-blue','Entwurf'], freigegeben: ['badge-yellow','Freigegeben'],
+    'veröffentlicht': ['badge-green','Live']
   };
   const [cls, lbl] = m[s] || m.idea;
   return `<span class="badge ${cls}">${lbl}</span>`;
@@ -2839,6 +2841,7 @@ function _instaMiniSvg(data, color, h) {
 
 let _instaSubTab = 'overview';
 let _instaMediaCache = null;
+let _instaDraftsCache = null;
 
 async function loadInstagram() {
   const c = document.getElementById('content');
@@ -2846,6 +2849,9 @@ async function loadInstagram() {
 
   if (!_instaMediaCache) {
     try { _instaMediaCache = await apiFetch('/api/instagram/media'); } catch { _instaMediaCache = { items: [] }; }
+  }
+  if (!_instaDraftsCache) {
+    try { _instaDraftsCache = await apiFetch('/api/instagram/drafts'); } catch { _instaDraftsCache = []; }
   }
 
   const tabBtn = (id, label) => `<button onclick="_instaSubTab='${id}';loadInstagram()" style="
@@ -2965,25 +2971,35 @@ async function loadInstagram() {
   }
 
   if (_instaSubTab === 'drafts') {
-    body = d.drafts.map(dr => `<div class="card card-pad" style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <span style="font-size:20px">${_instaTypeIcon(dr.type)}</span>
-          <div>
-            <div style="font-size:15px;font-weight:600">${esc(dr.title)}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dr.id)} · Geplant: ${esc(dr.scheduled)}</div>
+    const drafts = _instaDraftsCache || [];
+    if (!drafts.length) {
+      body = '<div class="card card-pad" style="text-align:center;color:var(--muted)">Keine Drafts vorhanden.</div>';
+    } else {
+      body = drafts.map(dr => {
+        const captionPreview = (dr.caption || '').length > 200 ? dr.caption.slice(0, 200) + '…' : (dr.caption || '');
+        const hashtags = Array.isArray(dr.hashtags) ? dr.hashtags : [];
+        const hashtagDisplay = hashtags.length ? hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
+        const dateStr = dr.scheduledFor || dr.createdAt?.slice(0, 10) || '';
+        const instaLink = dr.instagram_url ? `<a href="${esc(dr.instagram_url)}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:12px">📸 Instagram</a>` : '';
+        return `<div class="card card-pad" style="margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="font-size:20px">${dr.status === 'veröffentlicht' ? '📸' : dr.status === 'freigegeben' ? '✅' : '📝'}</span>
+            <div>
+              <div style="font-size:14px;font-weight:600;font-family:monospace">${esc(dr.id)}</div>
+              <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)}${dr.mediaPath ? ' · 📎 Media' : ''}</div>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${instaLink}
+            ${_instaStatusBadge(dr.status)}
           </div>
         </div>
-        ${_instaStatusBadge(dr.status)}
-      </div>
-      <div style="background:var(--bg);border-radius:6px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:14px;border-left:3px solid var(--border)">${esc(dr.caption)}</div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span class="badge badge-blue">#${dr.hashtags} Hashtags</span>
-        <div style="flex:1"></div>
-        <button class="btn" style="background:var(--surface);border:1px solid var(--border);color:var(--muted)">✏️ Bearbeiten</button>
-        ${dr.status === 'review' ? '<button class="btn" style="background:var(--green);color:#0a1a0a;font-weight:700">✓ Freigeben</button>' : ''}
-      </div>
-    </div>`).join('');
+        <div style="background:var(--bg);border-radius:6px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:${hashtagDisplay ? '10' : '0'}px;border-left:3px solid var(--border)">${esc(captionPreview)}</div>
+        ${hashtagDisplay ? `<div style="font-size:12px;color:var(--accent);word-break:break-all">${esc(hashtagDisplay)}</div>` : ''}
+      </div>`;
+      }).join('');
+    }
   }
 
   if (_instaSubTab === 'analytics') {
