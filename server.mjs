@@ -232,6 +232,31 @@ app.get('/api/status', async (_req, res) => {
   });
 });
 
+// ── Service Health / Ready / Version (no auth, root paths) ──────────────────
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, service: 'executive-dashboard', uptime: process.uptime() });
+});
+
+app.get('/ready', async (_req, res) => {
+  const check = async (port) => {
+    try {
+      const r = await fetch(`http://127.0.0.1:${port}/health`, { signal: AbortSignal.timeout(2000) });
+      return r.ok;
+    } catch { return false; }
+  };
+  const [gateway, trading] = await Promise.all([check(18791), check(18793)]);
+  res.json({
+    ok: true,
+    service: 'executive-dashboard',
+    dependencies: { gateway, trading },
+  });
+});
+
+app.get('/version', (_req, res) => {
+  res.json({ service: 'executive-dashboard', version: '1.0.0', node: process.version, uptime: process.uptime() });
+});
+
 // ── API: Images ──────────────────────────────────────────────────────────────
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
