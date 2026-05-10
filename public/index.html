@@ -2894,7 +2894,8 @@ async function loadInstagram() {
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Live Feed</div>
         <div class="insta-grid">
           ${feedItems.map(p => {
-            const thumb = p.thumbnail_url || p.media_url || '';
+            const rawThumb = p.thumbnail_url || p.media_url || '';
+            const thumb = rawThumb ? '/dashboard/api/instagram/media-proxy?url=' + encodeURIComponent(rawThumb) + '&token=' + encodeURIComponent(TOKEN) : '';
             const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
             const likes = (p.like_count || 0).toLocaleString('de-DE');
             const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">

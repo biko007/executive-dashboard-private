@@ -290,6 +290,30 @@ app.get('/api/instagram/media', auth, (req, res) => {
   }
 });
 
+// ── API: Instagram Media Proxy ───────────────────────────────────────────────
+
+app.get('/api/instagram/media-proxy', auth, async (req, res) => {
+  const url = req.query.url;
+  if (!url) return res.status(400).json({ error: 'Missing url parameter' });
+  // Only allow Instagram CDN domains
+  let parsed;
+  try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
+  if (!parsed.hostname.match(/\.(cdninstagram\.com|fbcdn\.net)$/)) {
+    return res.status(403).json({ error: 'Only Instagram CDN URLs allowed' });
+  }
+  try {
+    const upstream = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!upstream.ok) return res.status(upstream.status).end();
+    const ct = upstream.headers.get('content-type') || 'image/jpeg';
+    res.setHeader('Content-Type', ct);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    const buf = Buffer.from(await upstream.arrayBuffer());
+    res.send(buf);
+  } catch (e) {
+    res.status(502).json({ error: 'Upstream fetch failed' });
+  }
+});
+
 // ── API: Instagram Insights ──────────────────────────────────────────────────
 
 app.get('/api/instagram/insights', auth, (req, res) => {
