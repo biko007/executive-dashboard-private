@@ -2896,22 +2896,23 @@ async function loadInstagram() {
           ${feedItems.map(p => {
             const thumb = p.thumbnail_url || p.media_url || '';
             const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
-            const eng = (p.like_count || 0) + (p.comments_count || 0);
+            const likes = (p.like_count || 0).toLocaleString('de-DE');
             const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
               <span style="font-size:32px">${icon}</span>
-              <span style="font-size:11px;font-weight:600">❤️ ${eng.toLocaleString('de-DE')}</span>
+              <span style="font-size:11px;font-weight:600">❤️ ${likes}</span>
             </div>`;
             const imgTag = thumb
-              ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.parentNode.querySelector('.ig-placeholder').style.display='flex';this.style.display='none'">
-                 <div class="ig-placeholder" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
-                   <span style="font-size:32px">${icon}</span>
-                   <span style="font-size:11px;font-weight:600">❤️ ${eng.toLocaleString('de-DE')}</span>
-                 </div>`
-              : placeholder;
+              ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="var p=this.parentNode;p.querySelector('.ig-placeholder').style.display='flex';p.querySelector('.ig-likes').style.display='none';this.style.display='none'">`
+              : '';
+            const showPlaceholder = !thumb;
             return `<a href="${esc(p.permalink)}" target="_blank" rel="noopener" class="insta-grid-item" title="${esc((p.caption || '').slice(0, 80))}">
               ${imgTag}
+              <div class="ig-placeholder" style="display:${showPlaceholder ? 'flex' : 'none'};position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
+                <span style="font-size:32px">${icon}</span>
+                <span style="font-size:11px;font-weight:600">❤️ ${likes}</span>
+              </div>
               <span class="ig-type">${icon}</span>
-              <span class="ig-likes">❤️ ${(p.like_count || 0).toLocaleString('de-DE')}</span>
+              <span class="ig-likes">❤️ ${likes}</span>
             </a>`;
           }).join('')}
         </div>
@@ -2942,13 +2943,13 @@ async function loadInstagram() {
     const ins = _instaInsightsCache || {};
     const hasInsights = ins.followers_count != null;
 
-    body = liveFeed + `
+    body = `
       <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
         ${kpi('Follower', hasInsights ? Number(ins.followers_count).toLocaleString('de-DE') : '–', null, hasInsights ? 'Instagram Insights' : 'Keine Daten', '')}
         ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? Number(ins.engagement_rate) + '%' : '–', null, 'Ø letzte 30 Tage', '')}
         ${kpi('Ø Likes', hasInsights && ins.recent_avg_likes != null ? Math.round(Number(ins.recent_avg_likes)).toLocaleString('de-DE') : '–', null, 'pro Beitrag', '')}
         ${kpi('Beiträge', hasInsights && ins.media_count != null ? Number(ins.media_count).toLocaleString('de-DE') : '–', null, 'gesamt', '')}
-      </div>
+      </div>` + liveFeed + `
 
       <div class="card card-pad" style="margin-bottom:16px">
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge (30 Tage)</div>
@@ -3130,7 +3131,9 @@ async function _instaLoadForensic() {
       const fd = forensic.window.follower_daily;
       const maxVal = Math.max(...fd.map(x => Number(x.value) || 0), 1);
       const median = Number(forensic.window.follower_median) || 1;
-      const threshold = forensic.window.spike_threshold ? (parseInt(forensic.window.spike_threshold) || (median * 3)) : maxVal;
+      const threshStr = String(forensic.window.spike_threshold || '');
+      const threshMatch = threshStr.match(/>\s*(\d+)/);
+      const threshold = threshMatch ? Number(threshMatch[1]) : (median * 3);
       const bars = fd.map(item => {
         const val = Number(item.value) || 0;
         const h = Math.max(Math.round((val / maxVal) * 140), 2);
@@ -3167,7 +3170,9 @@ async function _instaLoadForensic() {
         const isVerd = (sp.classification || '').toUpperCase().includes('VERDAECHTIG');
         const badgeCls = isVerd ? 'badge-red' : 'badge-green';
         const badgeLbl = isVerd ? 'Verdächtig' : 'Organisch';
-        const reasoning = Array.isArray(sp.reasoning) ? sp.reasoning : [];
+        let reasoning = sp.reasoning;
+        if (typeof reasoning === 'string') { try { reasoning = JSON.parse(reasoning); } catch { reasoning = [reasoning]; } }
+        if (!Array.isArray(reasoning)) reasoning = [];
         const contentPosts = Array.isArray(sp.content_window) ? sp.content_window : [];
         return `<div class="card card-pad" style="margin-bottom:12px;border-left:3px solid ${isVerd ? 'var(--red)' : 'var(--green)'}">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
