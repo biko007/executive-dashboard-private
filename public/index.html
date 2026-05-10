@@ -2842,6 +2842,8 @@ function _instaMiniSvg(data, color, h) {
 let _instaSubTab = 'overview';
 let _instaMediaCache = null;
 let _instaDraftsCache = null;
+let _instaInsightsCache = null;
+let _instaForensicsCache = null;
 
 async function loadInstagram() {
   const c = document.getElementById('content');
@@ -2852,6 +2854,9 @@ async function loadInstagram() {
   }
   if (!_instaDraftsCache) {
     try { _instaDraftsCache = await apiFetch('/api/instagram/drafts'); } catch { _instaDraftsCache = []; }
+  }
+  if (!_instaInsightsCache) {
+    try { _instaInsightsCache = await apiFetch('/api/instagram/insights'); } catch { _instaInsightsCache = {}; }
   }
 
   const tabBtn = (id, label) => `<button onclick="_instaSubTab='${id}';loadInstagram()" style="
@@ -2877,7 +2882,7 @@ async function loadInstagram() {
   </div>`;
 
   let tabs = `<div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-    ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Drafts')}${tabBtn('raw','📁 Raw Material')}${tabBtn('analytics','Analyse')}
+    ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Drafts')}${tabBtn('raw','📁 Raw Material')}${tabBtn('analytics','Analyse')}${tabBtn('forensic','🔍 Forensic')}
   </div>`;
 
   let body = '';
@@ -2891,9 +2896,18 @@ async function loadInstagram() {
           ${feedItems.map(p => {
             const thumb = p.thumbnail_url || p.media_url || '';
             const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
+            const eng = (p.like_count || 0) + (p.comments_count || 0);
+            const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
+              <span style="font-size:32px">${icon}</span>
+              <span style="font-size:11px;font-weight:600">❤️ ${eng.toLocaleString('de-DE')}</span>
+            </div>`;
             const imgTag = thumb
-              ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.style.display='none'">`
-              : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--muted)">${icon}</div>`;
+              ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="this.parentNode.querySelector('.ig-placeholder').style.display='flex';this.style.display='none'">
+                 <div class="ig-placeholder" style="display:none;position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
+                   <span style="font-size:32px">${icon}</span>
+                   <span style="font-size:11px;font-weight:600">❤️ ${eng.toLocaleString('de-DE')}</span>
+                 </div>`
+              : placeholder;
             return `<a href="${esc(p.permalink)}" target="_blank" rel="noopener" class="insta-grid-item" title="${esc((p.caption || '').slice(0, 80))}">
               ${imgTag}
               <span class="ig-type">${icon}</span>
@@ -2901,6 +2915,18 @@ async function loadInstagram() {
             </a>`;
           }).join('')}
         </div>
+        ${(() => {
+          const fetchedAt = _instaMediaCache?.fetched_at;
+          if (!fetchedAt) return '';
+          const age = Date.now() - fetchedAt;
+          const days = Math.floor(age / 86400000);
+          const ageStr = days > 0 ? `vor ${days} Tag${days > 1 ? 'en' : ''}` : 'heute';
+          return `<div style="font-size:11px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:6px">
+            <span>🔄 Zuletzt synchronisiert: ${ageStr}</span>
+            <span style="opacity:.5">·</span>
+            <span>Aktualisieren mit <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">/instasync</code> im Telegram-Bot</span>
+          </div>`;
+        })()}
       </div>` : '';
 
     const kpi = (label, value, trend, sub, chart) => `<div class="s-card" style="flex:1;min-width:0">
@@ -2913,12 +2939,15 @@ async function loadInstagram() {
       ${chart ? `<div style="margin-top:10px">${chart}</div>` : ''}
     </div>`;
 
+    const ins = _instaInsightsCache || {};
+    const hasInsights = ins.followers_count != null;
+
     body = liveFeed + `
       <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-        ${kpi('Follower', d.account.followers.toLocaleString('de-DE'), '+' + d.account.followersChange, 'diese Woche', _instaMiniSvg(d.followerHistory, '#4f9cf9', 48))}
-        ${kpi('Engagement', d.account.engagement + '%', '+0.3%', 'Ø letzte 30 Tage', _instaMiniSvg(d.engagementHistory, '#4ade80', 48))}
-        ${kpi('Reach (7 Tage)', d.account.reach7d.toLocaleString('de-DE'), null, d.account.impressions7d.toLocaleString('de-DE') + ' Impressions', '')}
-        ${kpi('Beiträge', d.account.posts, null, 'gesamt', '')}
+        ${kpi('Follower', hasInsights ? ins.followers_count.toLocaleString('de-DE') : '–', null, hasInsights ? 'Instagram Insights' : 'Keine Daten', '')}
+        ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? ins.engagement_rate + '%' : '–', null, 'Ø letzte 30 Tage', '')}
+        ${kpi('Ø Likes', hasInsights && ins.recent_avg_likes != null ? Math.round(ins.recent_avg_likes).toLocaleString('de-DE') : '–', null, 'pro Beitrag', '')}
+        ${kpi('Beiträge', hasInsights ? ins.media_count : '–', null, 'gesamt', '')}
       </div>
 
       <div class="card card-pad" style="margin-bottom:16px">
@@ -2981,7 +3010,8 @@ async function loadInstagram() {
         const hashtagDisplay = hashtags.length ? hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
         const dateStr = dr.scheduledFor || dr.createdAt?.slice(0, 10) || '';
         const instaLink = dr.instagram_url ? `<a href="${esc(dr.instagram_url)}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:12px">📸 Instagram</a>` : '';
-        return `<div class="card card-pad" style="margin-bottom:12px">
+        const safeId = esc(dr.id).replace(/'/g, "\\'");
+        return `<div class="card card-pad" style="margin-bottom:12px" id="draft-card-${esc(dr.id)}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
           <div style="display:flex;align-items:center;gap:10px">
             <span style="font-size:20px">${dr.status === 'veröffentlicht' ? '📸' : dr.status === 'freigegeben' ? '✅' : '📝'}</span>
@@ -2996,7 +3026,16 @@ async function loadInstagram() {
           </div>
         </div>
         <div style="background:var(--bg);border-radius:6px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:${hashtagDisplay ? '10' : '0'}px;border-left:3px solid var(--border)">${esc(captionPreview)}</div>
-        ${hashtagDisplay ? `<div style="font-size:12px;color:var(--accent);word-break:break-all">${esc(hashtagDisplay)}</div>` : ''}
+        ${hashtagDisplay ? `<div style="font-size:12px;color:var(--accent);word-break:break-all;margin-bottom:10px">${esc(hashtagDisplay)}</div>` : ''}
+
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftEdit('${safeId}')">✏️ Bearbeiten</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftPost('${safeId}')">📤 Freigeben</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftManualToggle('${safeId}')">📋 Manuell posten</button>
+          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid rgba(248,113,113,.3);color:var(--red)" onclick="_instaDraftDelete('${safeId}')">🗑️</button>
+        </div>
+
+        <div id="manual-post-${esc(dr.id)}" style="display:none;margin-top:12px;background:var(--bg);border-radius:8px;padding:16px;border:1px solid var(--border)"></div>
       </div>`;
       }).join('');
     }
@@ -3055,6 +3094,11 @@ async function loadInstagram() {
     </div>`;
   }
 
+  if (_instaSubTab === 'forensic') {
+    body = '<div id="forensicContent"><div class="spinner">Laden…</div></div>';
+    setTimeout(() => _instaLoadForensic(), 0);
+  }
+
   if (_instaSubTab === 'raw') {
     body = '<div id="rawContent"><div class="spinner">Laden…</div></div>';
     setTimeout(() => _instaLoadRaw(), 0);
@@ -3062,6 +3106,308 @@ async function loadInstagram() {
 
   c.innerHTML = header + tabs + body;
   stamp();
+}
+
+const _countryFlags = {DE:'🇩🇪',US:'🇺🇸',BR:'🇧🇷',CL:'🇨🇱',MX:'🇲🇽',AR:'🇦🇷',CO:'🇨🇴',ES:'🇪🇸',AT:'🇦🇹',CH:'🇨🇭',IT:'🇮🇹',GB:'🇬🇧',FR:'🇫🇷',NL:'🇳🇱',PT:'🇵🇹',PE:'🇵🇪',EC:'🇪🇨',VE:'🇻🇪',PY:'🇵🇾',UY:'🇺🇾',BO:'🇧🇴',IN:'🇮🇳',CA:'🇨🇦',AU:'🇦🇺',TR:'🇹🇷',PL:'🇵🇱',RO:'🇷🇴',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮',BE:'🇧🇪',GR:'🇬🇷',CZ:'🇨🇿',HU:'🇭🇺',IE:'🇮🇪',ZA:'🇿🇦',IL:'🇮🇱',JP:'🇯🇵',KR:'🇰🇷',PH:'🇵🇭',TH:'🇹🇭',ID:'🇮🇩',MY:'🇲🇾',SG:'🇸🇬',AE:'🇦🇪',SA:'🇸🇦',EG:'🇪🇬',NG:'🇳🇬',KE:'🇰🇪',PK:'🇵🇰',BD:'🇧🇩'};
+
+async function _instaLoadForensic() {
+  const wrap = document.getElementById('forensicContent');
+  if (!wrap) return;
+  try {
+    if (!_instaForensicsCache) {
+      _instaForensicsCache = await apiFetch('/api/instagram/forensics');
+    }
+    const { forensic, demographics } = _instaForensicsCache || {};
+    if (!forensic && !demographics) {
+      wrap.innerHTML = '<div class="card card-pad" style="text-align:center;color:var(--muted)">Keine Forensic-Daten vorhanden.</div>';
+      return;
+    }
+
+    let html = '';
+
+    // 1. Follower growth bar chart
+    if (forensic?.window?.follower_daily?.length) {
+      const fd = forensic.window.follower_daily;
+      const maxVal = Math.max(...fd.map(x => x.value), 1);
+      const threshold = forensic.window.spike_threshold ? parseInt(forensic.window.spike_threshold) || (forensic.window.follower_median * 3) : maxVal;
+      const barW = Math.max(100 / fd.length, 2);
+      const bars = fd.map(item => {
+        const h = Math.max(Math.round((item.value / maxVal) * 140), 2);
+        const isSpike = item.value > threshold;
+        const color = isSpike ? 'var(--red)' : 'var(--accent)';
+        const dateLabel = item.date ? item.date.slice(5) : '';
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
+          <span style="font-size:10px;color:${isSpike ? 'var(--red)' : 'var(--muted)'};font-weight:${isSpike ? '700' : '400'}">${item.value > 0 ? '+' + item.value : item.value}</span>
+          <div style="width:80%;height:${h}px;background:${color};border-radius:3px 3px 0 0;opacity:${isSpike ? 1 : 0.7}"></div>
+          <span style="font-size:9px;color:var(--muted);transform:rotate(-45deg);white-space:nowrap">${dateLabel}</span>
+        </div>`;
+      }).join('');
+
+      html += `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Follower-Wachstum (${forensic.window.days || 14} Tage)</div>
+        <div style="display:flex;align-items:flex-end;height:180px;gap:2px;padding-bottom:24px">${bars}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:8px">Median: +${forensic.window.follower_median}/Tag · Spike-Schwelle: ${esc(String(forensic.window.spike_threshold || ''))}</div>
+      </div>`;
+    }
+
+    // 2. Reach curve
+    if (forensic?.window?.reach_daily?.length) {
+      const rd = forensic.window.reach_daily.map(r => ({ d: r.date ? r.date.slice(5) : '', v: r.reach || 0 }));
+      html += `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Reichweite (täglich)</div>
+        ${_instaMiniSvg(rd, '#f59e0b', 100)}
+        <div style="display:flex;justify-content:space-between;margin-top:6px">${rd.filter((_, i) => i % 3 === 0 || i === rd.length - 1).map(p => `<span style="font-size:10px;color:var(--muted)">${p.d}</span>`).join('')}</div>
+      </div>`;
+    }
+
+    // 3. Spike table
+    if (forensic?.spikes?.length) {
+      const spikeCards = forensic.spikes.map(sp => {
+        const isVerd = (sp.classification || '').toUpperCase().includes('VERDAECHTIG');
+        const badgeCls = isVerd ? 'badge-red' : 'badge-green';
+        const badgeLbl = isVerd ? 'Verdächtig' : 'Organisch';
+        const reasoning = Array.isArray(sp.reasoning) ? sp.reasoning : [];
+        const contentPosts = Array.isArray(sp.content_window) ? sp.content_window : [];
+        return `<div class="card card-pad" style="margin-bottom:12px;border-left:3px solid ${isVerd ? 'var(--red)' : 'var(--green)'}">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <div>
+              <span style="font-weight:700;font-size:14px">${esc(sp.date || '')}</span>
+              <span style="margin-left:10px;font-size:13px;color:var(--muted)">+${sp.delta || sp.follower_delta || 0} Follower</span>
+              <span style="margin-left:10px;font-size:12px;color:var(--muted)">${sp.multiple_of_median ? sp.multiple_of_median.toFixed(1) + '× Median' : ''}</span>
+            </div>
+            <span class="badge ${badgeCls}">${badgeLbl}</span>
+          </div>
+          ${reasoning.length ? `<ul style="margin:0 0 10px 16px;padding:0;font-size:12px;color:var(--muted);line-height:1.7">${reasoning.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+          ${contentPosts.length ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">
+            <span style="font-weight:600">Content im Zeitfenster:</span>
+            ${contentPosts.slice(0, 3).map(cp => `<div style="margin-top:4px;padding-left:8px;border-left:2px solid var(--border)">
+              ${cp.permalink ? `<a href="${esc(cp.permalink)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc((cp.caption || '').slice(0, 60))}${(cp.caption || '').length > 60 ? '…' : ''}</a>` : esc((cp.caption || '').slice(0, 60))}
+            </div>`).join('')}
+          </div>` : ''}
+        </div>`;
+      }).join('');
+
+      html += `<div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Erkannte Spikes (${forensic.spikes.length})</div>
+        ${spikeCards}
+      </div>`;
+    }
+
+    // 4. Demographics
+    if (demographics) {
+      let demoHtml = '';
+
+      // Top 10 countries
+      if (demographics.countries?.length) {
+        const top10 = demographics.countries.slice(0, 10);
+        const maxC = top10[0]?.count || 1;
+        const countryBars = top10.map(c => {
+          const pct = Math.round((c.count / maxC) * 100);
+          const flag = _countryFlags[c.name] || '🏳️';
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="width:32px;font-size:14px;text-align:center">${flag}</span>
+            <span style="width:28px;font-size:12px;font-weight:600">${esc(c.name)}</span>
+            <div style="flex:1;height:18px;background:var(--bg);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;opacity:.7"></div>
+            </div>
+            <span style="width:50px;text-align:right;font-size:12px;color:var(--muted)">${c.count.toLocaleString('de-DE')}</span>
+          </div>`;
+        }).join('');
+        demoHtml += `<div style="flex:1;min-width:280px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Länder</div>
+          ${countryBars}
+        </div>`;
+      }
+
+      // Top 10 cities
+      if (demographics.cities?.length) {
+        const cityList = demographics.cities.slice(0, 10).map((c, i) => {
+          const cityName = c.name.split(',')[0].trim();
+          return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+            <span><span style="color:var(--muted);margin-right:6px">${i + 1}.</span>${esc(cityName)}</span>
+            <span style="color:var(--muted)">${c.count.toLocaleString('de-DE')}</span>
+          </div>`;
+        }).join('');
+        demoHtml += `<div style="flex:1;min-width:240px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Städte</div>
+          ${cityList}
+        </div>`;
+      }
+
+      // Age groups
+      if (demographics.age_gender?.length) {
+        const ages = demographics.age_gender;
+        const maxA = Math.max(...ages.map(a => a.count), 1);
+        const ageBars = ages.map(a => {
+          const pct = Math.round((a.count / maxA) * 100);
+          return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="width:52px;font-size:12px;font-weight:600;text-align:right">${esc(a.name)}</span>
+            <div style="flex:1;height:18px;background:var(--bg);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:#a78bfa;border-radius:4px;opacity:.7"></div>
+            </div>
+            <span style="width:50px;text-align:right;font-size:12px;color:var(--muted)">${a.count.toLocaleString('de-DE')}</span>
+          </div>`;
+        }).join('');
+        demoHtml += `<div style="flex:1;min-width:280px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Altersgruppen</div>
+          ${ageBars}
+        </div>`;
+      }
+
+      if (demoHtml) {
+        html += `<div class="card card-pad" style="margin-bottom:16px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Demografie</div>
+          <div style="display:flex;gap:24px;flex-wrap:wrap">${demoHtml}</div>
+          ${demographics.timestamp ? `<div style="font-size:10px;color:var(--muted);margin-top:12px">Stand: ${new Date(demographics.timestamp).toLocaleDateString('de-DE')}</div>` : ''}
+        </div>`;
+      }
+    }
+
+    if (!html) html = '<div class="card card-pad" style="text-align:center;color:var(--muted)">Keine Forensic-Daten vorhanden.</div>';
+    wrap.innerHTML = html;
+  } catch (e) {
+    wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Draft Action Functions ──
+
+async function _instaDraftEdit(id) {
+  const draft = (_instaDraftsCache || []).find(d => d.id === id);
+  if (!draft) return;
+  const caption = draft.caption || '';
+  const hashtags = Array.isArray(draft.hashtags) ? draft.hashtags.join(', ') : '';
+  openModal(`
+    <div style="max-width:600px">
+      <h3 style="margin:0 0 16px 0;font-size:16px">Draft bearbeiten: ${esc(id)}</h3>
+      <div style="margin-bottom:12px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Caption</label>
+        <textarea id="edit-caption" style="width:100%;height:160px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical">${esc(caption)}</textarea>
+      </div>
+      <div style="margin-bottom:16px">
+        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Hashtags (kommagetrennt)</label>
+        <input id="edit-hashtags" type="text" value="${esc(hashtags)}" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;font-family:var(--font)">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeModal()" style="font-size:12px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);color:var(--text)">Abbrechen</button>
+        <button class="btn btn-primary" onclick="_instaDraftSaveEdit('${esc(id).replace(/'/g, "\\'")}')" style="font-size:12px;padding:6px 14px">Speichern</button>
+      </div>
+    </div>
+  `);
+}
+
+async function _instaDraftSaveEdit(id) {
+  const caption = document.getElementById('edit-caption')?.value || '';
+  const hashtagsRaw = document.getElementById('edit-hashtags')?.value || '';
+  const hashtags = hashtagsRaw.split(',').map(h => h.trim()).filter(Boolean).map(h => h.startsWith('#') ? h : '#' + h);
+  try {
+    await apiFetch('/api/instagram/drafts/' + encodeURIComponent(id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ caption, hashtags })
+    });
+    closeModal();
+    _instaDraftsCache = null;
+    loadInstagram();
+    _toast('Draft gespeichert');
+  } catch (e) {
+    _toast('Fehler: ' + e.message);
+  }
+}
+
+async function _instaDraftPost(id) {
+  if (!confirm(`Draft "${id}" als freigegeben markieren?\n\nDanach kannst du im Telegram-Bot /instapost ${id} ausführen.`)) return;
+  try {
+    await apiFetch('/api/instagram/drafts/' + encodeURIComponent(id), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'freigegeben' })
+    });
+    _instaDraftsCache = null;
+    loadInstagram();
+    _toast('Draft freigegeben — poste mit /instapost ' + id);
+  } catch (e) {
+    _toast('Fehler: ' + e.message);
+  }
+}
+
+async function _instaDraftDelete(id) {
+  if (!confirm(`Draft "${id}" wirklich löschen?`)) return;
+  try {
+    await apiFetch('/api/instagram/drafts/' + encodeURIComponent(id), { method: 'DELETE' });
+    _instaDraftsCache = null;
+    loadInstagram();
+    _toast('Draft gelöscht');
+  } catch (e) {
+    _toast('Fehler: ' + e.message);
+  }
+}
+
+async function _instaDraftManualToggle(id) {
+  const wrap = document.getElementById('manual-post-' + id);
+  if (!wrap) return;
+  if (wrap.style.display !== 'none') { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  wrap.innerHTML = '<div class="spinner" style="padding:10px">Laden…</div>';
+
+  const draft = (_instaDraftsCache || []).find(d => d.id === id);
+  if (!draft) { wrap.innerHTML = '<div style="color:var(--red)">Draft nicht gefunden</div>'; return; }
+
+  // Fetch media files
+  let mediaFiles = [];
+  try { mediaFiles = await apiFetch('/api/instagram/drafts/' + encodeURIComponent(id) + '/media'); } catch {}
+
+  const caption = draft.caption || '';
+  const hashtags = Array.isArray(draft.hashtags) ? draft.hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
+  const fullCaption = caption + (hashtags ? '\n\n' + hashtags : '');
+
+  let html = '<div style="font-size:12px;font-weight:700;margin-bottom:12px;color:var(--text)">📋 Manuell posten</div>';
+
+  // Download section
+  if (mediaFiles.length) {
+    html += `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">1. Dateien herunterladen</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        ${mediaFiles.map(f => `<a href="/dashboard/api/instagram/drafts/${encodeURIComponent(id)}/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(TOKEN)}" download="${esc(f.name)}" class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--accent);text-decoration:none">⬇️ ${esc(f.name)}</a>`).join('')}
+      </div>
+    </div>`;
+  } else {
+    html += `<div style="margin-bottom:14px;font-size:12px;color:var(--muted)">Keine Media-Dateien verknüpft — lade die Dateien aus dem Raw-Material.</div>`;
+  }
+
+  // Caption copy
+  html += `<div style="margin-bottom:14px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">2. Caption kopieren</div>
+    <div style="position:relative">
+      <textarea readonly style="width:100%;height:100px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;font-family:var(--font);resize:vertical">${esc(fullCaption)}</textarea>
+      <button class="btn btn-primary" onclick="navigator.clipboard.writeText(this.parentNode.querySelector('textarea').value);_toast('Caption kopiert')" style="position:absolute;top:6px;right:6px;font-size:10px;padding:3px 8px">📋 Kopieren</button>
+    </div>
+  </div>`;
+
+  // Hashtags copy (separate)
+  if (hashtags) {
+    html += `<div style="margin-bottom:14px">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">3. Hashtags separat kopieren</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <code style="flex:1;background:var(--surface);padding:8px 10px;border-radius:6px;font-size:11px;border:1px solid var(--border);word-break:break-all;color:var(--accent)">${esc(hashtags)}</code>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${esc(hashtags).replace(/'/g, "\\'")}');_toast('Hashtags kopiert')" style="font-size:10px;padding:3px 8px;white-space:nowrap">📋</button>
+      </div>
+    </div>`;
+  }
+
+  // Instructions
+  html += `<div style="margin-bottom:4px">
+    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">${hashtags ? '4' : '3'}. Anleitung</div>
+    <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--muted);line-height:1.8">
+      <li>Dateien auf Handy herunterladen</li>
+      <li>Instagram App öffnen → <strong>+</strong> → Beitrag/Reel erstellen</li>
+      <li>Heruntergeladene Dateien auswählen</li>
+      <li>Bei Reels: Musik hinzufügen (optional)</li>
+      <li>Caption einfügen → <strong>Teilen</strong></li>
+    </ol>
+  </div>`;
+
+  wrap.innerHTML = html;
 }
 
 function _fmtFileSize(bytes) {

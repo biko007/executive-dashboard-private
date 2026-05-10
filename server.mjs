@@ -290,6 +290,50 @@ app.get('/api/instagram/media', auth, (req, res) => {
   }
 });
 
+// ── API: Instagram Insights ──────────────────────────────────────────────────
+
+app.get('/api/instagram/insights', auth, (req, res) => {
+  try {
+    const file = path.join(INSTA_DIR, 'insights-cache.json');
+    if (!fs.existsSync(file)) return res.json({});
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    res.json(data);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── API: Instagram Forensics ────────────────────────────────────────────────
+
+app.get('/api/instagram/forensics', auth, (req, res) => {
+  try {
+    // Find latest spike-forensic-v2 file
+    let forensic = null;
+    const forensicFiles = fs.readdirSync(INSTA_DIR)
+      .filter(f => f.startsWith('spike-forensic-v2-') && f.endsWith('.json'))
+      .sort();
+    if (forensicFiles.length) {
+      forensic = JSON.parse(fs.readFileSync(path.join(INSTA_DIR, forensicFiles[forensicFiles.length - 1]), 'utf8'));
+    }
+
+    // Find latest demographics snapshot
+    let demographics = null;
+    const demoDir = path.join(INSTA_DIR, 'demographics-snapshots');
+    if (fs.existsSync(demoDir)) {
+      const demoFiles = fs.readdirSync(demoDir)
+        .filter(f => f.startsWith('snapshot-') && f.endsWith('.json'))
+        .sort();
+      if (demoFiles.length) {
+        demographics = JSON.parse(fs.readFileSync(path.join(demoDir, demoFiles[demoFiles.length - 1]), 'utf8'));
+      }
+    }
+
+    res.json({ forensic, demographics });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── API: Instagram Drafts ────────────────────────────────────────────────────
 
 const INSTA_DRAFTS_DIR = path.join(INSTA_DIR, 'drafts');
@@ -307,6 +351,132 @@ app.get('/api/instagram/drafts', auth, (req, res) => {
     }
     drafts.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
     res.json(drafts);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Update Instagram draft
+app.put('/api/instagram/drafts/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+    const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
+    if (!filePath.startsWith(INSTA_DRAFTS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const draft = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const allowed = ['caption', 'hashtags', 'status'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) draft[key] = req.body[key];
+    }
+    draft.updatedAt = new Date().toISOString();
+    fs.writeFileSync(filePath, JSON.stringify(draft, null, 2));
+    res.json(draft);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Delete Instagram draft (soft-delete to .trash)
+app.delete('/api/instagram/drafts/:id', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+    const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
+    if (!filePath.startsWith(INSTA_DRAFTS_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Invalid path' });
+    }
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const trashDir = path.join(INSTA_DRAFTS_DIR, '.trash');
+    if (!fs.existsSync(trashDir)) fs.mkdirSync(trashDir, { recursive: true });
+    const bakName = `${id}.json.${Date.now()}.bak`;
+    fs.renameSync(filePath, path.join(trashDir, bakName));
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// List media files for a draft
+app.get('/api/instagram/drafts/:id/media', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+    const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const draft = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const files = [];
+
+    // Check mediaPath field
+    if (draft.mediaPath) {
+      const mp = draft.mediaPath;
+      if (fs.existsSync(mp)) {
+        const stat = fs.statSync(mp);
+        if (stat.isDirectory()) {
+          for (const name of fs.readdirSync(mp)) {
+            const fp = path.join(mp, name);
+            try {
+              const s = fs.statSync(fp);
+              if (s.isFile()) files.push({ name, path: fp, type: detectMediaType(name) || 'document', size: s.size });
+            } catch {}
+          }
+        } else {
+          files.push({ name: path.basename(mp), path: mp, type: detectMediaType(mp) || 'document', size: stat.size });
+        }
+      }
+    }
+
+    // Fallback: check submission reference in notes
+    if (!files.length && draft.notes) {
+      const subMatch = draft.notes.match(/sub-[a-z0-9\-]+/i);
+      if (subMatch) {
+        const subDir = path.join(INSTA_DIR, 'submissions', subMatch[0]);
+        if (fs.existsSync(subDir)) {
+          for (const name of fs.readdirSync(subDir)) {
+            const fp = path.join(subDir, name);
+            try {
+              const s = fs.statSync(fp);
+              if (s.isFile() && detectMediaType(name)) files.push({ name, path: fp, type: detectMediaType(name), size: s.size });
+            } catch {}
+          }
+        }
+      }
+    }
+
+    res.json(files);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Download a draft media file
+app.get('/api/instagram/drafts/:id/download/:filename', auth, (req, res) => {
+  try {
+    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
+    const filename = req.params.filename.replace(/[^a-zA-Z0-9._\-]/g, '');
+    if (!id || !filename) return res.status(400).json({ error: 'Invalid parameters' });
+    const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Draft not found' });
+    const draft = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+    let targetFile = null;
+    if (draft.mediaPath) {
+      const mp = draft.mediaPath;
+      if (fs.existsSync(mp)) {
+        const stat = fs.statSync(mp);
+        if (stat.isDirectory()) {
+          const candidate = path.join(mp, filename);
+          if (candidate.startsWith(mp) && fs.existsSync(candidate)) targetFile = candidate;
+        } else if (path.basename(mp) === filename) {
+          targetFile = mp;
+        }
+      }
+    }
+
+    if (!targetFile) return res.status(404).json({ error: 'File not found' });
+    res.download(targetFile, filename);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
