@@ -245,7 +245,7 @@ app.get('/ready', async (_req, res) => {
       return r.ok;
     } catch { return false; }
   };
-  const [gateway, trading] = await Promise.all([check(18791), check(18793)]);
+  const [gateway, trading] = await Promise.all([check(18789), check(18793)]);
   res.json({
     ok: true,
     service: 'executive-dashboard',
