@@ -217,7 +217,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── API: Status ─────────────────────────────────────────────────────────────
 
-app.get('/api/status', auth, async (_req, res) => {
+app.get('/api/status', async (_req, res) => {
   const check = async (port) => {
     try {
       const r = await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(3000) });
