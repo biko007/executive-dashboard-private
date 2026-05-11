@@ -1,6 +1,36 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-05-10**
+**Stand: 2026-05-11**
+
+## Stand 2026-05-11
+
+Sprint 1 + 2 vollständig abgeschlossen.
+
+- **Sprint 1 (Plattform-Hardening):** nginx konsolidiert, n8n gehärtet, Audit-Log-Infra,
+  Borg-Backup auf Hetzner Storage Box (daily/weekly/monthly + Restore-Drill),
+  Health Monitor mit Telegram-Alerts, Sub-Commands, Smoke-Test, Deploy-Skript,
+  Dashboard Status-Widget.
+- **Sprint 2 (Code-Refactor):** index.ts 9.357 → 2.165 Zeilen (-77%), 10 Module extrahiert,
+  19 audit.log() Calls in 4 Modulen, Approval-Hard-Rule im Code + CI-Test (11/11 grün).
+
+### Agent-Module (10)
+
+executive, instagram, assets, health, fleet, travel, pe, mail, calendar, sharepoint.
+(Spec V3 §3 listete nur 5 — wird in Batch 3 ergänzt.)
+
+### Daten-Hygiene
+
+- `artifacts/personal/*` ist .gitignore'd. Tokens nicht mehr im Repo.
+- Daten via borg auf Hetzner Storage Box gesichert (daily/weekly/monthly).
+- Secrets ausschließlich in `~/.config/openclaw/env`.
+
+### Offene TODOs
+
+- n8n-Postgres separat im Borg-Backup (Spec §15.4) — Batch 4
+- Helper-Endpoint POST /api/internal/notify — Batch 5
+- Spec V3 §3 erweitern um 5 neue Module — Batch 3
+- Optional: Meta-Token rotieren (User-Entscheidung)
+- Sprint 3 vorbereiten (Instagram-Modul auf Postgres)
 
 ## Architektur-Disziplin (Manifest)
 
