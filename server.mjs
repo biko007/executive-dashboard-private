@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import multer from 'multer';
 import sharp from 'sharp';
+import pg from 'pg';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -37,6 +38,11 @@ const M365_TENANT_ID    = ENV.M365_TENANT_ID    || '';
 const M365_CLIENT_ID    = ENV.M365_CLIENT_ID    || '';
 const M365_CLIENT_SECRET= ENV.M365_CLIENT_SECRET|| '';
 const M365_USER         = ENV.M365_USER         || '';
+
+// ── Postgres Pool (Sprint 3 — Instagram drafts) ─────────────────────────────
+const dbPool = ENV.POSTGRES_URL
+  ? new pg.Pool({ connectionString: ENV.POSTGRES_URL, max: 3 })
+  : null;
 
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
@@ -387,8 +393,40 @@ app.get('/api/instagram/forensics', auth, (req, res) => {
 
 const INSTA_DRAFTS_DIR = path.join(INSTA_DIR, 'drafts');
 
-app.get('/api/instagram/drafts', auth, (req, res) => {
+/** Convert a Postgres row to the draft JSON shape the frontend expects. */
+function rowToDraft(row) {
+  return {
+    id: row.id,
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : undefined,
+    updatedAt: row.updated_at ? new Date(row.updated_at).toISOString() : undefined,
+    status: row.status,
+    caption: row.caption || '',
+    hashtags: row.hashtags || [],
+    media_type: row.media_type || 'image',
+    media_files: typeof row.media_files === 'string' ? JSON.parse(row.media_files) : (row.media_files || []),
+    mediaPath: row.media_path || undefined,
+    vision_analysis: row.vision_analysis || undefined,
+    source_session_id: row.source_session_id || undefined,
+    approved_at: row.approved_at ? new Date(row.approved_at).toISOString() : undefined,
+    approved_by: row.approved_by || undefined,
+    published_at: row.published_at ? new Date(row.published_at).toISOString() : undefined,
+    meta_post_id: row.meta_post_id || undefined,
+    instagram_post_id: row.meta_post_id || undefined,
+    failed_at: row.failed_at ? new Date(row.failed_at).toISOString() : undefined,
+    failure_reason: row.failure_reason || undefined,
+  };
+}
+
+app.get('/api/instagram/drafts', auth, async (req, res) => {
   try {
+    if (dbPool) {
+      const { rows } = await dbPool.query(
+        'SELECT * FROM insta_drafts WHERE status != $1 ORDER BY created_at DESC',
+        ['archived']
+      );
+      return res.json(rows.map(rowToDraft));
+    }
+    // Fallback: file-based
     if (!fs.existsSync(INSTA_DRAFTS_DIR)) return res.json([]);
     const files = fs.readdirSync(INSTA_DRAFTS_DIR).filter(f => f.endsWith('.json'));
     const drafts = [];
@@ -406,10 +444,33 @@ app.get('/api/instagram/drafts', auth, (req, res) => {
 });
 
 // Update Instagram draft
-app.put('/api/instagram/drafts/:id', auth, (req, res) => {
+app.put('/api/instagram/drafts/:id', auth, async (req, res) => {
   try {
     const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
     if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+
+    if (dbPool) {
+      // Validate status if provided
+      const validStatuses = ['draft', 'review', 'approved', 'published', 'archived'];
+      if (req.body.status && !validStatuses.includes(req.body.status)) {
+        return res.status(400).json({ error: `Invalid status. Allowed: ${validStatuses.join(', ')}` });
+      }
+      const { rows } = await dbPool.query('SELECT * FROM insta_drafts WHERE id = $1', [id]);
+      if (!rows.length) return res.status(404).json({ error: 'Draft not found' });
+      const draft = rows[0];
+      const allowed = ['caption', 'hashtags', 'status'];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) draft[key] = req.body[key];
+      }
+      await dbPool.query(
+        'UPDATE insta_drafts SET caption=$2, hashtags=$3, status=$4 WHERE id=$1',
+        [id, draft.caption, draft.hashtags, draft.status]
+      );
+      const { rows: updated } = await dbPool.query('SELECT * FROM insta_drafts WHERE id = $1', [id]);
+      return res.json(rowToDraft(updated[0]));
+    }
+
+    // Fallback: file-based
     const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
     if (!filePath.startsWith(INSTA_DRAFTS_DIR + path.sep)) {
       return res.status(400).json({ error: 'Invalid path' });
@@ -428,11 +489,22 @@ app.put('/api/instagram/drafts/:id', auth, (req, res) => {
   }
 });
 
-// Delete Instagram draft (soft-delete to .trash)
-app.delete('/api/instagram/drafts/:id', auth, (req, res) => {
+// Delete Instagram draft (soft-delete: DB → archived, file → .trash)
+app.delete('/api/instagram/drafts/:id', auth, async (req, res) => {
   try {
     const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
     if (!id) return res.status(400).json({ error: 'Invalid draft id' });
+
+    if (dbPool) {
+      const { rowCount } = await dbPool.query(
+        "UPDATE insta_drafts SET status='archived' WHERE id=$1 AND status != 'archived'",
+        [id]
+      );
+      if (!rowCount) return res.status(404).json({ error: 'Draft not found or already archived' });
+      return res.json({ ok: true });
+    }
+
+    // Fallback: file-based
     const filePath = path.join(INSTA_DRAFTS_DIR, `${id}.json`);
     if (!filePath.startsWith(INSTA_DRAFTS_DIR + path.sep)) {
       return res.status(400).json({ error: 'Invalid path' });
