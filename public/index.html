@@ -232,6 +232,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('instagram')"       >📷 Instagram</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
     <button onclick="showTab('agents')"          >🤖 Agents</button>
+    <button onclick="showTab('status')"         >🔌 Status</button>
   </nav>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -303,11 +304,11 @@ function showApp() {
 /* ── Tab routing ── */
 function showTab(tab) {
   currentTab = tab;
-  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint','agents'];
+  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint','agents','status'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity, agents: loadAgents })[tab]();
+  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity, agents: loadAgents, status: loadStatus })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -4066,6 +4067,90 @@ async function peDelete(id) {
     await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'DELETE' });
     loadPrivateEquity();
   } catch (e) { alert('Fehler: ' + e.message); }
+}
+
+/* ── Status Widget ── */
+let _statusRefresh = null;
+
+function fmtUptime(sec) {
+  if (!sec || sec <= 0) return '–';
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  if (d > 0) return d + 'd ' + h + 'h';
+  const m = Math.floor((sec % 3600) / 60);
+  return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
+}
+
+async function loadStatus() {
+  if (_statusRefresh) { clearInterval(_statusRefresh); _statusRefresh = null; }
+  const c = document.getElementById('content');
+  try {
+    const d = await apiFetch('/api/dashboard/status');
+
+    // Services
+    const svcOrder = ['Core','Dashboard','Trading','n8n','Postgres','IB Gateway'];
+    const svcMap = {};
+    (d.services || []).forEach(s => { svcMap[s.name] = s; });
+    const svcHtml = svcOrder.map(name => {
+      const s = svcMap[name] || { status: 'unknown', uptime_seconds: 0 };
+      const dot = s.status === 'up' ? '🟢' : s.status === 'down' ? '🔴' : '🟡';
+      const badge = s.status === 'up' ? 'badge-green' : s.status === 'down' ? 'badge-red' : 'badge-muted';
+      return `<tr>
+        <td style="padding:6px 12px;white-space:nowrap">${dot} ${esc(name)}</td>
+        <td style="padding:6px 12px"><span class="badge ${badge}">${esc(s.status)}</span></td>
+        <td style="padding:6px 12px;color:var(--muted);font-size:12px">${s.status === 'up' ? 'uptime ' + fmtUptime(s.uptime_seconds) : ''}</td>
+      </tr>`;
+    }).join('');
+
+    // Backup
+    const backupTime = d.backup?.last ? fmtDT(d.backup.last) : '–';
+    const backupIsToday = d.backup?.last && new Date(d.backup.last).toDateString() === new Date().toDateString();
+    const backupDot = d.backup?.last ? (backupIsToday ? '🟢' : '🟡') : '🔴';
+
+    // Tokens
+    const tokenHtml = (d.tokens || []).map(t => {
+      const dot = t.days_remaining > 14 ? '🟢' : t.days_remaining > 7 ? '🟡' : '🔴';
+      return `${dot} ${esc(t.name)} ${t.days_remaining}d`;
+    }).join(', ') || '–';
+
+    // Workflows
+    const wfCount = d.workflows?.pending || 0;
+    const wfTypes = (d.workflows?.types || []).join(', ');
+    const wfDot = wfCount === 0 ? '🟢' : '🟡';
+
+    c.innerHTML = `
+      <div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:12px;font-size:14px">Services</div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          ${svcHtml}
+        </table>
+      </div>
+      <div class="summary-grid">
+        <div class="s-card">
+          <div class="lbl">Letzter Backup</div>
+          <div class="val" style="font-size:16px">${backupDot} ${backupTime}</div>
+          <div class="sub">${backupIsToday ? 'heute' : d.backup?.last ? 'nicht heute' : 'kein Backup'}</div>
+        </div>
+        <div class="s-card">
+          <div class="lbl">Token-Health</div>
+          <div class="val" style="font-size:16px">${tokenHtml}</div>
+        </div>
+        <div class="s-card">
+          <div class="lbl">Workflows pending</div>
+          <div class="val" style="font-size:16px">${wfDot} ${wfCount}</div>
+          <div class="sub">${wfTypes || 'keine'}</div>
+        </div>
+      </div>
+      ${d._stale ? '<div style="color:var(--muted);font-size:11px;margin-top:12px">Cache veraltet — Core nicht erreichbar</div>' : ''}
+    `;
+    stamp();
+
+    _statusRefresh = setInterval(() => {
+      if (currentTab === 'status') loadStatus();
+    }, 60_000);
+  } catch (e) {
+    c.innerHTML = '<div class="empty">Fehler: ' + esc(e.message) + '</div>';
+  }
 }
 
 </script>

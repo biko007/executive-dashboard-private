@@ -2453,6 +2453,30 @@ app.get('/api/trading/universe/top', auth, async (req, res) => {
   }
 });
 
+// ── API: System Status Widget ────────────────────────────────────────────────
+
+let _statusCache = { data: null, ts: 0 };
+const STATUS_CACHE_TTL = 30_000; // 30s
+
+app.get('/api/dashboard/status', auth, async (_req, res) => {
+  try {
+    if (_statusCache.data && Date.now() - _statusCache.ts < STATUS_CACHE_TTL) {
+      return res.json(_statusCache.data);
+    }
+    const r = await fetch('http://127.0.0.1:18789/api/system-status', {
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!r.ok) throw new Error(`Core returned ${r.status}`);
+    const data = await r.json();
+    _statusCache = { data, ts: Date.now() };
+    res.json(data);
+  } catch (e) {
+    // Return cached data if available, even if stale
+    if (_statusCache.data) return res.json({ ..._statusCache.data, _stale: true });
+    res.status(503).json({ error: e.message });
+  }
+});
+
 // ── Start ─────────────────────────────────────────────────────────────────────
 
 app.listen(PORT, BIND, () => {
