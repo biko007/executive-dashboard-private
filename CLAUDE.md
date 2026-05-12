@@ -1,17 +1,20 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-05-11**
+**Stand: 2026-05-12**
 
-## Stand 2026-05-11
+## Stand 2026-05-12
 
-Sprint 1 + 2 vollständig abgeschlossen.
+Sprint 1 + 2 + 3 vollständig abgeschlossen.
 
 - **Sprint 1 (Plattform-Hardening):** nginx konsolidiert, n8n gehärtet, Audit-Log-Infra,
   Borg-Backup auf Hetzner Storage Box (daily/weekly/monthly + Restore-Drill),
   Health Monitor mit Telegram-Alerts, Sub-Commands, Smoke-Test, Deploy-Skript,
   Dashboard Status-Widget.
 - **Sprint 2 (Code-Refactor):** index.ts 9.357 → 2.165 Zeilen (-77%), 10 Module extrahiert,
-  19 audit.log() Calls in 4 Modulen, Approval-Hard-Rule im Code + CI-Test (11/11 grün).
+  19 audit.log() Calls in 4 Modulen, Approval-Hard-Rule im Code + CI-Test.
+- **Sprint 3 (Instagram Postgres):** Instagram-Modul auf Postgres migriert.
+  Dashboard Draft-Endpoints nutzen DB (pg Pool) mit File-Fallback.
+  Token Guardian via n8n-Workflow (daily 08:00).
 
 ### Agent-Module (10)
 
@@ -39,8 +42,8 @@ Regel: `n8n_app` niemals GRANT auf `openclaw_core` geben. Smoke-Test prüft das.
 - ~~n8n-Postgres separat im Borg-Backup (Spec §15.4)~~ — erledigt 2026-05-11
 - ~~Helper-Endpoint POST /api/internal/notify~~ — erledigt 2026-05-11
 - ~~Spec V3 §3 erweitern um 5 neue Module~~ — erledigt 2026-05-11 (v3.1)
+- ~~Sprint 3 Instagram auf Postgres~~ — erledigt 2026-05-12
 - Optional: Meta-Token rotieren (User-Entscheidung)
-- Sprint 3 vorbereiten (Instagram-Modul auf Postgres)
 
 ### Lessons
 
