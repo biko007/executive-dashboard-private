@@ -4,7 +4,7 @@
 
 ## Stand 2026-05-12
 
-Sprint 1 + 2 + 3 vollständig abgeschlossen.
+Sprint 1 + 2 + 3 + 4 vollständig abgeschlossen.
 
 - **Sprint 1 (Plattform-Hardening):** nginx konsolidiert, n8n gehärtet, Audit-Log-Infra,
   Borg-Backup auf Hetzner Storage Box (daily/weekly/monthly + Restore-Drill),
@@ -15,6 +15,10 @@ Sprint 1 + 2 + 3 vollständig abgeschlossen.
 - **Sprint 3 (Instagram Postgres):** Instagram-Modul auf Postgres migriert.
   Dashboard Draft-Endpoints nutzen DB (pg Pool) mit File-Fallback.
   Token Guardian via n8n-Workflow (daily 08:00).
+- **Sprint 4 (Health Postgres):** Health-Modul auf Postgres migriert.
+  2 Tabellen (health_logs 407 Einträge, health_withings_tokens).
+  Withings-Sync via n8n-Workflow `health-withings-sync-daily` (daily 07:00).
+  Core-Endpoints: POST /api/health/withings-sync, GET /api/health/sync-status.
 
 ### Agent-Module (10)
 
@@ -43,6 +47,7 @@ Regel: `n8n_app` niemals GRANT auf `openclaw_core` geben. Smoke-Test prüft das.
 - ~~Helper-Endpoint POST /api/internal/notify~~ — erledigt 2026-05-11
 - ~~Spec V3 §3 erweitern um 5 neue Module~~ — erledigt 2026-05-11 (v3.1)
 - ~~Sprint 3 Instagram auf Postgres~~ — erledigt 2026-05-12
+- ~~Sprint 4 Health auf Postgres~~ — erledigt 2026-05-12
 - Optional: Meta-Token rotieren (User-Entscheidung)
 
 ### Lessons
