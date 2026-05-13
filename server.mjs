@@ -2,6 +2,7 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import multer from 'multer';
 import sharp from 'sharp';
 import pg from 'pg';
@@ -68,6 +69,25 @@ const PE_DIR      = path.join(HOME, '.openclaw/workspace/artifacts/personal/priv
 const PE_FILE     = path.join(PE_DIR, 'investments.json');
 const PE_VAL_FILE = path.join(PE_DIR, 'valuations.jsonl');
 
+// ── Session Management (Sprint 5.5a-1) ──────────────────────────────────────
+
+const CORE_SERVICE_TOKEN = ENV.CORE_SERVICE_TOKEN || '';
+const sessions = new Map(); // sessionId → { id, actor, createdAt }
+
+function createSession() {
+  const id = randomUUID();
+  const session = { id, actor: 'dashboard:biko', createdAt: new Date().toISOString() };
+  sessions.set(id, session);
+  return session;
+}
+
+function getSession(req) {
+  const cookie = req.headers.cookie || '';
+  const match = cookie.match(/__Host-DASHBOARD_SESSION=([a-f0-9-]{36})/);
+  if (!match) return null;
+  return sessions.get(match[1]) || null;
+}
+
 // ── Auth middleware ───────────────────────────────────────────────────────────
 
 function auth(req, res, next) {
@@ -78,6 +98,157 @@ function auth(req, res, next) {
   const qtoken = req.query.token || '';
   if (bearer === DASHBOARD_TOKEN || qtoken === DASHBOARD_TOKEN) return next();
   res.status(401).json({ error: 'Unauthorized' });
+}
+
+/** Auth + session: creates session cookie if valid auth but no session. */
+function requireSession(req, res, next) {
+  // First check auth
+  if (!DASHBOARD_TOKEN) {
+    return res.status(500).json({ error: 'DASHBOARD_TOKEN not configured' });
+  }
+  const bearer = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const qtoken = req.query.token || '';
+  if (bearer !== DASHBOARD_TOKEN && qtoken !== DASHBOARD_TOKEN) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  // Check/create session
+  let session = getSession(req);
+  if (!session) {
+    session = createSession();
+    res.setHeader('Set-Cookie',
+      `__Host-DASHBOARD_SESSION=${session.id}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=86400`
+    );
+  }
+  req.dashboardSession = session;
+  next();
+}
+
+// ── Header Stripping (Trust Boundary) ───────────────────────────────────────
+
+function stripUntrustedHeaders(req) {
+  delete req.headers['x-actor'];
+  delete req.headers['x-dashboard-session-id'];
+  delete req.headers['x-internal-secret'];
+  delete req.headers['x-approval-bypass'];
+  delete req.headers['x-request-id'];
+  delete req.headers['x-correlation-id'];
+  delete req.headers['x-forwarded-for'];
+}
+
+// ── Origin/Referer Check (POST/PATCH/PUT/DELETE) ────────────────────────────
+
+function checkOrigin(req, res, next) {
+  const method = req.method.toUpperCase();
+  if (!['POST','PATCH','PUT','DELETE'].includes(method)) return next();
+
+  const origin = req.headers.origin || '';
+  const referer = req.headers.referer || '';
+
+  // Allow localhost for development
+  if (origin === 'https://app.bikobickel.de' || origin.startsWith('http://127.0.0.1') || origin.startsWith('http://localhost')) {
+    return next();
+  }
+  // Fallback: check referer host
+  try {
+    const refUrl = new URL(referer);
+    if (refUrl.hostname === 'app.bikobickel.de' || refUrl.hostname === '127.0.0.1' || refUrl.hostname === 'localhost') {
+      return next();
+    }
+  } catch {}
+
+  // No origin header at all is OK (same-origin requests may omit it)
+  if (!origin && !referer) return next();
+
+  res.status(403).json({ error: 'Origin check failed' });
+}
+
+// ── CSRF Token Mechanics ────────────────────────────────────────────────────
+
+const csrfRateLimits = new Map(); // sessionId → { count, resetAt }
+
+/** CSRF validation middleware for mutations on /api/assets/* */
+function requireCsrf(req, res, next) {
+  const method = req.method.toUpperCase();
+  if (!['POST','PATCH','PUT','DELETE'].includes(method)) return next();
+
+  const csrfToken = req.headers['x-csrf-token'];
+  if (!csrfToken) {
+    return res.status(403).json({ error: 'Missing X-CSRF-Token header' });
+  }
+
+  const session = req.dashboardSession;
+  if (!session) {
+    return res.status(403).json({ error: 'No session' });
+  }
+
+  if (!dbPool) {
+    return res.status(500).json({ error: 'Database not available for CSRF check' });
+  }
+
+  dbPool.query(
+    'SELECT id FROM csrf_tokens WHERE token = $1 AND session_id = $2 AND expires_at > now()',
+    [csrfToken, session.id]
+  ).then(result => {
+    if (result.rows.length === 0) {
+      return res.status(403).json({ error: 'Invalid or expired CSRF token' });
+    }
+    next();
+  }).catch(e => {
+    res.status(500).json({ error: 'CSRF validation error: ' + e.message });
+  });
+}
+
+// ── Core Proxy for /api/assets/* ────────────────────────────────────────────
+
+const CORE_BASE = 'http://127.0.0.1:18789';
+
+async function proxyToCore(req, res) {
+  const session = req.dashboardSession;
+  if (!session) {
+    return res.status(401).json({ error: 'No dashboard session' });
+  }
+  if (!CORE_SERVICE_TOKEN) {
+    return res.status(500).json({ error: 'CORE_SERVICE_TOKEN not configured' });
+  }
+
+  const requestId = randomUUID();
+  const url = CORE_BASE + req.originalUrl;
+
+  try {
+    const headers = {
+      'Authorization': `Bearer ${CORE_SERVICE_TOKEN}`,
+      'X-Actor': session.actor,
+      'X-Dashboard-Session-ID': session.id,
+      'X-Request-ID': requestId,
+      'Content-Type': 'application/json',
+    };
+
+    const fetchOpts = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(30_000),
+    };
+
+    // Forward body for mutations
+    if (['POST','PATCH','PUT'].includes(req.method.toUpperCase()) && req.body) {
+      fetchOpts.body = JSON.stringify(req.body);
+    }
+
+    const coreRes = await fetch(url, fetchOpts);
+    const contentType = coreRes.headers.get('content-type') || '';
+    const body = contentType.includes('json') ? await coreRes.json() : await coreRes.text();
+
+    res.status(coreRes.status);
+    if (typeof body === 'string') {
+      res.set('Content-Type', 'text/plain').send(body);
+    } else {
+      res.json(body);
+    }
+  } catch (e) {
+    console.error(`[dashboard] Core proxy error: ${e.message}`);
+    res.status(502).json({ error: 'Core service unavailable', detail: e.message });
+  }
 }
 
 // ── Graph token cache ─────────────────────────────────────────────────────────
@@ -216,10 +387,56 @@ async function fetchWeatherForecast(lat, lon) {
 // ── Express app ───────────────────────────────────────────────────────────────
 
 const app = express();
+
+// Apply header stripping globally before any routes
+app.use((req, res, next) => {
+  stripUntrustedHeaders(req);
+  next();
+});
+
+// Apply origin check globally
+app.use(checkOrigin);
+
 app.use(express.json());
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
+
+// ── CSRF Token Refresh Endpoint ─────────────────────────────────────────────
+
+app.get('/api/csrf-refresh', requireSession, (req, res) => {
+  const session = req.dashboardSession;
+
+  // Rate limit: 60/min per session
+  const now = Date.now();
+  let limit = csrfRateLimits.get(session.id);
+  if (!limit || now > limit.resetAt) {
+    limit = { count: 0, resetAt: now + 60_000 };
+    csrfRateLimits.set(session.id, limit);
+  }
+  if (limit.count >= 60) {
+    return res.status(429).json({ error: 'CSRF refresh rate limit exceeded' });
+  }
+  limit.count++;
+
+  const token = randomUUID();
+  const expiresAt = new Date(now + 3600_000); // 1 hour
+
+  // Store in DB
+  if (dbPool) {
+    dbPool.query(
+      'INSERT INTO csrf_tokens (token, session_id, expires_at) VALUES ($1, $2, $3)',
+      [token, session.id, expiresAt.toISOString()]
+    ).catch(e => console.error('[dashboard] CSRF insert error:', e.message));
+  }
+
+  // Set CSRF cookie (NOT HttpOnly — JS needs to read it)
+  res.setHeader('Set-Cookie', [
+    `__Host-CSRF=${token}; Secure; SameSite=Strict; Path=/; Max-Age=3600`,
+  ]);
+
+  res.json({ token, expires_at: expiresAt.toISOString() });
+});
 
 // ── API: Status ─────────────────────────────────────────────────────────────
 
@@ -1954,313 +2171,15 @@ app.delete('/api/links/:linkId', auth, (req, res) => {
   res.json(removed);
 });
 
-// ── Assets (Immobilien) ──────────────────────────────────────────────────────
+// ── Assets (Immobilien) — Proxy to Core (Sprint 5.5a-1) ─────────────────────
+// All /api/assets/* routes are proxied to Core (18789) via trust-boundary.
+// Reads pass through with auth only. Mutations require session + CSRF.
 
-function readProperties() {
-  try { return JSON.parse(fs.readFileSync(PROPERTIES_FILE, 'utf8')); } catch { return []; }
-}
-function writeProperties(props) {
-  fs.mkdirSync(ASSETS_DIR, { recursive: true });
-  fs.writeFileSync(PROPERTIES_FILE, JSON.stringify(props, null, 2));
-}
-function readLeases() {
-  try { return JSON.parse(fs.readFileSync(LEASES_FILE, 'utf8')); } catch { return []; }
-}
-function writeLeases(leases) {
-  fs.mkdirSync(ASSETS_DIR, { recursive: true });
-  fs.writeFileSync(LEASES_FILE, JSON.stringify(leases, null, 2));
-}
-function readCosts(propertyId, year) {
-  const fp = path.join(COSTS_DIR, `${propertyId}-${year}.json`);
-  try { return JSON.parse(fs.readFileSync(fp, 'utf8')); } catch { return null; }
-}
-function writeCosts(propertyId, year, data) {
-  fs.mkdirSync(COSTS_DIR, { recursive: true });
-  fs.writeFileSync(path.join(COSTS_DIR, `${propertyId}-${year}.json`), JSON.stringify(data, null, 2));
-}
-
-// List all properties
-app.get('/api/assets/properties', auth, (req, res) => {
-  try { res.json(readProperties()); }
-  catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Get single property
-app.get('/api/assets/properties/:id', auth, (req, res) => {
-  try {
-    const p = readProperties().find(p => p.id === req.params.id);
-    if (!p) return res.status(404).json({ error: 'Property not found' });
-    res.json(p);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Update property fields
-app.put('/api/assets/properties/:id', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const idx = all.findIndex(p => p.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Property not found' });
-    const allowed = ['label', 'address', 'type', 'owner', 'purchasePrice'];
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) all[idx][key] = req.body[key];
-    }
-    all[idx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    res.json(all[idx]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Add unit to property
-app.post('/api/assets/properties/:id/units', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const idx = all.findIndex(p => p.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Property not found' });
-    const { id, label, floor, sqm, rentType, tenant } = req.body;
-    if (!id || !label) return res.status(400).json({ error: 'id and label required' });
-    if (all[idx].units.some(u => u.id === id)) return res.status(409).json({ error: 'Unit ID exists' });
-    const unit = {
-      id: String(id), label: String(label), floor: String(floor || ''),
-      sqm: sqm != null ? Number(sqm) : null,
-      rentType: rentType || 'vacant', tenant: tenant || '',
-      lease: null, currentRent: null,
-    };
-    all[idx].units.push(unit);
-    all[idx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    res.status(201).json(all[idx]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Update unit
-app.put('/api/assets/properties/:propId/units/:unitId', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const pIdx = all.findIndex(p => p.id === req.params.propId);
-    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
-    const uIdx = all[pIdx].units.findIndex(u => u.id === req.params.unitId);
-    if (uIdx === -1) return res.status(404).json({ error: 'Unit not found' });
-    const allowed = ['label', 'floor', 'sqm', 'rentType', 'tenant', 'currentRent'];
-    for (const key of allowed) {
-      if (req.body[key] !== undefined) all[pIdx].units[uIdx][key] = req.body[key];
-    }
-    all[pIdx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    res.json(all[pIdx]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Delete unit
-app.delete('/api/assets/properties/:propId/units/:unitId', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const pIdx = all.findIndex(p => p.id === req.params.propId);
-    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
-    all[pIdx].units = all[pIdx].units.filter(u => u.id !== req.params.unitId);
-    all[pIdx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    // Remove related leases
-    const leases = readLeases().filter(l => !(l.propertyId === req.params.propId && l.unitId === req.params.unitId));
-    writeLeases(leases);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Set distribution key
-app.put('/api/assets/properties/:id/distribution-keys', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const pIdx = all.findIndex(p => p.id === req.params.id);
-    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
-    const { id, label, values } = req.body;
-    if (!id || !label) return res.status(400).json({ error: 'id and label required' });
-    const kIdx = all[pIdx].distributionKeys.findIndex(k => k.id === id);
-    const key = { id: String(id), label: String(label), values: values || {} };
-    if (kIdx === -1) all[pIdx].distributionKeys.push(key);
-    else all[pIdx].distributionKeys[kIdx] = key;
-    all[pIdx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    res.json(all[pIdx]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Delete distribution key
-app.delete('/api/assets/properties/:propId/distribution-keys/:keyId', auth, (req, res) => {
-  try {
-    const all = readProperties();
-    const pIdx = all.findIndex(p => p.id === req.params.propId);
-    if (pIdx === -1) return res.status(404).json({ error: 'Property not found' });
-    all[pIdx].distributionKeys = all[pIdx].distributionKeys.filter(k => k.id !== req.params.keyId);
-    all[pIdx].updatedAt = new Date().toISOString();
-    writeProperties(all);
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// List leases (optionally filtered by propertyId)
-app.get('/api/assets/leases', auth, (req, res) => {
-  try {
-    let leases = readLeases();
-    if (req.query.propertyId) leases = leases.filter(l => l.propertyId === req.query.propertyId);
-    res.json(leases);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Create/update lease
-app.put('/api/assets/leases/:propId/:unitId', auth, (req, res) => {
-  try {
-    const { propId, unitId } = req.params;
-    const { tenant, startDate, endDate, rentNet, operatingCosts, depositAmount, linkedDocs } = req.body;
-    const all = readLeases();
-    const now = new Date().toISOString();
-    const existIdx = all.findIndex(l => l.unitId === unitId && l.propertyId === propId);
-
-    if (existIdx !== -1) {
-      if (tenant !== undefined) all[existIdx].tenant = tenant;
-      if (startDate !== undefined) all[existIdx].startDate = startDate;
-      if (endDate !== undefined) all[existIdx].endDate = endDate;
-      if (rentNet !== undefined) all[existIdx].rentNet = Number(rentNet);
-      if (operatingCosts !== undefined) all[existIdx].operatingCosts = Number(operatingCosts);
-      if (depositAmount !== undefined) all[existIdx].depositAmount = Number(depositAmount);
-      if (linkedDocs !== undefined) all[existIdx].linkedDocs = linkedDocs;
-      all[existIdx].updatedAt = now;
-      writeLeases(all);
-      // Sync unit data
-      syncUnitFromLease(propId, unitId, all[existIdx]);
-      res.json(all[existIdx]);
-    } else {
-      const lease = {
-        id: `lease-${propId}-${unitId}`,
-        unitId, propertyId: propId,
-        tenant: tenant || '', startDate: startDate || now.slice(0, 10),
-        endDate: endDate || null,
-        rentNet: Number(rentNet || 0), operatingCosts: Number(operatingCosts || 0),
-        depositAmount: Number(depositAmount || 0),
-        linkedDocs: linkedDocs || [],
-        createdAt: now, updatedAt: now,
-      };
-      all.push(lease);
-      writeLeases(all);
-      syncUnitFromLease(propId, unitId, lease);
-      res.status(201).json(lease);
-    }
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-function syncUnitFromLease(propId, unitId, lease) {
-  try {
-    const all = readProperties();
-    const pIdx = all.findIndex(p => p.id === propId);
-    if (pIdx === -1) return;
-    const uIdx = all[pIdx].units.findIndex(u => u.id === unitId);
-    if (uIdx === -1) return;
-    all[pIdx].units[uIdx].lease = lease.id;
-    all[pIdx].units[uIdx].currentRent = lease.rentNet;
-    all[pIdx].units[uIdx].tenant = lease.tenant;
-    writeProperties(all);
-  } catch {}
-}
-
-// Delete lease
-app.delete('/api/assets/leases/:id', auth, (req, res) => {
-  try {
-    const all = readLeases();
-    const idx = all.findIndex(l => l.id === req.params.id);
-    if (idx === -1) return res.status(404).json({ error: 'Lease not found' });
-    const lease = all[idx];
-    all.splice(idx, 1);
-    writeLeases(all);
-    // Clear unit reference
-    try {
-      const props = readProperties();
-      const pIdx = props.findIndex(p => p.id === lease.propertyId);
-      if (pIdx !== -1) {
-        const uIdx = props[pIdx].units.findIndex(u => u.id === lease.unitId);
-        if (uIdx !== -1) {
-          props[pIdx].units[uIdx].lease = null;
-          props[pIdx].units[uIdx].currentRent = null;
-          props[pIdx].units[uIdx].tenant = '';
-          writeProperties(props);
-        }
-      }
-    } catch {}
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Get operating costs
-app.get('/api/assets/costs/:propId/:year', auth, (req, res) => {
-  try {
-    const data = readCosts(req.params.propId, req.params.year);
-    if (!data) return res.json({ propertyId: req.params.propId, year: Number(req.params.year), distributionKeyId: '', costs: {}, updatedAt: null });
-    res.json(data);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Set operating costs
-app.put('/api/assets/costs/:propId/:year', auth, (req, res) => {
-  try {
-    const { costs, distributionKeyId } = req.body;
-    const data = {
-      propertyId: req.params.propId,
-      year: Number(req.params.year),
-      distributionKeyId: distributionKeyId || '',
-      costs: costs || {},
-      updatedAt: new Date().toISOString(),
-    };
-    writeCosts(req.params.propId, req.params.year, data);
-    res.json(data);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
-
-// Calculate Nebenkostenabrechnung
-app.get('/api/assets/nk/:propId/:year', auth, (req, res) => {
-  try {
-    const propId = req.params.propId;
-    const year = Number(req.params.year);
-    const props = readProperties();
-    const prop = props.find(p => p.id === propId);
-    if (!prop) return res.status(404).json({ error: 'Property not found' });
-
-    const oc = readCosts(propId, year);
-    if (!oc) return res.status(404).json({ error: `No operating costs for ${year}` });
-
-    const dk = prop.distributionKeys.find(k => k.id === oc.distributionKeyId);
-    if (!dk) return res.status(400).json({ error: `Distribution key ${oc.distributionKeyId} not found` });
-
-    const COST_LABELS = {
-      heizung: 'Heizung', wasser: 'Wasser', abwasser: 'Abwasser', muell: 'Müll',
-      hausmeister: 'Hausmeister', versicherung: 'Versicherung', grundsteuer: 'Grundsteuer',
-      allgemeinstrom: 'Allgemeinstrom', aufzug: 'Aufzug',
-    };
-
-    const totalCosts = Object.values(oc.costs).reduce((s, v) => s + (v || 0), 0);
-    const leases = readLeases().filter(l => l.propertyId === propId);
-
-    const results = [];
-    for (const unit of prop.units) {
-      if (unit.rentType === 'vacant') continue;
-      const share = dk.values[unit.id] || 0;
-      const unitCost = totalCosts * (share / 100);
-      const lease = leases.find(l => l.unitId === unit.id);
-      const prepaid = (lease?.operatingCosts || 0) * 12;
-      const balance = prepaid - unitCost;
-      const details = Object.entries(oc.costs)
-        .filter(([, v]) => v && v > 0)
-        .map(([cat, amount]) => ({
-          category: COST_LABELS[cat] || cat,
-          amount: Math.round((amount * share / 100) * 100) / 100,
-        }));
-      results.push({
-        unitId: unit.id, unitLabel: unit.label, tenant: unit.tenant || '–',
-        share, totalCost: Math.round(unitCost * 100) / 100,
-        prepaid: Math.round(prepaid * 100) / 100,
-        balance: Math.round(balance * 100) / 100, details,
-      });
-    }
-    res.json(results);
-  } catch (e) { res.status(500).json({ error: e.message }); }
-});
+app.get('/api/assets/*', requireSession, proxyToCore);
+app.post('/api/assets/*', requireSession, requireCsrf, proxyToCore);
+app.patch('/api/assets/*', requireSession, requireCsrf, proxyToCore);
+app.put('/api/assets/*', requireSession, requireCsrf, proxyToCore);
+app.delete('/api/assets/*', requireSession, requireCsrf, proxyToCore);
 
 // ── API: Private Equity ───────────────────────────────────────────────────────
 
@@ -2551,8 +2470,32 @@ app.get('/api/dashboard/status', auth, async (_req, res) => {
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 
+// ── Startup Canary ──────────────────────────────────────────────────────────
+
+if (!CORE_SERVICE_TOKEN) {
+  console.error('[dashboard] CRITICAL: CORE_SERVICE_TOKEN not set — assets proxy will fail');
+}
+
+// Scan public/ for leaked tokens
+try {
+  const publicDir = path.join(__dirname, 'public');
+  const tokenPattern = /Bearer [a-f0-9]{32,}/;
+  for (const file of fs.readdirSync(publicDir)) {
+    if (file.endsWith('.html') || file.endsWith('.js')) {
+      const content = fs.readFileSync(path.join(publicDir, file), 'utf-8');
+      if (tokenPattern.test(content)) {
+        console.error(`[dashboard] CANARY ALERT: Possible leaked token in public/${file} — aborting`);
+        process.exit(1);
+      }
+    }
+  }
+} catch (e) {
+  // Non-fatal if public dir can't be scanned
+}
+
 app.listen(PORT, BIND, () => {
   const configured = DASHBOARD_TOKEN ? '✓ token configured' : '⚠ DASHBOARD_TOKEN missing!';
-  console.log(`[dashboard] http://${BIND}:${PORT}  ${configured}`);
+  const coreConfigured = CORE_SERVICE_TOKEN ? '✓ core token' : '⚠ CORE_SERVICE_TOKEN missing!';
+  console.log(`[dashboard] http://${BIND}:${PORT}  ${configured}  ${coreConfigured}`);
   console.log('[dashboard] public via nginx: https://<server-ip>:8443/dashboard/');
 });
