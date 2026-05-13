@@ -81,6 +81,14 @@ const ENDPOINT_MAP = {
   'nk-period-obligations.read':      (p) => `/api/assets/nk-period-obligations/${p.obligation_id}`,
   'nk-period-obligations.update':    (p) => `/api/assets/nk-period-obligations/${p.obligation_id}`,
   'audit-log':                       () => '/api/assets/audit-log',
+  'nk-statements.preview':           () => '/api/assets/nk-statements/preview',
+  'nk-statements.finalize':          () => '/api/assets/nk-statements/finalize',
+  'nk-statements.read':              (p) => `/api/assets/nk-statements/${p.statement_id}`,
+  'nk-statements.pdf':               (p) => `/api/assets/nk-statements/${p.statement_id}/pdf`,
+  'nk-statements.rerender':          (p) => `/api/assets/nk-statements/${p.statement_id}/rerender`,
+  'nk-statements.serve':             (p) => `/api/assets/nk-statements/${p.statement_id}/serve`,
+  'nk-statement-runs.list':          () => '/api/assets/nk-statement-runs',
+  'nk-statement-runs.read':          (p) => `/api/assets/nk-statement-runs/${p.run_id}`,
 };
 
 function composeUrl(endpointKey, pathParams) {
