@@ -191,7 +191,7 @@ function requireCsrf(req, res, next) {
     [csrfToken, session.id]
   ).then(result => {
     if (result.rows.length === 0) {
-      return res.status(403).json({ error: 'Invalid or expired CSRF token' });
+      return res.status(403).json({ error: { code: 'CSRF_INVALID', message: 'Invalid or expired CSRF token' } });
     }
     next();
   }).catch(e => {
@@ -223,6 +223,11 @@ async function proxyToCore(req, res) {
       'X-Request-ID': requestId,
       'Content-Type': 'application/json',
     };
+
+    // Forward mutation-relevant headers from client
+    if (req.headers['x-approval-token']) headers['X-Approval-Token'] = req.headers['x-approval-token'];
+    if (req.headers['idempotency-key']) headers['Idempotency-Key'] = req.headers['idempotency-key'];
+    if (req.headers['x-csrf-token']) headers['X-CSRF-Token'] = req.headers['x-csrf-token'];
 
     const fetchOpts = {
       method: req.method,
@@ -398,6 +403,12 @@ app.use((req, res, next) => {
 app.use(checkOrigin);
 
 app.use(express.json());
+
+// CSP header
+app.use((req, res, next) => {
+  res.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'");
+  next();
+});
 
 // Serve frontend
 app.use(express.static(path.join(__dirname, 'public')));
