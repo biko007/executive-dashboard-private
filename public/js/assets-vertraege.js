@@ -51,10 +51,10 @@ document.addEventListener('alpine:init', () => {
 
       // Section nav
       let html = `<div class="filters-row" style="margin-bottom:16px">
-        <button class="btn ${this.section === 'leases' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('leases')">Mietvertraege</button>
+        <button class="btn ${this.section === 'leases' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('leases')">Mietvertr\u00e4ge</button>
         <button class="btn ${this.section === 'expenses' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('expenses')">Ausgaben</button>
-        <button class="btn ${this.section === 'allocation' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('allocation')">Verteilungsschluessel</button>
-        <button class="btn ${this.section === 'meters' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('meters')">Zaehler</button>
+        <button class="btn ${this.section === 'allocation' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('allocation')">Verteilungsschl\u00fcssel</button>
+        <button class="btn ${this.section === 'meters' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('meters')">Z\u00e4hler</button>
         <button class="btn ${this.section === 'bulk-readings' ? 'btn-primary' : ''}" onclick="vertraegeSwitch('bulk-readings')">Sammelablesung</button>
       </div>`;
 

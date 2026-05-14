@@ -1,10 +1,10 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-05-12**
+**Stand: 2026-05-14**
 
-## Stand 2026-05-12
+## Stand 2026-05-14
 
-Sprint 1 + 2 + 3 + 4 vollständig abgeschlossen.
+Sprint 1 + 2 + 3 + 4 + 5 (5.5a + 5.5b + 5.5c) vollständig abgeschlossen.
 
 - **Sprint 1 (Plattform-Hardening):** nginx konsolidiert, n8n gehärtet, Audit-Log-Infra,
   Borg-Backup auf Hetzner Storage Box (daily/weekly/monthly + Restore-Drill),
@@ -19,11 +19,19 @@ Sprint 1 + 2 + 3 + 4 vollständig abgeschlossen.
   2 Tabellen (health_logs 407 Einträge, health_withings_tokens).
   Withings-Sync via n8n-Workflow `health-withings-sync-daily` (daily 07:00).
   Core-Endpoints: POST /api/health/withings-sync, GET /api/health/sync-status.
+- **Sprint 5.5a+b (Assets + NK-Engine):** Dashboard ENDPOINT_MAP erweitert um
+  Asset-CRUD (Sprint 5.5a) und 8 NK-Endpoints (Sprint 5.5b):
+  nk-statements (preview, finalize, read, pdf, rerender, serve), nk-statement-runs (list, read).
+- **Sprint 5.5c (NK-UI-Tab V1.0):** Neuer Sub-Tab "Nebenkosten" im Assets-Bereich mit
+  4 Sub-Sub-Tabs: Pre-Check (Ampel + Findings), Vorschau (Preview + Finalize),
+  Runs & Statements (Tabelle + Detail + Items-Accordion + PDF + Re-Render + Serve),
+  §556-Pflichten (property-scoped, migriert aus Status-Tab).
+  ENDPOINT_MAP fix (nk-readiness property_id→property_code). Umlaute in Tab-Labels.
+  Neue Datei: public/js/assets-nebenkosten.js.
 
-### Agent-Module (10)
+### Agent-Module (11)
 
-executive, instagram, assets, health, fleet, travel, pe, mail, calendar, sharepoint.
-(Spec V3 §3 listete nur 5 — wird in Batch 3 ergänzt.)
+executive, instagram, assets, nk, health, fleet, travel, pe, mail, calendar, sharepoint.
 
 ### Daten-Hygiene
 
@@ -48,6 +56,8 @@ Regel: `n8n_app` niemals GRANT auf `openclaw_core` geben. Smoke-Test prüft das.
 - ~~Spec V3 §3 erweitern um 5 neue Module~~ — erledigt 2026-05-11 (v3.1)
 - ~~Sprint 3 Instagram auf Postgres~~ — erledigt 2026-05-12
 - ~~Sprint 4 Health auf Postgres~~ — erledigt 2026-05-12
+- ~~Sprint 5.5a+b Assets + NK-Engine~~ — erledigt 2026-05-13
+- ~~Sprint 5.5c NK-UI-Tab V1.0~~ — erledigt 2026-05-14
 - Optional: Meta-Token rotieren (User-Entscheidung)
 
 ### Lessons
@@ -165,7 +175,7 @@ engineering best practices.
 
 - VPS: Hetzner Helsinki, Ubuntu 24.04, User: biko
 - Services: openclaw-gateway (18789), openclaw-dashboard (18800),
-  openclaw-trading (18793), ibgateway (7497), xvfb (:1)
+  openclaw-pdf-worker, openclaw-trading (18793), ibgateway (7497), xvfb (:1)
 - Reverse Proxy: nginx → app.bikobickel.de
 - Runtime: Node.js/TypeScript, Bun
 - Secrets: ~/.config/openclaw/env

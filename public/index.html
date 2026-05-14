@@ -203,6 +203,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 <script defer src="/dashboard/js/assets-stores.js"></script>
 <script defer src="/dashboard/js/assets-stammdaten.js"></script>
 <script defer src="/dashboard/js/assets-vertraege.js"></script>
+<script defer src="/dashboard/js/assets-nebenkosten.js"></script>
 <script defer src="/dashboard/js/assets-status.js"></script>
 <script defer src="/dashboard/js/assets-wizard.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>
@@ -2233,7 +2234,8 @@ async function loadAssets() {
           <!-- Sub-Tab Navigation -->
           <div class="assets-subtabs">
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('stammdaten') }" x-on:click="switchSubTab('stammdaten')">Stammdaten</button>
-            <button class="subtab-btn" x-bind:class="{ active: isSubTab('vertraege') }" x-on:click="switchSubTab('vertraege')">Vertraege &amp; Kosten</button>
+            <button class="subtab-btn" x-bind:class="{ active: isSubTab('vertraege') }" x-on:click="switchSubTab('vertraege')">Vertr&#228;ge &amp; Kosten</button>
+            <button class="subtab-btn" x-bind:class="{ active: isSubTab('nebenkosten') }" x-on:click="switchSubTab('nebenkosten')">Nebenkosten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('status') }" x-on:click="switchSubTab('status')">Status &amp; NK-Readiness</button>
           </div>
 
@@ -2243,6 +2245,9 @@ async function loadAssets() {
           </div>
           <div x-show="isSubTab('vertraege')" x-data="vertraegeTab" x-init="init()">
             <div x-ref="vertraegeContent"></div>
+          </div>
+          <div x-show="isSubTab('nebenkosten')" x-data="nebenkostenTab" x-init="init()">
+            <div x-ref="nebenkostenContent"></div>
           </div>
           <div x-show="isSubTab('status')" x-data="statusTab" x-init="init()">
             <div x-ref="statusContent"></div>

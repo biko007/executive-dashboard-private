@@ -50,14 +50,11 @@ document.addEventListener('alpine:init', () => {
 
       let html = `<div class="filters-row" style="margin-bottom:16px">
         <button class="btn ${this.section === 'nk-readiness' ? 'btn-primary' : ''}" onclick="statusSwitch('nk-readiness')">NK-Readiness</button>
-        <button class="btn ${this.section === 'obligations' ? 'btn-primary' : ''}" onclick="statusSwitch('obligations')">§556-Pflichten</button>
         <button class="btn ${this.section === 'audit' ? 'btn-primary' : ''}" onclick="statusSwitch('audit')">Erweitert</button>
       </div>`;
 
       if (this.section === 'nk-readiness') {
         html += this._renderNkReadiness();
-      } else if (this.section === 'obligations') {
-        html += this._renderObligations();
       } else if (this.section === 'audit') {
         html += this._renderAuditViewer();
       }
@@ -66,7 +63,6 @@ document.addEventListener('alpine:init', () => {
 
       // Auto-load data for active section
       if (this.section === 'nk-readiness') loadNkReadiness();
-      if (this.section === 'obligations') loadObligations();
     },
 
     _renderNkReadiness() {
@@ -91,15 +87,6 @@ document.addEventListener('alpine:init', () => {
       html += '</tbody></table></div>';
       html += '<div id="nk-findings-detail" style="margin-top:16px"></div>';
       return html;
-    },
-
-    _renderObligations() {
-      return `
-        <div class="card card-pad">
-          <h3 style="font-size:15px;margin-bottom:16px">§556 BGB Pflichten</h3>
-          <div id="obligations-list"><div class="spinner">Laden...</div></div>
-        </div>
-      `;
     },
 
     _renderAuditViewer() {
@@ -223,102 +210,6 @@ async function showNkFindings(propertyId, year) {
 function assetsDeepLink(action, entityId) {
   const handler = DEEPLINK_MAP[action];
   if (handler) handler(entityId);
-}
-
-// ── §556 Obligations ────────────────────────────────────────────────────────
-
-async function loadObligations() {
-  const target = document.getElementById('obligations-list');
-  if (!target) return;
-  target.innerHTML = '<div class="spinner">Laden...</div>';
-
-  const csrf = Alpine.store('csrf');
-  try {
-    const res = await csrf.fetch('/api/assets/nk-period-obligations');
-    const obligations = res.ok ? await res.json() : [];
-
-    if (!obligations.length) {
-      target.innerHTML = '<div class="empty">Keine Pflichten</div>';
-      return;
-    }
-
-    let html = `<table class="assets-table">
-      <thead><tr><th>Objekt</th><th>Jahr</th><th>Frist bis</th><th>Status</th><th>Verbleibend</th><th>Aktionen</th></tr></thead>
-      <tbody>`;
-
-    for (const o of obligations) {
-      const now = new Date();
-      const deadline = o.service_deadline_at ? new Date(o.service_deadline_at) : null;
-      const daysRemaining = deadline ? Math.floor((deadline - now) / 86400000) : null;
-
-      const statusLabels = {
-        pending: 'Ausstehend',
-        active_run: 'In Bearbeitung',
-        served: 'Zugestellt',
-        expired: 'Verfristet',
-        not_applicable: 'Nicht anwendbar',
-      };
-      const statusLabel = statusLabels[o.status] || o.status;
-      const statusClass = `status-${o.status || 'pending'}`;
-
-      let actions = '';
-      if (o.status === 'pending') {
-        actions += `<button class="btn" style="font-size:11px" onclick="obligationMarkNotApplicable(${o.id})">Nicht anwendbar</button> `;
-        actions += `<button class="btn btn-danger" style="font-size:11px" onclick="obligationMarkExpired(${o.id})">Verfristet</button>`;
-      } else if (o.status === 'active_run') {
-        actions += `<button class="btn btn-danger" style="font-size:11px" onclick="obligationMarkExpired(${o.id})">Verfristet</button>`;
-      } else if (o.status === 'expired') {
-        actions += `<button class="btn" style="font-size:11px" onclick="obligationReopen(${o.id})">Wiedereroeffnen</button>`;
-      }
-      // served: no actions
-
-      html += `<tr>
-        <td>${esc(o.property_name || o.property_id || '')}</td>
-        <td>${o.year || o.period_end?.slice(0, 4) || '–'}</td>
-        <td>${fmtDate(o.service_deadline_at)}</td>
-        <td><span class="badge ${statusClass}">${statusLabel}</span></td>
-        <td>${daysRemaining != null ? (daysRemaining >= 0 ? daysRemaining + ' Tage' : '<span style="color:var(--red)">Ueberfaellig</span>') : '–'}</td>
-        <td>${actions}</td>
-      </tr>`;
-    }
-
-    html += '</tbody></table>';
-    target.innerHTML = html;
-  } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
-  }
-}
-
-async function obligationMarkNotApplicable(obligationId) {
-  const notes = prompt('Begruendung (Pflicht):');
-  if (!notes) return;
-  try {
-    await approvalMutation('nk-period-obligations.update', 'PATCH', { obligation_id: obligationId }, {
-      status: 'not_applicable',
-      notes: notes,
-    });
-    loadObligations();
-  } catch (e) {}
-}
-
-async function obligationMarkExpired(obligationId) {
-  if (!confirm('Als verfristet markieren?')) return;
-  try {
-    await approvalMutation('nk-period-obligations.update', 'PATCH', { obligation_id: obligationId }, {
-      status: 'expired',
-    });
-    loadObligations();
-  } catch (e) {}
-}
-
-async function obligationReopen(obligationId) {
-  if (!confirm('Pflicht wiedereroeffnen?')) return;
-  try {
-    await approvalMutation('nk-period-obligations.update', 'PATCH', { obligation_id: obligationId }, {
-      status: 'pending',
-    });
-    loadObligations();
-  } catch (e) {}
 }
 
 // ── Audit Viewer ────────────────────────────────────────────────────────────

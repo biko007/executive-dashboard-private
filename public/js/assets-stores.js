@@ -76,7 +76,8 @@ const ENDPOINT_MAP = {
   'meter-readings.bulk':             (p) => `/api/assets/meters/${p.meter_id}/readings/bulk`,
   'approval-preview':                () => '/api/assets/approval-preview',
   'lease-changeovers.create':        () => '/api/assets/lease-changeovers',
-  'nk-readiness':                    (p) => `/api/assets/properties/${p.property_id}/nk-readiness`,
+  'nk-readiness':                    (p) => `/api/assets/properties/${p.property_code}/nk-readiness`,
+  'nk-period-obligations.by-property': (p) => `/api/assets/properties/${p.property_code}/nk-period-obligations`,
   'nk-period-obligations.list':      () => '/api/assets/nk-period-obligations',
   'nk-period-obligations.read':      (p) => `/api/assets/nk-period-obligations/${p.obligation_id}`,
   'nk-period-obligations.update':    (p) => `/api/assets/nk-period-obligations/${p.obligation_id}`,
@@ -408,6 +409,24 @@ document.addEventListener('alpine:init', () => {
     goToStep(n) {
       if (n >= 1 && n <= this.totalSteps) this.step = n;
     },
+  });
+
+  // ── NK Store ─────────────────────────────────────────────────────────
+
+  Alpine.store('nk', {
+    selectedPropertyCode: null,
+    selectedYear: 2024,
+    activeSubTab: 'precheck', // precheck | preview | runs | obligations
+
+    preCheck: null,
+    previewResult: null,
+    runs: [],
+    selectedRun: null,
+    statements: [],
+    obligations: [],
+
+    loading: false,
+    error: null,
   });
 
   // ── Root Assets Component ──────────────────────────────────────────────
