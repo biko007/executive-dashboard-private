@@ -484,7 +484,8 @@ async function approvalMutation(endpointKey, httpMethod, pathParams, body, optio
   const toast = Alpine.store('toast');
   const approval = Alpine.store('approval');
 
-  const previewUrl = composeUrl('approval-preview');
+  const previewEndpointKey = options.previewEndpointKey || 'approval-preview';
+  const previewUrl = composeUrl(previewEndpointKey);
   const targetUrl = composeUrl(endpointKey, pathParams);
 
   try {
@@ -495,6 +496,7 @@ async function approvalMutation(endpointKey, httpMethod, pathParams, body, optio
       body: JSON.stringify({
         endpoint_key: endpointKey,
         http_method: httpMethod,
+        method: httpMethod,
         path_params: pathParams,
         body: body,
       }),

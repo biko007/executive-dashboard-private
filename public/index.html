@@ -206,6 +206,8 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 <script defer src="/dashboard/js/assets-nebenkosten.js"></script>
 <script defer src="/dashboard/js/assets-status.js"></script>
 <script defer src="/dashboard/js/assets-wizard.js"></script>
+<script defer src="/dashboard/js/fleet-stores.js"></script>
+<script defer src="/dashboard/js/fleet-detail.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>
 </head>
 <body>
@@ -1689,405 +1691,67 @@ async function spUploadFile() {
    FLEET / FUHRPARK
 ═══════════════════════════════════════════════════════════════════════════ */
 
-let _fleetCache = [];
 let _assetsCache = [];
 let _leasesCache = [];
 
-function tuevInfo(tuevDate) {
-  if (!tuevDate) return { cls: 'tuev-none', text: 'kein TÜV' };
-  const today = new Date(); today.setHours(0,0,0,0);
-  const d = new Date(tuevDate); d.setHours(0,0,0,0);
-  const days = Math.round((d - today) / 86400000);
-  const dateStr = fmtDate(tuevDate);
-  if (days < 0) return { cls: 'tuev-red', text: `überfällig (${dateStr})` };
-  if (days <= 30) return { cls: 'tuev-yellow', text: `in ${days}d (${dateStr})` };
-  if (days <= 90) return { cls: 'tuev-yellow', text: `in ${days}d (${dateStr})` };
-  return { cls: 'tuev-green', text: dateStr };
-}
-
 async function loadFleet() {
   const c = document.getElementById('content');
-  try {
-    const [vehicles, allLinks] = await Promise.all([
-      apiFetch('/api/fleet'),
-      apiFetch('/api/links').catch(() => [])
-    ]);
-    _fleetCache = vehicles;
-    if (!vehicles.length) {
-      c.innerHTML = '<div class="empty">Keine Fahrzeuge im Fuhrpark.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newVehicleModal()">+ Fahrzeug anlegen</button></div>';
-      return;
-    }
-
-    const cards = vehicles.map(v => {
-      const icon = v.type === 'car' ? '🚗' : v.type === 'boat' ? '🚤' : '🚲';
-      const plate = v.plate ? `<span class="badge badge-blue">${esc(v.plate)}</span>` : '';
-      const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
-      const t = tuevInfo(v.tuevDate);
-
-      // Cost line: KFZ-Steuer + Versicherung
-      const costParts = [];
-      if (v.vehicleTax != null) costParts.push(`<span class="fl">KFZ-Steuer</span> ${Number(v.vehicleTax).toLocaleString('de-DE')} €/J`);
-      if (v.insurance?.annualCost != null) costParts.push(`<span class="fl">Versicherung</span> ${Number(v.insurance.annualCost).toLocaleString('de-DE')} €/J`);
-      const costHtml = costParts.length ? costParts.map(p => `<div>${p}</div>`).join('') : '';
-
-      // Document quick-links from linked documents
-      const vLinks = (allLinks || []).filter(l => l.entityType === 'fleet' && l.entityId === v.id);
-      const scheinLink = vLinks.find(l => {
-        const n = ((l.spName || l.localName || l.label) || '').toLowerCase();
-        return n.includes('fahrzeugschein');
-      });
-      const briefLink = vLinks.find(l => {
-        const n = ((l.spName || l.localName || l.label) || '').toLowerCase();
-        return n.includes('brief') || n.includes('zulassung');
-      });
-      let docBtns = '';
-      if (scheinLink || briefLink) {
-        const btns = [];
-        if (scheinLink && scheinLink.spWebUrl) btns.push(`<a href="${esc(scheinLink.spWebUrl)}" target="_blank" class="btn-ghost" style="font-size:12px;padding:4px 8px;text-decoration:none" title="Fahrzeugschein öffnen">📄 Schein</a>`);
-        if (briefLink && briefLink.spWebUrl) btns.push(`<a href="${esc(briefLink.spWebUrl)}" target="_blank" class="btn-ghost" style="font-size:12px;padding:4px 8px;text-decoration:none" title="Fahrzeugbrief öffnen">📋 Brief</a>`);
-        if (btns.length) docBtns = `<div style="display:flex;gap:6px;margin-top:8px">${btns.join('')}</div>`;
-      }
-
-      return `<div class="fleet-card" id="fc-${esc(v.id)}" style="padding:0;overflow:hidden">
-        ${entityImgHtml('fleet', v.id, 'entity-img-wrap')}
-        <div style="padding:20px">
-        <div class="fleet-card-header">
-          <span class="fleet-icon">${icon}</span>
-          <h3>${esc(v.name)} ${plate}</h3>
-        </div>
-        <div class="fleet-meta">
-          <div><span class="fl">Hersteller</span> ${esc(v.make)}</div>
-          <div><span class="fl">Modell</span> ${esc(v.model)}</div>
-          <div><span class="fl">Baujahr</span> ${v.year}</div>
-          <div><span class="fl">km-Stand</span> ${km}</div>
-          ${v.purchasePrice != null ? `<div><span class="fl">Kaufpreis</span> ${Number(v.purchasePrice).toLocaleString('de-DE')} €</div>` : ''}
-          ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
-          <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
-          ${costHtml}
-        </div>${docBtns}
-        <div class="fleet-actions">
-          <button class="btn btn-primary" onclick="fleetDetail('${esc(v.id)}')">Details</button>
-          <button class="btn btn-danger" onclick="deleteVehicle('${esc(v.id)}','${esc(v.name)}')">🗑</button>
-        </div>
-        </div>
-      </div>`;
-    }).join('');
-
-    c.innerHTML = `<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newVehicleModal()">+ Fahrzeug anlegen</button></div>
-      <div class="fleet-grid">${cards}</div>`;
-    stamp();
-  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
-}
-
-/* ── New vehicle ── */
-function newVehicleModal() {
-  openModal(`
-    <h3>🚗 Neues Fahrzeug</h3>
-    <label>Typ</label>
-    <select id="fv-type">
-      <option value="car">🚗 Auto</option>
-      <option value="bike">🚲 Fahrrad</option>
-      <option value="boat">🚤 Boot</option>
-    </select>
-    <label>Hersteller</label>
-    <input id="fv-make" placeholder="z.B. Tesla, BMW, Canyon">
-    <label>Modell</label>
-    <input id="fv-model" placeholder="z.B. Model X, X3, Endurace CF SL">
-    <label>Baujahr</label>
-    <input id="fv-year" type="number" min="1900" max="2100" placeholder="2024">
-    <label>Name (optional, Standard: Hersteller + Modell)</label>
-    <input id="fv-name" placeholder="">
-    <label>Kennzeichen (optional)</label>
-    <input id="fv-plate" placeholder="z.B. TUT-AB 123">
-    <label>Farbe (optional)</label>
-    <input id="fv-color" placeholder="">
-    <label>km-Stand (optional)</label>
-    <input id="fv-km" type="number" min="0" placeholder="0">
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" id="fv-save" onclick="createVehicle()">🚗 Anlegen</button>
-    </div>
-  `);
-}
-
-async function createVehicle() {
-  const type  = document.getElementById('fv-type').value;
-  const make  = document.getElementById('fv-make').value.trim();
-  const model = document.getElementById('fv-model').value.trim();
-  const year  = document.getElementById('fv-year').value;
-  const name  = document.getElementById('fv-name').value.trim();
-  const plate = document.getElementById('fv-plate').value.trim();
-  const color = document.getElementById('fv-color').value.trim();
-  const km    = document.getElementById('fv-km').value;
-  if (!make || !model || !year) return alert('Hersteller, Modell und Baujahr sind Pflicht.');
-  const btn = document.getElementById('fv-save');
-  btn.disabled = true; btn.textContent = 'Speichern…';
-  try {
-    await apiFetch('/api/fleet', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type, make, model, year: Number(year),
-        name: name || undefined,
-        plate: plate || undefined,
-        color: color || undefined,
-        mileage: km ? Number(km) : undefined,
-      }),
-    });
-    closeModal();
-    showTab('fleet');
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '🚗 Anlegen'; }
-}
-
-/* ── Delete vehicle ── */
-async function deleteVehicle(id, name) {
-  if (!confirm(`Fahrzeug "${name}" wirklich löschen?`)) return;
-  try {
-    await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    showTab('fleet');
-  } catch (e) { alert(`Fehler: ${e.message}`); }
-}
-
-/* ── Vehicle detail ── */
-async function fleetDetail(id) {
-  const c = document.getElementById('content');
-  try {
-    const v = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`);
-    const links = await fetchEntityLinks('fleet', id);
-    const icon = v.type === 'car' ? '🚗' : v.type === 'boat' ? '🚤' : '🚲';
-    const t = tuevInfo(v.tuevDate);
-    const km = v.mileage != null ? `${Number(v.mileage).toLocaleString('de-DE')} km` : '–';
-
-    // Insurance section
-    let insHtml = '<span style="color:var(--muted)">Keine Versicherung hinterlegt</span>';
-    if (v.insurance) {
-      insHtml = `<div class="fleet-meta" style="margin-top:6px">
-        <div><span class="fl">Anbieter</span> ${esc(v.insurance.provider)}</div>
-        <div><span class="fl">Typ</span> ${esc(v.insurance.type)}</div>
-        ${v.insurance.policyNumber ? `<div><span class="fl">Policen-Nr</span> ${esc(v.insurance.policyNumber)}</div>` : ''}
-        ${v.insurance.validUntil ? `<div><span class="fl">Gültig bis</span> ${fmtDate(v.insurance.validUntil)}</div>` : ''}
-        ${v.insurance.annualCost != null ? `<div><span class="fl">Kosten/Jahr</span> ${v.insurance.annualCost} €</div>` : ''}
-      </div>`;
-    }
-
-    // Service log
-    let serviceHtml = '<span style="color:var(--muted)">Keine Einträge</span>';
-    if (v.serviceLog?.length) {
-      const rows = v.serviceLog.slice().reverse().map(s => {
-        const skm = s.mileage != null ? `${Number(s.mileage).toLocaleString('de-DE')} km` : '–';
-        const cost = s.cost != null ? `${s.cost} €` : '–';
-        return `<tr>
-          <td style="white-space:nowrap">${fmtDate(s.date)}</td>
-          <td>${esc(s.type)}</td>
-          <td>${skm}</td>
-          <td>${cost}</td>
-          <td style="color:var(--muted);font-size:12px">${esc(s.notes || '')}</td>
-        </tr>`;
-      }).join('');
-      serviceHtml = `<table>
-        <thead><tr><th>Datum</th><th>Typ</th><th>km</th><th>Kosten</th><th>Notiz</th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>`;
-    }
-
-    c.innerHTML = `
-      <div style="margin-bottom:16px">
-        <button class="btn-ghost" onclick="showTab('fleet')">← Zurück</button>
-      </div>
-      ${entityImgHtml('fleet', v.id, 'detail-img-wrap')}
-      <div class="card card-pad">
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
-          <span style="font-size:36px">${icon}</span>
-          <div>
-            <h2 style="font-size:20px;font-weight:700">${esc(v.name)}</h2>
-            <span style="color:var(--muted);font-size:13px">ID: ${esc(v.id)} · Erstellt: ${fmtDate(v.createdAt)}</span>
-          </div>
-          <div style="margin-left:auto;display:flex;gap:8px">
-            <button class="btn btn-primary" onclick="editVehicleModal('${esc(v.id)}')">✏️ Bearbeiten</button>
-            <button class="btn btn-primary" onclick="addServiceModal('${esc(v.id)}')">🔧 Service</button>
-          </div>
-        </div>
-        <div class="fleet-meta" style="margin-bottom:20px">
-          <div><span class="fl">Hersteller</span> ${esc(v.make)}</div>
-          <div><span class="fl">Modell</span> ${esc(v.model)}</div>
-          <div><span class="fl">Baujahr</span> ${v.year}</div>
-          <div><span class="fl">km-Stand</span> ${km}</div>
-          ${v.plate ? `<div><span class="fl">Kennzeichen</span> ${esc(v.plate)}</div>` : ''}
-          ${v.vin ? `<div><span class="fl">FIN</span> ${esc(v.vin)}</div>` : ''}
-          ${v.color ? `<div><span class="fl">Farbe</span> ${esc(v.color)}</div>` : ''}
-          <div><span class="fl">TÜV</span> <span class="${t.cls}">${t.text}</span></div>
-          ${v.vehicleTax != null ? `<div><span class="fl">KFZ-Steuer</span> ${Number(v.vehicleTax).toLocaleString('de-DE')} €/Jahr</div>` : ''}
-        </div>
-      </div>
-      <div class="card card-pad" style="margin-top:16px">
-        <h3 style="font-size:15px;margin-bottom:12px">🛡 Versicherung</h3>
-        ${insHtml}
-      </div>
-      <div class="card" style="margin-top:16px">
-        <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-          <h3 style="font-size:15px">🔧 Wartungshistorie (${v.serviceLog?.length || 0})</h3>
-          <button class="btn btn-primary" style="font-size:12px" onclick="addServiceModal('${esc(v.id)}')">+ Eintrag</button>
-        </div>
-        ${serviceHtml}
-      </div>
-      ${renderLinksSection(links, 'fleet', id, 'fleetDetail')}`;
-    stamp();
-  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
-}
-
-/* ── Edit vehicle ── */
-function editVehicleModal(id) {
-  const v = _fleetCache.find(x => x.id === id);
-  if (!v) return alert('Fahrzeug nicht gefunden');
-  const tuevVal = v.tuevDate ? v.tuevDate.slice(0, 10) : '';
-  openModal(`
-    <h3>✏️ Fahrzeug bearbeiten</h3>
-    <label>ID</label>
-    <input id="ev-id" value="${esc(v.id)}">
-    <small style="color:var(--muted)">Nur Kleinbuchstaben, Zahlen, Bindestriche. Prefix "v-" wird automatisch ergänzt.</small>
-    <label>Name</label>
-    <input id="ev-name" value="${esc(v.name || '')}">
-    <label>Hersteller</label>
-    <input id="ev-make" value="${esc(v.make || '')}">
-    <label>Modell</label>
-    <input id="ev-model" value="${esc(v.model || '')}">
-    <label>Baujahr</label>
-    <input id="ev-year" type="number" value="${v.year || ''}">
-    <label>Kennzeichen</label>
-    <input id="ev-plate" value="${esc(v.plate || '')}">
-    <label>FIN</label>
-    <input id="ev-vin" value="${esc(v.vin || '')}">
-    <label>Farbe</label>
-    <input id="ev-color" value="${esc(v.color || '')}">
-    <label>km-Stand</label>
-    <input id="ev-km" type="number" value="${v.mileage ?? ''}">
-    <label>Kaufpreis (€)</label>
-    <input id="ev-price" type="number" min="0" step="100" value="${v.purchasePrice ?? ''}">
-    <label>TÜV-Datum</label>
-    <input id="ev-tuev" type="date" value="${tuevVal}">
-    <label>KFZ-Steuer/Jahr (€)</label>
-    <input id="ev-tax" type="number" value="${v.vehicleTax ?? ''}">
-    <label>Versicherung — Anbieter</label>
-    <input id="ev-ins-prov" value="${esc(v.insurance?.provider || '')}">
-    <label>Versicherung — Typ</label>
-    <input id="ev-ins-type" value="${esc(v.insurance?.type || '')}" placeholder="Haftpflicht, Vollkasko, …">
-    <label>Versicherung — Kosten/Jahr (€)</label>
-    <input id="ev-ins-cost" type="number" value="${v.insurance?.annualCost ?? ''}">
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" id="ev-save" onclick="saveVehicle('${esc(id)}')">💾 Speichern</button>
-    </div>
-  `);
-}
-
-async function saveVehicle(id) {
-  const newIdVal = document.getElementById('ev-id').value.trim().toLowerCase();
-  const name  = document.getElementById('ev-name').value.trim();
-  const make  = document.getElementById('ev-make').value.trim();
-  const model = document.getElementById('ev-model').value.trim();
-  const year  = Number(document.getElementById('ev-year').value);
-  const plate = document.getElementById('ev-plate').value.trim();
-  const vin   = document.getElementById('ev-vin').value.trim();
-  const color = document.getElementById('ev-color').value.trim();
-  const km    = document.getElementById('ev-km').value;
-  const price = document.getElementById('ev-price').value;
-  const tuev  = document.getElementById('ev-tuev').value;
-  const tax     = document.getElementById('ev-tax').value;
-  const insProv = document.getElementById('ev-ins-prov').value.trim();
-  const insType = document.getElementById('ev-ins-type').value.trim();
-  const insCost = document.getElementById('ev-ins-cost').value;
-
-  if (!make || !model) return alert('Hersteller und Modell sind Pflicht.');
-
-  const body = {
-    name, make, model, year,
-    plate: plate || undefined,
-    vin: vin || undefined,
-    color: color || undefined,
-    mileage: km !== '' ? Number(km) : undefined,
-    purchasePrice: price !== '' ? Number(price) : undefined,
-    tuevDate: tuev || undefined,
-    vehicleTax: tax !== '' ? Number(tax) : undefined,
-  };
-  // Add newId if the ID was changed
-  const effectiveNewId = newIdVal.startsWith('v-') ? newIdVal : 'v-' + newIdVal;
-  if (effectiveNewId !== id) body.newId = effectiveNewId;
-  if (insProv || insType) {
-    body.insurance = {
-      provider: insProv || '–',
-      type: insType || '–',
-      annualCost: insCost !== '' ? Number(insCost) : undefined,
-    };
-  }
-
-  const btn = document.getElementById('ev-save');
-  btn.disabled = true; btn.textContent = 'Speichern…';
-  try {
-    const saved = await apiFetch(`/api/fleet/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    closeModal();
-    // Reload cache & detail (use saved.id in case ID was changed)
-    _fleetCache = await apiFetch('/api/fleet');
-    fleetDetail(saved.id);
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
-}
-
-/* ── Add service entry ── */
-function addServiceModal(vehicleId) {
-  const today = new Date().toISOString().slice(0, 10);
-  openModal(`
-    <h3>🔧 Service-Eintrag</h3>
-    <label>Datum</label>
-    <input id="sv-date" type="date" value="${today}">
-    <label>Typ</label>
-    <select id="sv-type">
-      <option value="Inspektion">Inspektion</option>
-      <option value="Ölwechsel">Ölwechsel</option>
-      <option value="Reifenwechsel">Reifenwechsel</option>
-      <option value="Reparatur">Reparatur</option>
-      <option value="TÜV/HU">TÜV/HU</option>
-      <option value="Sonstiges">Sonstiges</option>
-    </select>
-    <label>km-Stand (optional)</label>
-    <input id="sv-km" type="number" min="0">
-    <label>Kosten € (optional)</label>
-    <input id="sv-cost" type="number" min="0" step="0.01">
-    <label>Notiz (optional)</label>
-    <input id="sv-notes" placeholder="z.B. Bremsbeläge vorne gewechselt">
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" id="sv-save" onclick="saveService('${esc(vehicleId)}')">🔧 Speichern</button>
-    </div>
-  `);
-}
-
-async function saveService(vehicleId) {
-  const date  = document.getElementById('sv-date').value;
-  const type  = document.getElementById('sv-type').value;
-  const km    = document.getElementById('sv-km').value;
-  const cost  = document.getElementById('sv-cost').value;
-  const notes = document.getElementById('sv-notes').value.trim();
-  if (!date || !type) return alert('Datum und Typ sind Pflicht.');
-  const btn = document.getElementById('sv-save');
-  btn.disabled = true; btn.textContent = 'Speichern…';
-  try {
-    await apiFetch(`/api/fleet/${encodeURIComponent(vehicleId)}/service`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        date, type,
-        mileage: km ? Number(km) : undefined,
-        cost: cost ? Number(cost) : undefined,
-        notes: notes || undefined,
-      }),
-    });
-    closeModal();
-    _fleetCache = await apiFetch('/api/fleet');
-    fleetDetail(vehicleId);
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '🔧 Speichern'; }
+  c.innerHTML = '<div x-data="fleetRoot">'
+    // Loading state
+    + '<template x-if="loading"><div class="spinner">Laden...</div></template>'
+    // Error state
+    + '<template x-if="error"><div class="empty" x-text="\'Fehler: \' + error"></div></template>'
+    // Main content
+    + '<template x-if="!loading && !error"><div>'
+    // List view (no vehicle selected)
+    + '<template x-if="!selectedVehicle"><div>'
+    + '<div class="filters-row">'
+    + '<button class="btn" :class="statusFilter===\'active\' ? \'btn-primary\' : \'btn-ghost\'" @click="switchStatus(\'active\')">Aktiv</button>'
+    + '<button class="btn" :class="statusFilter===\'archived\' ? \'btn-primary\' : \'btn-ghost\'" @click="switchStatus(\'archived\')">Archiviert</button>'
+    + '<button class="btn" :class="statusFilter===\'all\' ? \'btn-primary\' : \'btn-ghost\'" @click="switchStatus(\'all\')">Alle</button>'
+    + '<div style="flex:1"></div>'
+    + '<button class="btn btn-primary" onclick="fleetNewVehicleModal()">+ Fahrzeug anlegen</button>'
+    + '</div>'
+    + '<div x-ref="fleetListContent"></div>'
+    + '</div></template>'
+    // Detail view (vehicle selected)
+    + '<template x-if="selectedVehicle"><div>'
+    + '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">'
+    + '<button class="btn-ghost" @click="backToList()">&#x2190; Zurueck</button>'
+    + '</div>'
+    + '<div x-data="fleetDetailView" x-init="init()">'
+    + '<template x-if="loading"><div class="spinner">Laden...</div></template>'
+    + '<template x-if="error"><div class="empty" x-text="\'Fehler: \' + error"></div></template>'
+    + '<template x-if="!loading && !error && vehicle"><div>'
+    + '<div class="assets-subtabs">'
+    + '<button class="subtab-btn" :class="isTab(\'stammdaten\') && \'active\'" @click="switchTab(\'stammdaten\')">Stammdaten</button>'
+    + '<button class="subtab-btn" :class="isTab(\'service\') && \'active\'" @click="switchTab(\'service\')">Service</button>'
+    + '<button class="subtab-btn" :class="isTab(\'insurance\') && \'active\'" @click="switchTab(\'insurance\')">Versicherung</button>'
+    + '<button class="subtab-btn" :class="isTab(\'tuev\') && \'active\'" @click="switchTab(\'tuev\')">TUeV</button>'
+    + '<button class="subtab-btn" :class="isTab(\'tax\') && \'active\'" @click="switchTab(\'tax\')">Steuer</button>'
+    + '<button class="subtab-btn" :class="isTab(\'documents\') && \'active\'" @click="switchTab(\'documents\')">Dokumente</button>'
+    + '</div>'
+    + '<div x-ref="fleetDetailContent"></div>'
+    + '</div></template>'
+    + '</div>'
+    + '</div></template>'
+    + '</div></template>'
+    // Approval Modal (same pattern as Assets)
+    + '<template x-if="$store.approval.visible">'
+    + '<div class="modal-overlay" @click.self="$store.approval.cancel()">'
+    + '<div class="modal">'
+    + '<h3>Genehmigung erforderlich</h3>'
+    + '<div class="approval-banner">Bitte pruefen Sie die folgenden Aenderungen vor der Bestaetigung.</div>'
+    + '<div class="approval-diff" x-ref="approvalDiffContent"></div>'
+    + '<div class="approval-timer" x-text="$store.approval.timerText"></div>'
+    + '<div class="approval-actions">'
+    + '<button class="btn-ghost" @click="$store.approval.cancel()">Abbrechen</button>'
+    + '<button class="btn btn-primary" @click="$store.approval.confirm()">Bestaetigen</button>'
+    + '</div>'
+    + '</div></div></template>'
+    + '</div>';
+  if (window.Alpine && Alpine.initTree) Alpine.initTree(c);
+  stamp();
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

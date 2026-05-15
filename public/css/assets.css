@@ -428,3 +428,20 @@
   outline: none;
 }
 .filter-select:focus { border-color: var(--accent); }
+
+/* ── Fleet TUeV Status ── */
+.tuev-green  { color: var(--green); }
+.tuev-yellow { color: var(--yellow); }
+.tuev-red    { color: var(--red); }
+.tuev-none   { color: var(--muted); }
+
+/* ── Legacy-Marker Banner ── */
+.legacy-banner {
+  background: rgba(251,191,36,.08);
+  border: 1px solid rgba(251,191,36,.2);
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--yellow);
+  margin-bottom: 16px;
+}
