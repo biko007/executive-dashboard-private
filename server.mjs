@@ -1915,6 +1915,12 @@ app.post('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 app.patch('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 app.delete('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 
+// ── Banking (Sprint 7b) — Proxy to Core ──────────────────────────────────────
+// All /api/banking/* routes are proxied to Core (18789) via trust-boundary.
+// Reads pass through with session only. Mutations (connect, complete-tan) require session + CSRF.
+app.get('/api/banking/*', requireSession, proxyToCore);
+app.post('/api/banking/*', requireSession, requireCsrf, proxyToCore);
+
 // ── API: Fleet (Legacy — File-based, disabled by Sprint 6 proxy above) ───────
 
 /* DISABLED: Old file-based fleet routes — replaced by Core proxy above.

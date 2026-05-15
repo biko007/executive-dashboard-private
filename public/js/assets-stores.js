@@ -514,7 +514,7 @@ async function approvalMutation(endpointKey, httpMethod, pathParams, body, optio
       diff: preview.diff || {},
       warnings: preview.warnings || [],
       expiresAt: preview.expires_at,
-      approvalToken: preview.approval_token,
+      approvalToken: preview.token,
       endpointKey,
       httpMethod,
       pathParams,

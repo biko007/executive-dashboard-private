@@ -208,6 +208,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 <script defer src="/dashboard/js/assets-wizard.js"></script>
 <script defer src="/dashboard/js/fleet-stores.js"></script>
 <script defer src="/dashboard/js/fleet-detail.js"></script>
+<script defer src="/dashboard/js/banking-connect.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>
 </head>
 <body>
@@ -239,6 +240,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
     <button onclick="showTab('assets')"          >🏠 Assets</button>
     <button onclick="showTab('trading')"         >📈 Trading</button>
+    <button onclick="showTab('banking')"         >🏦 Banking</button>
     <button onclick="showTab('pe')"              >💼 Private Equity</button>
     <button onclick="showTab('instagram')"       >📷 Instagram</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
@@ -261,20 +263,35 @@ let _draftsCache = [];
 let _docsCache = [];
 
 /* ── Init ── */
+/* Wrapped in DOMContentLoaded so that defer scripts (banking-connect.js,
+   alpine.csp.min.js, etc.) are guaranteed to have executed before the
+   initial showTab() call.  Without this, deep links like
+   ?tab=banking-connect crash because bankingOverviewHtml() is not yet
+   defined when the inline script runs during HTML parsing. */
 (function init() {
   const p = new URLSearchParams(location.search);
   const urlToken = p.get('token');
+  const urlTab = p.get('tab');
   if (urlToken) {
     TOKEN = urlToken;
-      localStorage.setItem('token', urlToken);
-    history.replaceState({}, '', location.pathname);
+    localStorage.setItem('token', urlToken);
+    history.replaceState({}, '', location.pathname + (urlTab ? '?tab=' + urlTab : ''));
   }
   TOKEN = localStorage.getItem('token') || '';
-  if (TOKEN) {
-    showApp();
-    showTab('health');
+
+  function boot() {
+    if (TOKEN) {
+      showApp();
+      showTab(urlTab || 'health');
+    } else {
+      document.getElementById('login').style.display = 'flex';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
   } else {
-    document.getElementById('login').style.display = 'flex';
+    boot();
   }
 })();
 
@@ -314,12 +331,14 @@ function showApp() {
 
 /* ── Tab routing ── */
 function showTab(tab) {
+  // Handle banking-connect deep link as banking tab
+  if (tab === 'banking-connect') tab = 'banking';
   currentTab = tab;
-  const tabs = ['health','trips','calendar','fleet','assets','trading','pe','instagram','sharepoint','agents','status'];
+  const tabs = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','agents','status'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, pe: loadPrivateEquity, agents: loadAgents, status: loadStatus })[tab]();
+  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, agents: loadAgents, status: loadStatus })[tab]();
 }
 
 /* ── Fetch helper ── */
@@ -2763,6 +2782,44 @@ function _toast(msg) {
   el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--text);padding:8px 16px;border-radius:8px;font-size:13px;border:1px solid var(--border);z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,.3)';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2500);
+}
+
+/* ── Banking (Sprint 7b) ── */
+async function loadBanking() {
+  const c = document.getElementById('content');
+  c.innerHTML = `
+    <div x-data="bankingRoot">
+      <template x-if="view === 'overview'">${bankingOverviewHtml()}</template>
+      <template x-if="view === 'connect'">${bankingConnectFormHtml()}</template>
+
+      <!-- Approval Modal (Fleet-Pattern: single-step approval) -->
+      <template x-if="$store.approval.visible">
+        <div class="modal-overlay" @click.self="$store.approval.cancel()">
+          <div class="modal">
+            <h3>Genehmigung erforderlich</h3>
+            <div class="approval-banner">Bitte pruefen Sie die folgenden Aenderungen vor der Bestaetigung.</div>
+            <div class="approval-diff">
+              <template x-for="(val, key) in $store.approval.diff" :key="key">
+                <div class="diff-field">
+                  <span x-text="key" style="color:var(--muted)"></span>
+                  <div>
+                    <span class="diff-old" x-text="val.old != null ? val.old : '–'"></span>
+                    <span style="color:var(--muted);margin:0 4px">→</span>
+                    <span class="diff-new" x-text="val.new != null ? val.new : '–'"></span>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <div class="approval-timer" x-text="$store.approval.timerText"></div>
+            <div class="approval-actions">
+              <button class="btn-ghost" @click="$store.approval.cancel()">Abbrechen</button>
+              <button class="btn btn-primary" @click="$store.approval.confirm()">Bestaetigen</button>
+            </div>
+          </div>
+        </div>
+      </template>
+    </div>`;
+  if (window.Alpine && Alpine.initTree) Alpine.initTree(c);
 }
 
 /* ── Trading ── */
