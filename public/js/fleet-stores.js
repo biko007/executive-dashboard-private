@@ -38,6 +38,11 @@ Object.assign(ENDPOINT_MAP, {
   'fleet.documents.create': (p) => `/api/fleet/vehicles/${p.vehicle_code}/documents`,
   'fleet.documents.delete': (p) => `/api/fleet/documents/${p.record_id}`,
 
+  // Tire Sets
+  'fleet.tire-sets.create': (p) => `/api/fleet/vehicles/${p.vehicle_code}/tire-sets`,
+  'fleet.tire-sets.update': (p) => `/api/fleet/tire-sets/${p.record_id}`,
+  'fleet.tire-sets.delete': (p) => `/api/fleet/tire-sets/${p.record_id}`,
+
   // Approval Preview
   'fleet.approval-preview': () => '/api/fleet/approval-preview',
 

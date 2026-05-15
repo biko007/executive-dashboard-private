@@ -74,6 +74,7 @@ document.addEventListener('alpine:init', () => {
         case 'tuev':       el.innerHTML = this._renderTuev(); break;
         case 'tax':        el.innerHTML = this._renderTax(); break;
         case 'documents':  el.innerHTML = this._renderDocuments(); break;
+        case 'tires':      el.innerHTML = this._renderTires(); break;
         default:           el.innerHTML = this._renderStammdaten(); break;
       }
     },
@@ -318,6 +319,55 @@ document.addEventListener('alpine:init', () => {
         html += '<td>';
         if (rid) {
           html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteDocument(' + rid + ')">X</button>';
+        }
+        html += '</td></tr>';
+      }
+      html += '</tbody></table>';
+      return html;
+    },
+
+    // ── Tires Tab ───────────────────────────────────────────────────────
+
+    _renderTires() {
+      const v = this.vehicle;
+      const code = esc(v.vehicleCode || v.id);
+      const sets = v.tireSets || [];
+
+      const typeLabels = { summer: 'Sommer', winter: 'Winter', all_season: 'Ganzjahr', spike: 'Spike' };
+
+      let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
+      html += '<h3 style="font-size:15px;font-weight:600">Reifensaetze (' + sets.length + ')</h3>';
+      html += '<button class="btn btn-primary" onclick="fleetAddTireSetModal(\'' + code + '\')">+ Reifensatz</button>';
+      html += '</div>';
+
+      if (!sets.length) {
+        html += '<div class="empty">Keine Reifensaetze hinterlegt.</div>';
+        return html;
+      }
+
+      html += '<table class="assets-table"><thead><tr><th>Typ</th><th>Marke / Modell</th><th>Profiltiefe</th><th>Montiert</th><th>Demontiert</th><th>Notiz</th><th></th></tr></thead><tbody>';
+      for (const t of sets) {
+        const isActive = !t.removedAt && !t.removed_at;
+        const rowStyle = isActive ? ' style="background:rgba(59,130,246,0.08)"' : '';
+        const tireType = t.tire_type || t.tireType || '';
+        const typeLabel = typeLabels[tireType] || esc(tireType) || '&ndash;';
+        const brand = t.brand || '';
+        const model = t.model || '';
+        const brandModel = (brand || model) ? esc(brand + (brand && model ? ' ' : '') + model) : '&ndash;';
+        const depth = (t.tread_depth_mm != null || t.treadDepthMm != null) ? Number(t.tread_depth_mm ?? t.treadDepthMm).toFixed(1) + ' mm' : '&ndash;';
+        const installed = fmtDate(t.installed_at || t.installedAt);
+        const removed = fmtDate(t.removed_at || t.removedAt);
+        const rid = t.id || '';
+        html += '<tr' + rowStyle + '>';
+        html += '<td>' + typeLabel + '</td>';
+        html += '<td>' + brandModel + '</td>';
+        html += '<td>' + depth + '</td>';
+        html += '<td>' + installed + '</td>';
+        html += '<td>' + removed + '</td>';
+        html += '<td style="color:var(--muted);font-size:12px">' + esc(t.notes || '') + '</td>';
+        html += '<td>';
+        if (rid) {
+          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteTireSet(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -984,6 +1034,93 @@ async function fleetDeleteDocument(recordId) {
   try {
     const result = await fleetApprovalMutation(
       'fleet.documents.delete', 'DELETE',
+      { record_id: recordId },
+      {}
+    );
+    if (result !== false) await _fleetReloadDetail();
+  } catch {}
+}
+
+// ── Tire Sets CRUD ──────────────────────────────────────────────────────────
+
+function fleetAddTireSetModal(vehicleCode) {
+  const today = new Date().toISOString().slice(0, 10);
+  openModal(
+    '<h3>Reifensatz hinzufuegen</h3>'
+    + '<label>Typ</label>'
+    + '<select id="ftire-type">'
+    + '<option value="summer">Sommer</option>'
+    + '<option value="winter">Winter</option>'
+    + '<option value="all_season">Ganzjahr</option>'
+    + '<option value="spike">Spike</option>'
+    + '</select>'
+    + '<label>Marke (optional)</label>'
+    + '<input id="ftire-brand" placeholder="z.B. Continental">'
+    + '<label>Modell (optional)</label>'
+    + '<input id="ftire-model" placeholder="z.B. PremiumContact 6">'
+    + '<label>Profiltiefe mm (optional)</label>'
+    + '<input id="ftire-depth" type="number" min="0" max="20" step="0.1">'
+    + '<label>Montiert am (optional)</label>'
+    + '<input id="ftire-installed" type="date" value="' + today + '">'
+    + '<label>Demontiert am (optional)</label>'
+    + '<input id="ftire-removed" type="date">'
+    + '<label>Notiz (optional)</label>'
+    + '<input id="ftire-notes" placeholder="">'
+    + '<div class="modal-actions">'
+    + '<button class="btn-ghost" onclick="closeModal()">Abbrechen</button>'
+    + '<button class="btn btn-primary" id="ftire-save" onclick="fleetSaveTireSet(\'' + esc(vehicleCode) + '\')">Speichern</button>'
+    + '</div>'
+  );
+}
+
+async function fleetSaveTireSet(vehicleCode) {
+  const tireType = document.getElementById('ftire-type').value;
+  const brand = document.getElementById('ftire-brand').value.trim();
+  const model = document.getElementById('ftire-model').value.trim();
+  const depth = document.getElementById('ftire-depth').value;
+  const installed = document.getElementById('ftire-installed').value;
+  const removed = document.getElementById('ftire-removed').value;
+  const notes = document.getElementById('ftire-notes').value.trim();
+
+  const btn = document.getElementById('ftire-save');
+  btn.disabled = true;
+  btn.textContent = 'Speichern...';
+
+  try {
+    const body = {};
+    if (tireType) body.tire_type = tireType;
+    if (brand) body.brand = brand;
+    if (model) body.model = model;
+    if (depth) body.tread_depth_mm = Number(depth);
+    if (installed) body.installed_at = installed;
+    if (removed) body.removed_at = removed;
+    if (notes) body.notes = notes;
+
+    const csrf = Alpine.store('csrf');
+    const url = composeUrl('fleet.tire-sets.create', { vehicle_code: vehicleCode });
+    const res = await csrf.fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error?.message || err.error || 'HTTP ' + res.status);
+    }
+    Alpine.store('toast').success('Reifensatz gespeichert');
+    closeModal();
+    await _fleetReloadDetail();
+  } catch (e) {
+    Alpine.store('toast').error('Fehler: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = 'Speichern';
+  }
+}
+
+async function fleetDeleteTireSet(recordId) {
+  try {
+    const result = await fleetApprovalMutation(
+      'fleet.tire-sets.delete', 'DELETE',
       { record_id: recordId },
       {}
     );
