@@ -119,7 +119,7 @@ document.addEventListener('alpine:init', () => {
         }
         this.vehicles = await res.json();
         this.loading = false;
-        this._renderList();
+        this.$nextTick(() => this._renderList());
       } catch (e) {
         this.error = e.message;
         this.loading = false;

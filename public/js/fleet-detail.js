@@ -42,7 +42,7 @@ document.addEventListener('alpine:init', () => {
         }
         this.vehicle = await res.json();
         this.loading = false;
-        this._renderTab();
+        this.$nextTick(() => this._renderTab());
       } catch (e) {
         this.error = e.message;
         this.loading = false;
