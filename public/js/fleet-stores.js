@@ -158,14 +158,14 @@ document.addEventListener('alpine:init', () => {
         return;
       }
       const rows = this.vehicles.map(v => {
-        const icon = v.type === 'car' ? '&#x1F697;' : v.type === 'boat' ? '&#x1F6A4;' : '&#x1F6B2;';
+        const img = entityImgHtml('fleet', v.vehicleCode || v.id, 'entity-img-sm');
         const plate = v.plate ? '<span class="badge badge-blue">' + esc(v.plate) + '</span>' : '';
         const km = v.mileage != null ? Number(v.mileage).toLocaleString('de-DE') + ' km' : '&ndash;';
         const t = fleetTuevInfo(v.tuevDate);
         const code = esc(v.vehicleCode || v.id);
         const archived = v.status === 'archived' ? ' <span class="badge badge-muted">archiviert</span>' : '';
         return '<tr onclick="document.querySelector(\'[x-data=fleetRoot]\')._x_dataStack[0].openDetail(\'' + code + '\')" style="cursor:pointer">'
-          + '<td>' + icon + '</td>'
+          + '<td>' + img + '</td>'
           + '<td><strong>' + esc(v.name || (v.make + ' ' + v.model)) + '</strong>' + archived + '</td>'
           + '<td>' + plate + '</td>'
           + '<td>' + esc(v.make) + ' ' + esc(v.model) + '</td>'
