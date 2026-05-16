@@ -1134,246 +1134,51 @@ app.put('/api/trips/:id', auth, (req, res) => {
 
 // ── API: Health ───────────────────────────────────────────────────────────────
 
-app.get('/api/health', auth, (req, res) => {
+app.get('/api/health', auth, async (req, res) => {
   try {
     const days = Math.min(Math.max(1, Number(req.query.days) || 30), 365);
-    const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
-    if (!fs.existsSync(HEALTH_LOG)) return res.json([]);
-    let entries = fs.readFileSync(HEALTH_LOG, 'utf8')
-      .split('\n')
-      .filter(Boolean)
-      .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } })
-      .filter(e => (e.timestamp || '') >= cutoff);
-
-    // Aggregate sleep sessions per night (sum durations, avg quality)
-    const sleepByNight = new Map();
-    const nonSleep = [];
-    for (const e of entries) {
-      if (e.type === 'sleep' && e.value != null) {
-        const day = e.timestamp.slice(0, 10);
-        const prev = sleepByNight.get(day);
-        if (prev) {
-          prev.value += e.value;
-          prev.deep_sleep_h = (prev.deep_sleep_h || 0) + (e.deep_sleep_h || 0);
-          prev.rem_sleep_h = (prev.rem_sleep_h || 0) + (e.rem_sleep_h || 0);
-          prev.light_sleep_h = (prev.light_sleep_h || 0) + (e.light_sleep_h || 0);
-          if (e.quality && e.quality > (prev.quality || 0)) prev.quality = e.quality;
-        } else {
-          sleepByNight.set(day, { ...e });
-        }
-      } else {
-        nonSleep.push(e);
-      }
-    }
-    entries = [...nonSleep, ...sleepByNight.values()];
-
-    entries = entries.map(e => {
-        // Normalize steps: value lives in e.steps, not e.value
-        if (e.type === 'steps') {
-          e.value = e.steps ?? 0;
-          e.unit = 'Schritte';
-        }
-        // Normalize heartrate
-        if (e.type === 'heartrate') {
-          e.value = e.hr_avg ?? 0;
-          e.unit = 'bpm';
-        }
-        // Normalize activity: build a readable value string
-        if (e.type === 'activity') {
-          const parts = [];
-          if (e.duration_min) parts.push(`${e.duration_min} min`);
-          if (e.steps)        parts.push(`${e.steps} Schritte`);
-          if (e.distance_m)   parts.push(`${(e.distance_m / 1000).toFixed(1)} km`);
-          if (e.calories)     parts.push(`${e.calories} kcal`);
-          e.value = parts.join(', ') || null;
-          e.unit = '';
-          e.text = e.activity_type || '';
-        }
-        // Round aggregated sleep values
-        if (e.type === 'sleep') {
-          e.value = Math.round(e.value * 10) / 10;
-        }
-        return e;
-      })
-      // Filter out activity entries with no useful metrics
-      .filter(e => {
-        if (e.type !== 'activity') return true;
-        return e.steps || e.distance_m || e.calories || e.hr_avg;
-      })
-      .sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
-    res.json(entries);
+    const url = `${CORE_BASE}/api/health/entries?days=${days}`;
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${CORE_SERVICE_TOKEN}` }, signal: AbortSignal.timeout(10_000) });
+    const data = await r.json();
+    res.status(r.status).json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'Core health service unavailable', detail: e.message });
   }
 });
 
-// ── API: Health Trends & Alerts ───────────────────────────────────────────────
-
-function readHealthEntries(daysCutoff) {
-  if (!fs.existsSync(HEALTH_LOG)) return [];
-  const cutoff = new Date(Date.now() - daysCutoff * 86_400_000).toISOString();
-  return fs.readFileSync(HEALTH_LOG, 'utf8')
-    .split('\n').filter(Boolean)
-    .flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } })
-    .filter(e => (e.timestamp || '') >= cutoff);
-}
-
-function computeWeightTrend(days) {
-  const entries = readHealthEntries(days).filter(e => e.type === 'weight' && e.value != null);
-  if (!entries.length) return null;
-  const values = entries.map(e => e.value);
-  const current = values[values.length - 1];
-  const first = values[0];
-  const change = +(current - first).toFixed(2);
-  const avg = +(values.reduce((a, b) => a + b, 0) / values.length).toFixed(1);
-  const direction = Math.abs(change) < 0.3 ? 'stable' : change > 0 ? 'up' : 'down';
-  return {
-    current: +current.toFixed(1), min: +Math.min(...values).toFixed(1),
-    max: +Math.max(...values).toFixed(1), avg, change: +change.toFixed(1),
-    direction, dataPoints: values.length,
-  };
-}
-
-// Aggregate sleep entries by night: sum durations, weighted-avg quality per date
-function aggregateSleepByNight(entries) {
-  const byDay = new Map();
-  for (const e of entries) {
-    if (e.type !== 'sleep' || e.value == null) continue;
-    const day = e.timestamp.slice(0, 10);
-    const prev = byDay.get(day) || { total: 0, qualities: [] };
-    prev.total += e.value;
-    if (e.quality != null && e.quality > 0) prev.qualities.push(e.quality);
-    byDay.set(day, prev);
-  }
-  return byDay; // Map<dateStr, { total: number, qualities: number[] }>
-}
-
-function computeSleepTrend(days) {
-  const entries = readHealthEntries(days).filter(e => e.type === 'sleep' && e.value != null);
-  if (!entries.length) return null;
-  const byNight = aggregateSleepByNight(entries);
-  const durations = Array.from(byNight.values()).map(n => n.total);
-  const qualities = Array.from(byNight.values()).flatMap(n => n.qualities);
-  if (!durations.length) return null;
-  const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : 0;
-  return {
-    avgDuration: avg(durations), minDuration: +Math.min(...durations).toFixed(1),
-    maxDuration: +Math.max(...durations).toFixed(1),
-    avgQuality: qualities.length ? +avg(qualities) : 0,
-    dataPoints: durations.length,
-  };
-}
-
-function computeAlerts() {
-  const alerts = [];
-  const recent = readHealthEntries(7);
-
-  // Sleep < 6h on 3+ of last 7 nights (aggregate sessions per night)
-  const sleepEntries = recent.filter(e => e.type === 'sleep' && e.value != null);
-  const sleepByDay = new Map();
-  for (const s of sleepEntries) {
-    const day = s.timestamp.slice(0, 10);
-    sleepByDay.set(day, (sleepByDay.get(day) ?? 0) + s.value);
-  }
-  const shortNights = Array.from(sleepByDay.values()).filter(h => h < 6).length;
-  if (shortNights >= 3) {
-    alerts.push({ type: 'sleep_low_week', severity: 'warning', message: `Schlaf unter 6h an ${shortNights} von 7 Tagen` });
-  }
-
-  // Sleep < 5h last night
-  const lastSleepValues = Array.from(sleepByDay.entries()).sort((a, b) => b[0].localeCompare(a[0]));
-  if (lastSleepValues.length && lastSleepValues[0][1] < 5) {
-    alerts.push({ type: 'sleep_critical', severity: 'critical', message: `Schlaf letzte Nacht nur ${lastSleepValues[0][1].toFixed(1)}h` });
-  }
-
-  // Weight change > 2kg in 7 days
-  const wt = computeWeightTrend(7);
-  if (wt && Math.abs(wt.change) > 2) {
-    const dir = wt.change > 0 ? '+' : '';
-    alerts.push({ type: 'weight_change', severity: 'warning', message: `Gewichtsveränderung ${dir}${wt.change} kg in 7 Tagen` });
-  }
-
-  // No Withings data for 3+ days
-  const threeDay = readHealthEntries(3).filter(e => e.source === 'withings');
-  if (!threeDay.length) {
-    alerts.push({ type: 'no_withings_data', severity: 'info', message: 'Keine Withings-Daten seit 3+ Tagen' });
-  }
-
-  return alerts;
-}
-
-function computeHeartrateTrend(days) {
-  const entries = readHealthEntries(days).filter(e => e.type === 'heartrate' && e.hr_avg != null);
-  if (!entries.length) return null;
-  // Use hr_min as resting HR when plausible (40-100 bpm), otherwise hr_avg
-  const restingValues = entries.map(e => {
-    const min = e.hr_min;
-    return (min != null && min >= 40 && min <= 100) ? min : e.hr_avg;
-  });
-  const avg = arr => arr.length ? +(arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(0) : 0;
-  const last = restingValues[restingValues.length - 1];
-  return {
-    current: last,
-    avg: avg(restingValues),
-    dataPoints: restingValues.length,
-  };
-}
-
-app.get('/api/health/trends', auth, (req, res) => {
+app.get('/api/health/trends', auth, async (req, res) => {
   try {
     const days = Math.min(Math.max(1, Number(req.query.days) || 30), 365);
-    res.json({
-      weight: computeWeightTrend(days),
-      sleep: computeSleepTrend(days),
-      heartrate: computeHeartrateTrend(days),
-    });
+    const url = `${CORE_BASE}/api/health/trends?days=${days}`;
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${CORE_SERVICE_TOKEN}` }, signal: AbortSignal.timeout(10_000) });
+    const data = await r.json();
+    res.status(r.status).json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'Core health service unavailable', detail: e.message });
   }
 });
 
-app.get('/api/health/alerts', auth, (req, res) => {
+app.get('/api/health/alerts', auth, async (req, res) => {
   try {
-    res.json(computeAlerts());
+    const url = `${CORE_BASE}/api/health/alerts`;
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${CORE_SERVICE_TOKEN}` }, signal: AbortSignal.timeout(10_000) });
+    const data = await r.json();
+    res.status(r.status).json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'Core health service unavailable', detail: e.message });
   }
 });
 
-app.get('/api/health/chart-data', auth, (req, res) => {
+app.get('/api/health/chart-data', auth, async (req, res) => {
   try {
     const type = String(req.query.type || 'weight');
     const days = Math.min(Math.max(1, Number(req.query.days) || 90), 365);
-    const entries = readHealthEntries(days);
-
-    if (type === 'weight') {
-      const data = entries
-        .filter(e => e.type === 'weight' && e.value != null)
-        .map(e => ({ date: e.timestamp.slice(0, 10), value: e.value }))
-        .sort((a, b) => a.date.localeCompare(b.date));
-      res.json(data);
-    } else if (type === 'sleep') {
-      // Aggregate: sum sleep sessions per night
-      const byDay = new Map();
-      for (const e of entries.filter(e => e.type === 'sleep' && e.value != null)) {
-        const day = e.timestamp.slice(0, 10);
-        const prev = byDay.get(day);
-        if (prev) {
-          prev.duration += e.value;
-          if (e.quality != null && e.quality > (prev.quality || 0)) prev.quality = e.quality;
-        } else {
-          byDay.set(day, { date: day, duration: e.value, quality: e.quality ?? null });
-        }
-      }
-      // Round aggregated values
-      for (const v of byDay.values()) v.duration = Math.round(v.duration * 10) / 10;
-      const data = Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
-      res.json(data);
-    } else {
-      res.status(400).json({ error: 'type must be weight or sleep' });
-    }
+    const url = `${CORE_BASE}/api/health/chart-data?type=${encodeURIComponent(type)}&days=${days}`;
+    const r = await fetch(url, { headers: { 'Authorization': `Bearer ${CORE_SERVICE_TOKEN}` }, signal: AbortSignal.timeout(10_000) });
+    const data = await r.json();
+    res.status(r.status).json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(502).json({ error: 'Core health service unavailable', detail: e.message });
   }
 });
 
