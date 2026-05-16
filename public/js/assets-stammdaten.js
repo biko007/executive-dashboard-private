@@ -56,6 +56,7 @@ document.addEventListener('alpine:init', () => {
             <button class="btn btn-primary" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='properties';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.renderPropertiesList()">Objekte</button>
             <button class="btn" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='tenants';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.loadTenants()">Mieter</button>
           </div>
+          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddProperty()">+ Objekt</button>
         </div>
       `;
 
@@ -110,8 +111,9 @@ document.addEventListener('alpine:init', () => {
             <button class="btn" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='properties';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.renderPropertiesList()">Objekte</button>
             <button class="btn btn-primary" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='tenants';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.loadTenants()">Mieter</button>
           </div>
-          <div>
+          <div style="display:flex;gap:8px;align-items:center">
             <input type="text" class="search-input" placeholder="Mieter suchen..." id="tenantSearch" oninput="assetsFilterTenants(this.value)">
+            <button class="btn btn-primary" style="font-size:12px;white-space:nowrap" onclick="assetsAddTenant()">+ Mieter</button>
           </div>
         </div>
       `;
@@ -670,5 +672,173 @@ function assetsStartWizard(propertyId, unitId) {
   const content = document.getElementById('content');
   if (typeof renderChangeoverWizard === 'function') {
     renderChangeoverWizard();
+  }
+}
+
+// ── CRUD: New Property ────────────────────────────────────────────────────────
+
+function assetsAddProperty() {
+  openModal(`
+    <h3>Neues Objekt anlegen</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Code (z.B. s28)</label>
+        <input class="form-input" id="np-code" placeholder="z.B. s28" maxlength="10">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Objekttyp</label>
+        <select class="form-select" id="np-type">
+          <option value="residential">Wohngebaeude</option>
+          <option value="commercial">Gewerbe</option>
+          <option value="industrial">Industrie</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Strasse</label>
+      <input class="form-input" id="np-street" placeholder="z.B. Musterstr. 1">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">PLZ</label>
+        <input class="form-input" id="np-postal" placeholder="78532">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stadt</label>
+        <input class="form-input" id="np-city" placeholder="Tuttlingen">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Eigentuemer</label>
+        <select class="form-select" id="np-owner">
+          <option value="personal">Privat</option>
+          <option value="la_perla_gmbh">Laperl GmbH</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Eigentum ab</label>
+        <input class="form-input" type="date" id="np-own-start">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="assetsSaveNewProperty()">Anlegen</button>
+    </div>
+  `);
+}
+
+async function assetsSaveNewProperty() {
+  try {
+    const code = document.getElementById('np-code').value.trim().toLowerCase();
+    const street = document.getElementById('np-street').value.trim();
+    const postal_code = document.getElementById('np-postal').value.trim();
+    const city = document.getElementById('np-city').value.trim();
+    if (!code) { Alpine.store('toast').error('Code ist Pflicht'); return; }
+    if (!street || !postal_code || !city) { Alpine.store('toast').error('Adresse ist Pflicht'); return; }
+    const body = {
+      code,
+      street,
+      postal_code,
+      city,
+      property_type: document.getElementById('np-type').value,
+      owner: document.getElementById('np-owner').value,
+      ownership_start: document.getElementById('np-own-start').value || null,
+    };
+    await approvalMutation('properties.create', 'POST', {}, body);
+    closeModal();
+    Alpine.store('toast').success('Objekt angelegt');
+    // Reload properties list
+    const comp = document.querySelector('[x-data=\'stammdatenTab\']').__x.$data;
+    await comp.loadProperties();
+    comp.renderPropertiesList();
+  } catch (e) {
+    // Error shown by approvalMutation
+  }
+}
+
+// ── CRUD: New Tenant ──────────────────────────────────────────────────────────
+
+function assetsAddTenant() {
+  openModal(`
+    <h3>Neuen Mieter anlegen</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Vorname</label>
+        <input class="form-input" id="nt-first" placeholder="Max">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Nachname</label>
+        <input class="form-input" id="nt-last" placeholder="Mustermann">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Firma (optional, bei Gewerbemieter)</label>
+      <input class="form-input" id="nt-company" placeholder="">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">E-Mail</label>
+        <input class="form-input" type="email" id="nt-email">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Telefon</label>
+        <input class="form-input" id="nt-phone">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">IBAN</label>
+      <input class="form-input" id="nt-iban" placeholder="DE...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Strasse</label>
+      <input class="form-input" id="nt-street">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">PLZ</label>
+        <input class="form-input" id="nt-postal">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Stadt</label>
+        <input class="form-input" id="nt-city">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">Abbrechen</button>
+      <button class="btn btn-primary" onclick="assetsSaveNewTenant()">Anlegen</button>
+    </div>
+  `);
+}
+
+async function assetsSaveNewTenant() {
+  try {
+    const first_name = document.getElementById('nt-first').value.trim();
+    const last_name = document.getElementById('nt-last').value.trim();
+    const company_name = document.getElementById('nt-company').value.trim() || null;
+    if (!first_name && !last_name && !company_name) {
+      Alpine.store('toast').error('Name oder Firma ist Pflicht');
+      return;
+    }
+    const body = {
+      tenant_type: company_name && !first_name ? 'company' : 'person',
+      first_name: first_name || null,
+      last_name: last_name || null,
+      company_name,
+      email: document.getElementById('nt-email').value.trim() || null,
+      phone: document.getElementById('nt-phone').value.trim() || null,
+      iban: document.getElementById('nt-iban').value.trim() || null,
+      street: document.getElementById('nt-street').value.trim() || null,
+      postal_code: document.getElementById('nt-postal').value.trim() || null,
+      city: document.getElementById('nt-city').value.trim() || null,
+    };
+    await approvalMutation('tenants.create', 'POST', {}, body);
+    closeModal();
+    Alpine.store('toast').success('Mieter angelegt');
+    // Reload tenants list
+    const comp = document.querySelector('[x-data=\'stammdatenTab\']').__x.$data;
+    await comp.loadTenants();
+  } catch (e) {
+    // Error shown by approvalMutation
   }
 }
