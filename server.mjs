@@ -499,7 +499,16 @@ const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize
 app.get('/api/images/:filename', auth, (req, res) => {
   const filename = req.params.filename.replace(/[^a-zA-Z0-9._\-]/g, '');
   const fp = path.join(IMAGES_DIR, filename);
-  if (!fs.existsSync(fp)) return res.status(404).json({ error: 'Image not found' });
+  if (!fs.existsSync(fp)) {
+    // Return 1x1 transparent PNG instead of 404 — no console errors in frontend
+    const PIXEL = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAABJRU5ErkJggg==',
+      'base64'
+    );
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.status(200).send(PIXEL);
+  }
   res.setHeader('Content-Type', 'image/jpeg');
   res.setHeader('Cache-Control', 'public, max-age=3600');
   res.sendFile(fp);
