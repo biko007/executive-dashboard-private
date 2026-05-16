@@ -70,7 +70,9 @@ document.addEventListener('alpine:init', () => {
         const isEnded = p.ownership_end != null;
         const unitCount = p.unit_count || 0;
         html += `
-          <div class="property-card ${isEnded ? 'ownership-ended' : ''}" onclick="assetsOpenPropertyDrawer('${esc(p.code)}')">
+          <div class="property-card ${isEnded ? 'ownership-ended' : ''}" style="padding:0;overflow:hidden;border-radius:var(--r)" onclick="assetsOpenPropertyDrawer('${esc(p.code)}')">
+            ${entityImgHtml('property', p.code, 'entity-img-wrap')}
+            <div style="padding:16px">
             <div class="property-card-header">
               <span style="font-size:24px">${p.property_type === 'residential' ? '🏠' : '🏭'}</span>
               <div>
@@ -88,6 +90,7 @@ document.addEventListener('alpine:init', () => {
               <span class="label">Einheiten</span>
               <span>${unitCount}</span>
               ${isEnded ? '<span class="label">Eigentum bis</span><span>' + fmtDate(p.ownership_end) + '</span>' : ''}
+            </div>
             </div>
           </div>
         `;
@@ -185,6 +188,8 @@ async function assetsOpenPropertyDrawer(propertyCode) {
         <h3>${esc(prop.name || prop.code || 'Objekt ' + prop.id)}</h3>
         <button class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
+
+      ${entityImgHtml('property', prop.code, 'detail-img-wrap')}
 
       <!-- Property Edit Form -->
       <div class="drawer-section">
