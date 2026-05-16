@@ -1585,93 +1585,17 @@ app.get('/api/documents/download/:path(*)', auth, (req, res) => {
   }
 });
 
-// ── SharePoint API ────────────────────────────────────────────────────────────
+// ── SharePoint API (Sprint 10 — Proxy to Core for reads, Graph for download/upload) ──
 
 const spUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024 } });
 
-// List all sites
-app.get('/api/sharepoint/sites', auth, async (req, res) => {
-  try {
-    const data = await graphGet('https://graph.microsoft.com/v1.0/sites?search=*&$top=200');
-    res.json(data.value || []);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
+// SharePoint reads → Core proxy (Sprint 10)
+app.get('/api/sharepoint/sites', requireSession, proxyToCore);
+app.get('/api/sharepoint/drives/:siteId', requireSession, proxyToCore);
+app.get('/api/sharepoint/files/:siteId/:driveId', requireSession, proxyToCore);
+app.get('/api/sharepoint/search', requireSession, proxyToCore);
 
-// List drives for a site
-app.get('/api/sharepoint/drives/:siteId', auth, async (req, res) => {
-  try {
-    const data = await graphGet(`https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(req.params.siteId)}/drives`);
-    res.json(data.value || []);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// List files in a drive (optional folderId query param)
-app.get('/api/sharepoint/files/:siteId/:driveId', auth, async (req, res) => {
-  try {
-    const base = `https://graph.microsoft.com/v1.0/sites/${encodeURIComponent(req.params.siteId)}/drives/${encodeURIComponent(req.params.driveId)}`;
-    const folderId = req.query.folderId;
-    const url = folderId
-      ? `${base}/items/${encodeURIComponent(folderId)}/children?$top=200`
-      : `${base}/root/children?$top=200`;
-    const data = await graphGet(url);
-    const items = (data.value || []).map(f => ({
-      id: f.id,
-      name: f.name || '',
-      size: f.size || 0,
-      webUrl: f.webUrl || '',
-      lastModifiedDateTime: f.lastModifiedDateTime || '',
-      createdDateTime: f.createdDateTime || '',
-      mimeType: f.file?.mimeType || null,
-      downloadUrl: f['@microsoft.graph.downloadUrl'] || null,
-      isFolder: !!f.folder,
-      childCount: f.folder?.childCount ?? null,
-    }));
-    res.json(items);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Search documents via Graph Search API
-app.get('/api/sharepoint/search', auth, async (req, res) => {
-  try {
-    const q = req.query.q || '';
-    if (!q) return res.status(400).json({ error: 'Missing query parameter q' });
-    const body = {
-      requests: [{
-        entityTypes: ['driveItem'],
-        query: { queryString: q },
-        from: 0,
-        size: 25,
-        region: 'DEU',
-      }],
-    };
-    const data = await graphRequest('POST', 'https://graph.microsoft.com/v1.0/search/query', body);
-    const hits = [];
-    const containers = data?.value?.[0]?.hitsContainers || [];
-    for (const c of containers) {
-      for (const hit of (c.hits || [])) {
-        const r = hit.resource || {};
-        hits.push({
-          name: r.name || '',
-          webUrl: r.webUrl || '',
-          lastModifiedDateTime: r.lastModifiedDateTime || '',
-          size: r.size || null,
-          summary: hit.summary || null,
-        });
-      }
-    }
-    res.json(hits);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-});
-
-// Download proxy (uses pre-auth downloadUrl from Graph)
+// Download stays in dashboard (proxies to pre-auth Graph URL)
 app.get('/api/sharepoint/download', auth, async (req, res) => {
   try {
     const url = req.query.url;
@@ -1689,11 +1613,11 @@ app.get('/api/sharepoint/download', auth, async (req, res) => {
   }
 });
 
-// Upload file to SharePoint drive
+// Upload file to SharePoint drive, then notify Core
 app.post('/api/sharepoint/upload', auth, spUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const { siteId, driveId, path: filePath } = req.body;
+    const { siteId, driveId, path: filePath, siteName, driveName } = req.body;
     if (!siteId || !driveId) return res.status(400).json({ error: 'Missing siteId or driveId' });
     const uploadPath = filePath || req.file.originalname;
     const token = await getGraphToken();
@@ -1713,6 +1637,37 @@ app.post('/api/sharepoint/upload', auth, spUpload.single('file'), async (req, re
       return res.status(upstream.status).json({ error: `Graph API HTTP ${upstream.status}: ${errText}` });
     }
     const result = await upstream.json();
+
+    // Sprint 10: Notify Core to upsert the uploaded file in DB
+    if (CORE_SERVICE_TOKEN) {
+      try {
+        await fetch(`${CORE_BASE}/api/sharepoint/upsert-uploaded`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${CORE_SERVICE_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: result.name || uploadPath,
+            webUrl: result.webUrl || '',
+            size: result.size || req.file.size || 0,
+            lastModifiedDateTime: result.lastModifiedDateTime || new Date().toISOString(),
+            createdDateTime: result.createdDateTime || new Date().toISOString(),
+            graphItemId: result.id || null,
+            mimeType: result.file?.mimeType || req.file.mimetype || null,
+            siteId,
+            driveId,
+            siteName: siteName || '',
+            driveName: driveName || '',
+            path: uploadPath,
+          }),
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch (notifyErr) {
+        console.error(`[dashboard] SP upsert-uploaded notify failed: ${notifyErr.message}`);
+      }
+    }
+
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
