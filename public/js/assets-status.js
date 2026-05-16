@@ -110,9 +110,10 @@ document.addEventListener('alpine:init', () => {
 
 function statusSwitch(section) {
   const tabEl = document.querySelector('[x-data="statusTab"]');
-  if (tabEl && tabEl.__x) {
-    tabEl.__x.$data.section = section;
-    tabEl.__x.$data.renderContent();
+  if (tabEl) {
+    const d = Alpine.$data(tabEl);
+    d.section = section;
+    d.renderContent();
   }
 }
 
@@ -121,7 +122,7 @@ function statusSwitch(section) {
 async function loadNkReadiness() {
   const csrf = Alpine.store('csrf');
   const tabEl = document.querySelector('[x-data="statusTab"]');
-  const properties = tabEl?.__x?.$data?.properties || [];
+  const properties = tabEl ? (Alpine.$data(tabEl)?.properties || []) : [];
   const currentYear = new Date().getFullYear();
   const years = [currentYear, currentYear - 1, currentYear - 2];
 

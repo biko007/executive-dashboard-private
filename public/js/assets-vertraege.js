@@ -181,9 +181,10 @@ document.addEventListener('alpine:init', () => {
 
 function vertraegeSwitch(section) {
   const tabEl = document.querySelector('[x-data="vertraegeTab"]');
-  if (tabEl && tabEl.__x) {
-    tabEl.__x.$data.section = section;
-    tabEl.__x.$data.renderContent();
+  if (tabEl) {
+    const d = Alpine.$data(tabEl);
+    d.section = section;
+    d.renderContent();
   }
 }
 

@@ -53,8 +53,8 @@ document.addEventListener('alpine:init', () => {
       let html = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div style="display:flex;gap:8px">
-            <button class="btn btn-primary" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='properties';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.renderPropertiesList()">Objekte</button>
-            <button class="btn" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='tenants';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.loadTenants()">Mieter</button>
+            <button class="btn btn-primary" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='properties';d.renderPropertiesList()})()">Objekte</button>
+            <button class="btn" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='tenants';d.loadTenants()})()">Mieter</button>
           </div>
           <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddProperty()">+ Objekt</button>
         </div>
@@ -108,8 +108,8 @@ document.addEventListener('alpine:init', () => {
       let html = `
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <div style="display:flex;gap:8px">
-            <button class="btn" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='properties';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.renderPropertiesList()">Objekte</button>
-            <button class="btn btn-primary" onclick="document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.view='tenants';document.querySelector('[x-data=\\'stammdatenTab\\']').__x.$data.loadTenants()">Mieter</button>
+            <button class="btn" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='properties';d.renderPropertiesList()})()">Objekte</button>
+            <button class="btn btn-primary" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='tenants';d.loadTenants()})()">Mieter</button>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="text" class="search-input" placeholder="Mieter suchen..." id="tenantSearch" oninput="assetsFilterTenants(this.value)">
@@ -360,7 +360,7 @@ async function assetsSaveProperty(propertyId) {
     closeDrawer();
     // Reload properties list
     const tabEl = document.querySelector('[x-data="stammdatenTab"]');
-    if (tabEl && tabEl.__x) tabEl.__x.$data.loadProperties();
+    if (tabEl) Alpine.$data(tabEl).loadProperties();
   } catch (e) {
     // Error already shown by approvalMutation
   }
@@ -749,7 +749,7 @@ async function assetsSaveNewProperty() {
     closeModal();
     Alpine.store('toast').success('Objekt angelegt');
     // Reload properties list
-    const comp = document.querySelector('[x-data=\'stammdatenTab\']').__x.$data;
+    const comp = Alpine.$data(document.querySelector('[x-data="stammdatenTab"]'));
     await comp.loadProperties();
     comp.renderPropertiesList();
   } catch (e) {
@@ -836,7 +836,7 @@ async function assetsSaveNewTenant() {
     closeModal();
     Alpine.store('toast').success('Mieter angelegt');
     // Reload tenants list
-    const comp = document.querySelector('[x-data=\'stammdatenTab\']').__x.$data;
+    const comp = Alpine.$data(document.querySelector('[x-data="stammdatenTab"]'));
     await comp.loadTenants();
   } catch (e) {
     // Error shown by approvalMutation
