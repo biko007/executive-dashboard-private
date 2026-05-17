@@ -66,32 +66,33 @@ document.addEventListener('alpine:init', () => {
         return;
       }
 
-      html += '<div class="properties-grid">';
+      html += '<div class="entity-grid">';
+      const _htMap = {gas:'Gas',oil:'Oel',heat_pump:'Waermepumpe',district:'Fernwaerme',pellets:'Pellets',electric:'Strom'};
+      const _cur = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
       for (const p of props) {
         const isEnded = p.ownership_end != null;
-        const unitCount = p.unit_count || 0;
+        const htLabel = _htMap[p.heating_type] || esc(p.heating_type || '\u2014');
+        const energy = p.primary_energy_kwh_m2 != null ? p.primary_energy_kwh_m2 + ' kWh/m\u00B2' : '\u2014';
+        const kaufpreis = p.purchase_price_total != null ? _cur.format(p.purchase_price_total) : '\u2014';
+        const verkehrswert = p.current_market_value != null ? _cur.format(p.current_market_value) : '\u2014';
+        const rentVal = p.monthly_rent_override != null ? p.monthly_rent_override : p.monthly_rent_calculated;
+        const miete = rentVal ? _cur.format(rentVal) : '\u2014';
+        const mieteJahr = rentVal ? _cur.format(rentVal * 12) : '\u2014';
         html += `
-          <div class="property-card ${isEnded ? 'ownership-ended' : ''}" style="padding:0;overflow:hidden;border-radius:var(--r)" onclick="assetsOpenPropertyDrawer('${esc(p.code)}')">
-            ${entityImgHtml('property', p.code, 'entity-img-wrap')}
-            <div style="padding:16px">
-            <div class="property-card-header">
-              <span style="font-size:24px">${p.property_type === 'residential' ? '🏠' : '🏭'}</span>
-              <div>
-                <h4>${esc(p.name || p.code || 'Objekt ' + p.id)}</h4>
-                <span style="color:var(--muted);font-size:12px">${esc(p.code || '')}</span>
+          <div class="entity-tile ${isEnded ? 'ownership-ended' : ''}" onclick="assetsOpenPropertyDrawer('${esc(p.code)}')">
+            ${entityImgHtml('property', p.code, 'entity-tile__image')}
+            <div class="entity-tile__body">
+              <div class="entity-tile__title">${esc(p.code)} \u2013 ${esc(p.name || p.code)}</div>
+              <div class="entity-tile__subtitle">${esc((p.street || '') + ', ' + (p.postal_code || '') + ' ' + (p.city || ''))}</div>
+              <div class="entity-tile__data">
+                <span class="label">Baujahr</span><span class="value">${p.construction_year ?? '\u2014'}</span>
+                <span class="label">Heizart</span><span class="value">${htLabel}</span>
+                <span class="label">Energie</span><span class="value">${energy}</span>
+                <span class="label">Kaufpreis</span><span class="value">${kaufpreis}</span>
+                <span class="label">Verkehrswert</span><span class="value">${verkehrswert}</span>
+                <span class="label">Miete/Mo</span><span class="value">${miete}</span>
+                <span class="label">Miete/Jahr</span><span class="value">${mieteJahr}</span>
               </div>
-            </div>
-            <div class="property-card-meta">
-              <span class="label">Adresse</span>
-              <span>${esc((p.street || '') + ', ' + (p.postal_code || '') + ' ' + (p.city || ''))}</span>
-              <span class="label">Typ</span>
-              <span>${p.property_type === 'residential' ? 'Wohngebaeude' : p.property_type === 'commercial' ? 'Gewerbe' : esc(p.property_type || '–')}</span>
-              <span class="label">Eigentuemer</span>
-              <span>${p.owner === 'personal' ? 'Privat' : p.owner === 'laperlgmbh' ? 'Laperl GmbH' : esc(p.owner || '–')}</span>
-              <span class="label">Einheiten</span>
-              <span>${unitCount}</span>
-              ${isEnded ? '<span class="label">Eigentum bis</span><span>' + fmtDate(p.ownership_end) + '</span>' : ''}
-            </div>
             </div>
           </div>
         `;
@@ -252,6 +253,35 @@ async function assetsOpenPropertyDrawer(propertyCode) {
             <input class="form-input" type="number" min="1" max="12" id="pd-billing-month" value="${prop.billing_period_start_month || 1}">
           </div>
         </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Baujahr</label>
+            <input class="form-input" type="number" min="1800" max="2100" id="pd-construction-year" value="${prop.construction_year || ''}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Primaerenergiebedarf</label>
+            <div style="display:flex;align-items:center;gap:4px">
+              <input class="form-input" type="number" step="0.1" min="0" id="pd-energy" value="${prop.primary_energy_kwh_m2 || ''}" style="flex:1">
+              <span style="color:var(--muted);font-size:12px">kWh/m&sup2;</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Aktueller Verkehrswert</label>
+            <div style="display:flex;align-items:center;gap:4px">
+              <input class="form-input" type="number" step="0.01" min="0" id="pd-market-value" value="${prop.current_market_value || ''}" style="flex:1">
+              <span style="color:var(--muted);font-size:12px">EUR</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Mietsummen-Override</label>
+            <div style="display:flex;align-items:center;gap:4px">
+              <input class="form-input" type="number" step="0.01" min="0" id="pd-rent-override" value="${prop.monthly_rent_override || ''}" placeholder="leer = berechnet" style="flex:1">
+              <span style="color:var(--muted);font-size:12px">EUR</span>
+            </div>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-checkbox">
             <input type="checkbox" id="pd-co2" ${prop.co2_cost_relevant ? 'checked' : ''}>
@@ -355,6 +385,10 @@ async function assetsSaveProperty(propertyId) {
       heating_type: document.getElementById('pd-heating').value.trim() || null,
       billing_period_start_month: Number(document.getElementById('pd-billing-month').value) || 1,
       co2_cost_relevant: document.getElementById('pd-co2').checked,
+      construction_year: document.getElementById('pd-construction-year').value ? Number(document.getElementById('pd-construction-year').value) : null,
+      primary_energy_kwh_m2: document.getElementById('pd-energy').value ? Number(document.getElementById('pd-energy').value) : null,
+      current_market_value: document.getElementById('pd-market-value').value ? Number(document.getElementById('pd-market-value').value) : null,
+      monthly_rent_override: document.getElementById('pd-rent-override').value ? Number(document.getElementById('pd-rent-override').value) : null,
     };
     await approvalMutation('properties.update', 'PATCH', { property_id: propertyId }, body);
     closeDrawer();
