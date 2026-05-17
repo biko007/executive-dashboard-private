@@ -54,6 +54,18 @@ EINE Instanz `n8n-docker-postgres-1`, zwei DBs.
 
 Regel: `n8n_app` niemals GRANT auf `openclaw_core` geben. Smoke-Test prüft das.
 
+### Schema-Migration-Konvention (Sprint 11.5)
+
+Migrationen werden im Agent-Repo verwaltet (nicht im Dashboard). Zwei Patterns:
+
+1. **V-Prefix (`Vxxx__name.sql`):** One-Shot mit Daten-Import via `migrate-sprintX` / `migrate-vXXX`-Skripte (manuell).
+2. **0xx-Prefix (`0xx_name.sql`):** Boot-Time-DDL-only via `runMigrations()` (idempotent, automatisch).
+
+**DR-Pfad:** `pg_dump --format=custom` als Wahrheits-Quelle.
+
+**Drift-Detector:** Im Agent-Repo: `npm run verify-schema`. Exit 0 = clean.
+Sprint-Cut-Checkliste: Drift-Detector mit Exit 0 ist Pflicht vor jedem Release.
+
 ### Offene TODOs
 
 - ~~n8n-Postgres separat im Borg-Backup (Spec §15.4)~~ — erledigt 2026-05-11
