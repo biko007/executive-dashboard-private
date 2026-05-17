@@ -1594,6 +1594,7 @@ app.get('/api/sharepoint/sites', requireSession, proxyToCore);
 app.get('/api/sharepoint/drives/:siteId', requireSession, proxyToCore);
 app.get('/api/sharepoint/files/:siteId/:driveId', requireSession, proxyToCore);
 app.get('/api/sharepoint/search', requireSession, proxyToCore);
+app.get('/api/sharepoint/default-site', requireSession, proxyToCore);
 
 // Download stays in dashboard (proxies to pre-auth Graph URL)
 app.get('/api/sharepoint/download', auth, async (req, res) => {

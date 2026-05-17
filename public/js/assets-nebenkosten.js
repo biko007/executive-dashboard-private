@@ -40,7 +40,7 @@ document.addEventListener('alpine:init', () => {
 
     switchSection(s) {
       Alpine.store('nk').activeSubTab = s;
-      this.renderContent();
+      this.$nextTick(() => this.renderContent());
     },
 
     renderContent() {
@@ -174,7 +174,10 @@ function nkSelectProperty(code) {
   Alpine.store('nk').statements = [];
   Alpine.store('nk').obligations = [];
   const tabEl = document.querySelector('[x-data="nebenkostenTab"]');
-  if (tabEl) Alpine.$data(tabEl).renderContent();
+  if (tabEl) {
+    const comp = Alpine.$data(tabEl);
+    comp.$nextTick(() => comp.renderContent());
+  }
 }
 
 function nkSelectYear(year) {
@@ -185,7 +188,10 @@ function nkSelectYear(year) {
   Alpine.store('nk').selectedRun = null;
   Alpine.store('nk').statements = [];
   const tabEl = document.querySelector('[x-data="nebenkostenTab"]');
-  if (tabEl) Alpine.$data(tabEl).renderContent();
+  if (tabEl) {
+    const comp = Alpine.$data(tabEl);
+    comp.$nextTick(() => comp.renderContent());
+  }
 }
 
 // ── Pre-Check ────────────────────────────────────────────────────────────

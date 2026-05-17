@@ -1414,7 +1414,7 @@ async function loadSharePoint() {
 
     c.innerHTML = `
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
-        <button onclick="_spCurrentSiteId='bikolino.sharepoint.com,a932d186-4e5a-4970-802e-72cc898bc400,c304330a-e682-4f42-b5a1-2e34c1057084';spOpenDrive('b!htEyqVpOcEmALnLMiYvEAAozBMOC5kJPtaEuNMEFcIT6iCxQaA4ZSIK_SNkppk2W',null,'Dokumente')"
+        <button id="sp-default-btn" onclick="spLoadDefault()"
           style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s"
           onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">📂 Dokumente (bikolino GmbH)</button>
         <a href="https://bikolino.sharepoint.com/sites/dms/Freigegebene%20Dokumente" target="_blank" rel="noopener"
@@ -1431,6 +1431,34 @@ async function loadSharePoint() {
     renderSPSites(sites);
     stamp();
   } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+}
+
+async function spLoadDefault() {
+  const btn = document.getElementById('sp-default-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Lade...';
+  try {
+    const data = await apiFetch('/api/sharepoint/default-site');
+    _spCurrentSiteId = data.site_id;
+    spOpenDrive(data.drive_id, null, data.drive_name);
+  } catch (e) {
+    if (e.message?.includes('503') || e.message?.includes('no sharepoint')) {
+      btn.disabled = true;
+      btn.title = 'Keine SharePoint-Sites verfügbar';
+      btn.textContent = '📂 Keine Sites verfügbar';
+    } else {
+      btn.disabled = true;
+      btn.title = 'Site nicht ermittelbar — bitte Admin kontaktieren';
+      btn.textContent = '📂 Fehler';
+    }
+    return;
+  } finally {
+    if (!btn.disabled || btn.textContent === '⏳ Lade...') {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
 }
 
 function renderSPSites(sites) {

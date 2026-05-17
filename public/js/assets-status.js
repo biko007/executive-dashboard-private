@@ -41,7 +41,7 @@ document.addEventListener('alpine:init', () => {
 
     switchSection(s) {
       this.section = s;
-      this.renderContent();
+      this.$nextTick(() => this.renderContent());
     },
 
     renderContent() {
@@ -113,7 +113,7 @@ function statusSwitch(section) {
   if (tabEl) {
     const d = Alpine.$data(tabEl);
     d.section = section;
-    d.renderContent();
+    d.$nextTick(() => d.renderContent());
   }
 }
 
