@@ -39,6 +39,7 @@ const M365_TENANT_ID    = ENV.M365_TENANT_ID    || '';
 const M365_CLIENT_ID    = ENV.M365_CLIENT_ID    || '';
 const M365_CLIENT_SECRET= ENV.M365_CLIENT_SECRET|| '';
 const M365_USER         = ENV.M365_USER         || '';
+const INBOX_TOKEN       = ENV.INBOX_TOKEN       || '';
 
 // ── Postgres Pool (Sprint 3 — Instagram drafts) ─────────────────────────────
 const dbPool = ENV.POSTGRES_URL
@@ -957,34 +958,34 @@ app.delete('/api/instagram/raw/:id', auth, (req, res) => {
   }
 });
 
-// Upload file to raw session
-const rawStorage = multer.diskStorage({
-  destination(req, _file, cb) {
-    const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
-    const dest = path.join(RAW_DIR, id, 'original');
-    fs.mkdirSync(dest, { recursive: true });
-    cb(null, dest);
-  },
-  filename(_req, file, cb) {
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._\-äöüÄÖÜß ]/g, '_');
-    cb(null, safe);
-  },
-});
-const rawUpload = multer({ storage: rawStorage, limits: { fileSize: 100 * 1024 * 1024 } });
+// Upload file to raw session — proxied to Core inbox endpoint (E2c)
+const rawUploadMem = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
 
-app.post('/api/instagram/raw/:id/upload', auth, rawUpload.single('file'), (req, res) => {
+app.post('/api/instagram/raw/:id/upload', auth, rawUploadMem.single('file'), async (req, res) => {
   try {
     const id = req.params.id.replace(/[^a-z0-9\-_]/gi, '');
     const session = loadRawSession(id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-    const type = detectMediaType(req.file.originalname) || 'document';
-    const entry = { name: req.file.filename, size: req.file.size, type, addedAt: new Date().toISOString() };
-    session.files.push(entry);
-    saveRawSession(session);
-    res.status(201).json({ file: { name: req.file.filename, size: req.file.size, type } });
+    if (!INBOX_TOKEN) return res.status(500).json({ error: 'INBOX_TOKEN not configured' });
+
+    const formData = new FormData();
+    formData.append('session_id', id);
+    formData.append('source', 'dashboard');
+    formData.append('files', new Blob([req.file.buffer], { type: req.file.mimetype }), req.file.originalname);
+
+    const coreRes = await fetch(`${CORE_BASE}/api/instagram/inbox`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${INBOX_TOKEN}` },
+      body: formData,
+      signal: AbortSignal.timeout(120_000),
+    });
+
+    const coreBody = await coreRes.json();
+    res.status(coreRes.status).json(coreBody);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error(`[dashboard] Inbox proxy error: ${e.message}`);
+    res.status(502).json({ error: 'Core inbox unavailable', detail: e.message });
   }
 });
 
@@ -2183,6 +2184,7 @@ try {
 app.listen(PORT, BIND, () => {
   const configured = DASHBOARD_TOKEN ? '✓ token configured' : '⚠ DASHBOARD_TOKEN missing!';
   const coreConfigured = CORE_SERVICE_TOKEN ? '✓ core token' : '⚠ CORE_SERVICE_TOKEN missing!';
-  console.log(`[dashboard] http://${BIND}:${PORT}  ${configured}  ${coreConfigured}`);
+  const inboxConfigured = INBOX_TOKEN ? '✓ inbox token' : '⚠ INBOX_TOKEN missing!';
+  console.log(`[dashboard] http://${BIND}:${PORT}  ${configured}  ${coreConfigured}  ${inboxConfigured}`);
   console.log('[dashboard] public via nginx: https://<server-ip>:8443/dashboard/');
 });
