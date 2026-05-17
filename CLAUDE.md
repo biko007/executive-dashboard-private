@@ -1,10 +1,10 @@
 # Executive Dashboard — CLAUDE.md
 
-**Stand: 2026-05-16**
+**Stand: 2026-05-17**
 
-## Stand 2026-05-16
+## Stand 2026-05-17
 
-Sprint 1 + 2 + 3 + 4 + 5 (5.5a + 5.5b + 5.5c) + 10 vollständig abgeschlossen.
+Sprint 1 + 2 + 3 + 4 + 5 (5.5a + 5.5b + 5.5c) + 10 + 11 vollständig abgeschlossen.
 
 - **Sprint 1 (Plattform-Hardening):** nginx konsolidiert, n8n gehärtet, Audit-Log-Infra,
   Borg-Backup auf Hetzner Storage Box (daily/weekly/monthly + Restore-Drill),
@@ -33,6 +33,9 @@ Sprint 1 + 2 + 3 + 4 + 5 (5.5a + 5.5b + 5.5c) + 10 vollständig abgeschlossen.
   Daten kommen jetzt aus Postgres via Core-API statt direkt aus Graph.
   Download-Route unverändert (pre-auth Graph URL). Upload-Route erweitert:
   nach erfolgreichem Graph-Upload POST an Core `/api/sharepoint/upsert-uploaded`.
+- **Sprint 11 (Closure + Housekeeping):** SP default-site backend-resolved (Sprint 11.4).
+  Neuer Proxy-Route `POST /api/sharepoint/cleanup-missing` (Sprint 11.6).
+  Settings-Modul: Postgres-backed `system_settings` (Sprint 11.3).
 
 ### Agent-Module (11)
 
@@ -76,6 +79,7 @@ Sprint-Cut-Checkliste: Drift-Detector mit Exit 0 ist Pflicht vor jedem Release.
 - ~~Sprint 5.5a+b Assets + NK-Engine~~ — erledigt 2026-05-13
 - ~~Sprint 5.5c NK-UI-Tab V1.0~~ — erledigt 2026-05-14
 - ~~Sprint 10 SharePoint Proxy-Pattern~~ — erledigt 2026-05-16
+- ~~Sprint 11 Closure + Housekeeping~~ — erledigt 2026-05-17
 - Optional: Meta-Token rotieren (User-Entscheidung)
 
 ### Lessons
@@ -144,6 +148,8 @@ GET       /api/sharepoint/sites        → proxyToCore (Sprint 10)
 GET       /api/sharepoint/drives/:id   → proxyToCore (Sprint 10)
 GET       /api/sharepoint/files/:s/:d  → proxyToCore (Sprint 10)
 GET       /api/sharepoint/search?q=    → proxyToCore (Sprint 10)
+GET       /api/sharepoint/default-site  → proxyToCore (Sprint 11.4)
+POST      /api/sharepoint/cleanup-missing → proxyToCore (Sprint 11.6)
 GET       /api/sharepoint/download     → Graph pre-auth URL (direct)
 POST      /api/sharepoint/upload       → Graph + Core upsert-uploaded
 ```
