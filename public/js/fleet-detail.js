@@ -112,6 +112,8 @@ document.addEventListener('alpine:init', () => {
       if (v.plate) html += '<tr><td style="color:var(--muted)">Kennzeichen</td><td><span class="badge badge-blue">' + esc(v.plate) + '</span></td></tr>';
       if (v.vin) html += '<tr><td style="color:var(--muted)">FIN</td><td style="font-family:monospace">' + esc(v.vin) + '</td></tr>';
       if (v.color) html += '<tr><td style="color:var(--muted)">Farbe</td><td>' + esc(v.color) + '</td></tr>';
+      const _fuelLabels = {gasoline:'Benzin',diesel:'Diesel',electric:'Elektro',hybrid:'Hybrid',plugin_hybrid:'Plug-in-Hybrid',lpg:'LPG',cng:'CNG',hydrogen:'Wasserstoff'};
+      if (v.fuelType) html += '<tr><td style="color:var(--muted)">Kraftstoff</td><td>' + esc(_fuelLabels[v.fuelType] || v.fuelType) + '</td></tr>';
       html += '<tr><td style="color:var(--muted)">km-Stand</td><td>' + km + '</td></tr>';
       if (v.holder) html += '<tr><td style="color:var(--muted)">Halter</td><td>' + esc(v.holder) + '</td></tr>';
       if (v.purchasePrice != null) html += '<tr><td style="color:var(--muted)">Kaufpreis</td><td>' + Number(v.purchasePrice).toLocaleString('de-DE') + ' &euro;</td></tr>';
@@ -541,6 +543,18 @@ function fleetEditStammdaten(code) {
     + '<input id="fev-price" type="number" min="0" step="100" value="' + (v.purchasePrice ?? '') + '">'
     + '<label>Farbe</label>'
     + '<input id="fev-color" value="' + esc(v.color || '') + '">'
+    + '<label>Kraftstoff</label>'
+    + '<select id="fev-fuel">'
+    + '<option value="">— (nicht angegeben)</option>'
+    + '<option value="gasoline"' + (v.fuelType === 'gasoline' ? ' selected' : '') + '>Benzin</option>'
+    + '<option value="diesel"' + (v.fuelType === 'diesel' ? ' selected' : '') + '>Diesel</option>'
+    + '<option value="electric"' + (v.fuelType === 'electric' ? ' selected' : '') + '>Elektro</option>'
+    + '<option value="hybrid"' + (v.fuelType === 'hybrid' ? ' selected' : '') + '>Hybrid</option>'
+    + '<option value="plugin_hybrid"' + (v.fuelType === 'plugin_hybrid' ? ' selected' : '') + '>Plug-in-Hybrid</option>'
+    + '<option value="lpg"' + (v.fuelType === 'lpg' ? ' selected' : '') + '>LPG</option>'
+    + '<option value="cng"' + (v.fuelType === 'cng' ? ' selected' : '') + '>CNG</option>'
+    + '<option value="hydrogen"' + (v.fuelType === 'hydrogen' ? ' selected' : '') + '>Wasserstoff</option>'
+    + '</select>'
     + '<label>Notizen</label>'
     + '<input id="fev-notes" value="' + esc(v.notes || '') + '">'
     + '<div class="modal-actions">'
@@ -565,6 +579,7 @@ async function fleetSaveStammdaten(originalCode) {
   const km = document.getElementById('fev-km').value;
   const price = document.getElementById('fev-price').value;
   const color = document.getElementById('fev-color').value.trim();
+  const fuel = document.getElementById('fev-fuel').value;
   const notes = document.getElementById('fev-notes').value.trim();
 
   const body = {};
@@ -573,6 +588,7 @@ async function fleetSaveStammdaten(originalCode) {
   if (model !== (v.model || '')) body.model = model;
   if (holder !== (v.holder || '')) body.holder = holder;
   if (color !== (v.color || '')) body.color = color;
+  if (fuel !== (v.fuelType || '')) body.fuel_type = fuel || null;
   if (notes !== (v.notes || '')) body.notes = notes;
   if (km !== '' && Number(km) !== v.mileage) body.current_mileage_km = Number(km);
   if (km === '' && v.mileage != null) body.current_mileage_km = null;

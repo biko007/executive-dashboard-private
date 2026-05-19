@@ -401,7 +401,7 @@ function resizeImageBlob(file, maxW, maxH, quality) {
 async function uploadImage(input, entityType, entityId) {
   const file = input.files[0];
   if (!file) return;
-  const wrap = input.closest('.entity-img-wrap, .detail-img-wrap');
+  const wrap = input.closest('.entity-img-wrap, .detail-img-wrap, .entity-tile__image');
   const placeholder = wrap.querySelector('.img-placeholder');
   if (placeholder) { placeholder.textContent = '⏳'; placeholder.style.display = 'flex'; }
   const imgEl = wrap.querySelector('img');

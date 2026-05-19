@@ -157,25 +157,39 @@ document.addEventListener('alpine:init', () => {
         el.innerHTML = '<div class="empty">Keine Fahrzeuge gefunden.</div>';
         return;
       }
-      const rows = this.vehicles.map(v => {
-        const img = entityImgHtml('fleet', v.vehicleCode || v.id, 'entity-img-sm');
-        const plate = v.plate ? '<span class="badge badge-blue">' + esc(v.plate) + '</span>' : '';
-        const km = v.mileage != null ? Number(v.mileage).toLocaleString('de-DE') + ' km' : '&ndash;';
-        const t = fleetTuevInfo(v.tuevDate);
+
+      const _fuelMap = {gasoline:'Benzin',diesel:'Diesel',electric:'Elektro',hybrid:'Hybrid',plugin_hybrid:'Plug-in-Hybrid',lpg:'LPG',cng:'CNG',hydrogen:'Wasserstoff'};
+      const _kmFmt = new Intl.NumberFormat('de-DE');
+      const _eurFmt = new Intl.NumberFormat('de-DE', {style:'currency',currency:'EUR',maximumFractionDigits:0});
+
+      let html = '<div class="entity-grid">';
+      for (const v of this.vehicles) {
         const code = esc(v.vehicleCode || v.id);
-        const archived = v.status === 'archived' ? ' <span class="badge badge-muted">archiviert</span>' : '';
-        return '<tr onclick="document.querySelector(\'[x-data=fleetRoot]\')._x_dataStack[0].openDetail(\'' + code + '\')" style="cursor:pointer">'
-          + '<td>' + img + '</td>'
-          + '<td><strong>' + esc(v.name || (v.make + ' ' + v.model)) + '</strong>' + archived + '</td>'
-          + '<td>' + plate + '</td>'
-          + '<td>' + esc(v.make) + ' ' + esc(v.model) + '</td>'
-          + '<td>' + km + '</td>'
-          + '<td><span class="' + t.cls + '">' + esc(t.text) + '</span></td>'
-          + '</tr>';
-      }).join('');
-      el.innerHTML = '<table class="assets-table">'
-        + '<thead><tr><th></th><th>Fahrzeug</th><th>Kennzeichen</th><th>Hersteller / Modell</th><th>km-Stand</th><th>TUeV</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody></table>';
+        const isArchived = v.status === 'archived';
+        const t = fleetTuevInfo(v.tuevNextDueDate || v.tuevDate);
+        const fuelLabel = _fuelMap[v.fuelType] || (v.fuelType ? esc(v.fuelType) : '\u2014');
+        const km = v.mileage != null ? _kmFmt.format(v.mileage) + ' km' : '\u2014';
+        const tuevVal = (v.tuevNextDueDate || v.tuevDate) ? '<span class="' + t.cls + '">' + esc(t.text) + '</span>' : '\u2014';
+        const ins = v.activeInsurancePremium != null ? _eurFmt.format(v.activeInsurancePremium) : '\u2014';
+        const tax = v.currentYearTaxAmount != null ? _eurFmt.format(v.currentYearTaxAmount) : '\u2014';
+        const subtitle = (v.plate ? esc(v.plate) + ' \u00B7 ' : '') + code;
+
+        html += '<div class="entity-tile' + (isArchived ? ' ownership-ended' : '') + '" onclick="document.querySelector(\'[x-data=fleetRoot]\')._x_dataStack[0].openDetail(\'' + code + '\')">';
+        html += entityImgHtml('fleet', v.vehicleCode || v.id, 'entity-tile__image');
+        html += '<div class="entity-tile__body">';
+        html += '<div class="entity-tile__title">' + esc(v.name || (v.make + ' ' + v.model)) + '</div>';
+        html += '<div class="entity-tile__subtitle">' + subtitle + '</div>';
+        html += '<div class="entity-tile__data">';
+        html += '<span class="label">Erstzulassung</span><span class="value">' + (v.year || '\u2014') + '</span>';
+        html += '<span class="label">Kraftstoff</span><span class="value">' + fuelLabel + '</span>';
+        html += '<span class="label">KM-Stand</span><span class="value">' + km + '</span>';
+        html += '<span class="label">TUeV bis</span><span class="value">' + tuevVal + '</span>';
+        html += '<span class="label">Versicherung/J</span><span class="value">' + ins + '</span>';
+        html += '<span class="label">Kfz-Steuer/J</span><span class="value">' + tax + '</span>';
+        html += '</div></div></div>';
+      }
+      html += '</div>';
+      el.innerHTML = html;
     },
   }));
 });
