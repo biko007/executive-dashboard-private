@@ -1690,6 +1690,7 @@ app.delete('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 // Reads pass through with session only. Mutations (connect, complete-tan) require session + CSRF.
 app.get('/api/banking/*', requireSession, proxyToCore);
 app.post('/api/banking/*', requireSession, requireCsrf, proxyToCore);
+app.delete('/api/banking/*', requireSession, requireCsrf, proxyToCore);
 
 // ── API: Fleet (Legacy — File-based, disabled by Sprint 6 proxy above) ───────
 

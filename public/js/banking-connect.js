@@ -84,17 +84,35 @@ function bankingConnectFormHtml() {
       <!-- Result States -->
       <template x-if="connectResult">
         <div>
-          <!-- pending_tan_decoupled (pushTAN) -->
+          <!-- pending_tan_decoupled (pushTAN) — Dashboard-native flow (Sprint 2.9) -->
           <template x-if="connectResult.status === 'tan_required' && connectResult.challengeType === 'pushTAN'">
             <div>
-              <div class="alert alert-info" style="margin-bottom:12px">
-                Push auf S-pushTAN App bestätigen.<br>
-                Danach im Telegram-Bot <code>/tan ok</code> tippen.<br><br>
-                Diese Seite kann geschlossen werden.
-              </div>
-              <div x-show="connectResult.message" style="color:var(--muted);font-size:13px;margin-bottom:12px"
-                   x-text="connectResult.message"></div>
-              <button class="btn btn-ghost" @click="resetForm()">Neue Verbindung</button>
+              <template x-if="!pushTanTimedOut">
+                <div>
+                  <div class="alert alert-info" style="margin-bottom:12px">
+                    Bitte Freigabe in der S-pushTAN App bestaetigen.
+                  </div>
+                  <div x-show="connectResult.message" style="color:var(--muted);font-size:13px;margin-bottom:12px"
+                       x-text="connectResult.message"></div>
+                  <div x-show="pushTanRetryMsg" class="alert alert-warning" style="margin-bottom:12px"
+                       x-text="pushTanRetryMsg"></div>
+                  <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+                    <button type="button" class="btn btn-ghost" @click="cancelPushTan()" :disabled="connectInProgress">Abbrechen</button>
+                    <button type="button" class="btn btn-primary" @click="confirmPushTan()" :disabled="connectInProgress">
+                      <span x-show="!connectInProgress">TAN bestaetigen</span>
+                      <span x-show="connectInProgress">Pruefe…</span>
+                    </button>
+                  </div>
+                </div>
+              </template>
+              <template x-if="pushTanTimedOut">
+                <div>
+                  <div class="alert alert-warning" style="margin-bottom:12px">
+                    Keine Reaktion. Bitte Bankvorgang erneut starten.
+                  </div>
+                  <button class="btn btn-ghost" @click="resetForm()">Erneut versuchen</button>
+                </div>
+              </template>
             </div>
           </template>
 
@@ -258,6 +276,13 @@ document.addEventListener('alpine:init', () => {
     tanSubmitting: false,
     tanError: null,
 
+    // pushTAN decoupled state (Sprint 2.9)
+    sessionId: null,
+    connectInProgress: false,
+    pushTanTimeoutId: null,
+    pushTanTimedOut: false,
+    pushTanRetryMsg: null,
+
     async init() {
       // Fetch CSRF token
       await Alpine.store('csrf').refresh();
@@ -296,6 +321,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     resetForm() {
+      this.clearPushTanTimeout();
       this.userId = '';
       this.pin = '';
       this.tanMedium = 'pushTAN1';
@@ -305,6 +331,17 @@ document.addEventListener('alpine:init', () => {
       this.tanCode = '';
       this.tanSubmitting = false;
       this.tanError = null;
+      this.sessionId = null;
+      this.connectInProgress = false;
+      this.pushTanTimedOut = false;
+      this.pushTanRetryMsg = null;
+    },
+
+    clearPushTanTimeout() {
+      if (this.pushTanTimeoutId) {
+        clearTimeout(this.pushTanTimeoutId);
+        this.pushTanTimeoutId = null;
+      }
     },
 
     async submitConnect() {
@@ -340,11 +377,28 @@ document.addEventListener('alpine:init', () => {
           return;
         }
 
+        // Store session_id for complete-tan + cancel (Sprint 2.9)
+        if (result && result.session_id) {
+          this.sessionId = result.session_id;
+        }
+
         // Handle sidecar 501 (returned as error from proxy)
         if (result.status === 'error' && result.error && result.error.includes('501')) {
           this.connectResult = { status: 'sidecar_unavailable' };
         } else {
           this.connectResult = result;
+        }
+
+        // Start 120s timeout for pushTAN decoupled flow (Sprint 2.9)
+        if (this.connectResult.status === 'tan_required' && this.connectResult.challengeType === 'pushTAN') {
+          this.pushTanTimeoutId = setTimeout(() => {
+            this.pushTanTimedOut = true;
+            // fire-and-forget cancel parked sidecar session
+            const csrf = Alpine.store('csrf');
+            if (this.sessionId) {
+              csrf.fetch(`/api/banking/session/${this.sessionId}`, { method: 'DELETE' }).catch(() => {});
+            }
+          }, 120_000);
         }
 
         // Auto-redirect on success
@@ -371,6 +425,71 @@ document.addEventListener('alpine:init', () => {
         }
       }
       this.submitting = false;
+    },
+
+    async confirmPushTan() {
+      if (this.connectInProgress || !this.sessionId) return;
+      this.connectInProgress = true;
+      this.pushTanRetryMsg = null;
+
+      const csrf = Alpine.store('csrf');
+      try {
+        const res = await csrf.fetch('/api/banking/complete-tan', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.sessionId,
+            tan: '',
+          }),
+        });
+
+        if (!res.ok) {
+          this.pushTanRetryMsg = 'Pruefung fehlgeschlagen. Bitte erneut versuchen.';
+          this.connectInProgress = false;
+          return;
+        }
+
+        const result = await res.json();
+
+        if (result.status === 'tan_required') {
+          // 3956: not yet confirmed — user can retry
+          this.pushTanRetryMsg = 'Noch nicht bestaetigt. Bitte zuerst in der App freigeben.';
+          // Update connectResult with fresh state for next attempt
+          this.connectResult = result;
+          this.connectInProgress = false;
+          return;
+        }
+
+        if (result.status === 'connected') {
+          this.clearPushTanTimeout();
+          this.connectResult = result;
+          Alpine.store('toast').success('Verbindung erfolgreich!');
+          setTimeout(() => {
+            this.view = 'overview';
+            this.resetForm();
+            this.loadOverview();
+          }, 2000);
+          this.connectInProgress = false;
+          return;
+        }
+
+        if (result.status === 'error') {
+          this.pushTanRetryMsg = result.error || 'Fehler bei der TAN-Pruefung.';
+        }
+      } catch (e) {
+        this.pushTanRetryMsg = 'Verbindungsfehler. Bitte erneut versuchen.';
+      }
+      this.connectInProgress = false;
+    },
+
+    cancelPushTan() {
+      this.clearPushTanTimeout();
+      // fire-and-forget cancel parked sidecar session
+      const csrf = Alpine.store('csrf');
+      if (this.sessionId) {
+        csrf.fetch(`/api/banking/session/${this.sessionId}`, { method: 'DELETE' }).catch(() => {});
+      }
+      this.resetForm();
     },
 
     async submitTan() {
