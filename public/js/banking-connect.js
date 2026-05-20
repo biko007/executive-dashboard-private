@@ -228,14 +228,11 @@ function bankingOverviewHtml() {
                     <div style="margin-top:8px">
                       <template x-for="acct in accountsForInst(inst.id)" :key="acct.id">
                         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-                          <span>
-                            <span x-text="acct.displayName"></span>
-                            <span style="color:var(--muted)" x-text="'(…' + acct.iban.slice(-4) + ')'"></span>
-                          </span>
+                          <span x-text="formatIban(acct.iban)"></span>
                           <span style="display:flex;align-items:center;gap:8px">
                             <span x-show="acct.currentBalance != null"
                                   :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
-                                  x-text="Number(acct.currentBalance).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' ' + acct.currency">
+                                  x-text="formatBalance(acct.currentBalance, acct.currency)">
                             </span>
                             <button class="btn btn-danger" style="font-size:11px;padding:3px 8px"
                                     @click="archiveSingle(acct.id)"
@@ -319,6 +316,15 @@ document.addEventListener('alpine:init', () => {
 
     accountsForInst(instId) {
       return this.accounts.filter(a => a.institutionId === instId && a.status === 'active');
+    },
+
+    formatIban(iban) {
+      return iban ? iban.match(/.{1,4}/g).join(' ') : '';
+    },
+
+    formatBalance(balance, currency) {
+      if (balance == null) return '';
+      return Number(balance).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (currency || '');
     },
 
     async archiveSingle(accountId) {
