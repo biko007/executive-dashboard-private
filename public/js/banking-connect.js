@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Banking Connect — Alpine.js form + ENDPOINT_MAP extension
-   Sprint 7b Etappe d.1 + Sprint 2.10-B Etappe c (Archive UI)
+   Sprint 7b Etappe d.1
 
    Hard rules:
      - PIN NEVER in URL, localStorage, sessionStorage, or error messages
@@ -12,13 +12,11 @@
 // ── ENDPOINT_MAP Extension for Banking ──────────────────────────────────────
 
 Object.assign(ENDPOINT_MAP, {
-  'banking.institutions.list':     () => '/api/banking/institutions',
-  'banking.accounts.list':         () => '/api/banking/accounts',
-  'banking-connect.initiate':      () => '/api/banking/connect',
-  'banking-complete-tan':          () => '/api/banking/complete-tan',
-  'banking.approval-preview':      () => '/api/banking/approval-preview',
-  'banking-accounts.archive':      (p) => `/api/banking/accounts/${p.account_id}/archive`,
-  'banking-accounts.bulk-archive': ()  => '/api/banking/accounts/bulk-archive',
+  'banking.institutions.list':   () => '/api/banking/institutions',
+  'banking.accounts.list':       () => '/api/banking/accounts',
+  'banking-connect.initiate':    () => '/api/banking/connect',
+  'banking-complete-tan':        () => '/api/banking/complete-tan',
+  'banking.approval-preview':    () => '/api/banking/approval-preview',
 });
 
 // ── Banking Approval Mutation Helper ────────────────────────────────────────
@@ -189,25 +187,11 @@ function bankingConnectFormHtml() {
 
 function bankingOverviewHtml() {
   return `
-    <style>
-      .iban-full { display: inline; }
-      .iban-short { display: none; }
-      @media (max-width: 680px) {
-        .iban-full { display: none; }
-        .iban-short { display: inline; }
-      }
-    </style>
     <div>
       <div class="filters-row" style="margin-bottom:16px">
         <h2 style="margin:0;font-size:18px">Banking</h2>
         <div style="flex:1"></div>
-        <button class="btn" :class="bulkMode ? 'btn-primary' : ''"
-                @click="toggleBulkMode()"
-                x-show="accounts.filter(a => a.status === 'active').length > 1">
-          <span x-show="!bulkMode">Mehrere auswaehlen</span>
-          <span x-show="bulkMode">Auswahl beenden</span>
-        </button>
-        <button class="btn btn-primary" @click="showConnectForm()" x-show="!bulkMode">+ Bank verbinden</button>
+        <button class="btn btn-primary" @click="showConnectForm()">+ Bank verbinden</button>
       </div>
 
       <template x-if="bankingLoading">
@@ -223,7 +207,7 @@ function bankingOverviewHtml() {
           <!-- Institutions + Accounts -->
           <template x-if="institutions.length === 0 && accounts.length === 0">
             <div class="empty" style="text-align:center;padding:40px">
-              <div style="font-size:48px;margin-bottom:12px">&#x1F3E6;</div>
+              <div style="font-size:48px;margin-bottom:12px">🏦</div>
               <p style="color:var(--muted)">Noch keine Bankverbindung eingerichtet.</p>
               <button class="btn btn-primary" style="margin-top:12px" @click="showConnectForm()">Bank verbinden</button>
             </div>
@@ -242,31 +226,15 @@ function bankingOverviewHtml() {
                   <template x-if="accountsForInst(inst.id).length > 0">
                     <div style="margin-top:8px">
                       <template x-for="acct in accountsForInst(inst.id)" :key="acct.id">
-                        <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-                          <!-- Checkbox (bulk mode only, OPT-IN) -->
-                          <input type="checkbox" x-show="bulkMode"
-                                 :checked="isSelected(acct.id)"
-                                 @change="toggleSelection(acct.id)"
-                                 style="width:16px;height:16px;cursor:pointer;flex-shrink:0">
-
-                          <!-- Account info -->
-                          <span style="flex:1;min-width:0">
+                        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
+                          <span>
                             <span x-text="acct.displayName"></span>
-                            <span class="iban-full" style="color:var(--muted)" x-text="'(' + ibanFull(acct.iban) + ')'"></span>
-                            <span class="iban-short" style="color:var(--muted)" x-text="'(' + ibanShort(acct.iban) + ')'"></span>
+                            <span style="color:var(--muted)" x-text="'(…' + acct.iban.slice(-4) + ')'"></span>
                           </span>
-
-                          <!-- Balance -->
-                          <span x-show="acct.currentBalance != null" style="white-space:nowrap"
+                          <span x-show="acct.currentBalance != null"
                                 :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
                                 x-text="Number(acct.currentBalance).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' ' + acct.currency">
                           </span>
-
-                          <!-- Archive button (single mode only) -->
-                          <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;flex-shrink:0"
-                                  x-show="!bulkMode"
-                                  @click="archiveSingle(acct.id)"
-                                  title="Konto archivieren">&#x1F4E6;</button>
                         </div>
                       </template>
                     </div>
@@ -276,61 +244,8 @@ function bankingOverviewHtml() {
                   </template>
                 </div>
               </template>
-
-              <!-- Bulk action bar -->
-              <div x-show="bulkMode && selectedIds.length > 0"
-                   style="display:flex;align-items:center;justify-content:space-between;
-                          position:sticky;bottom:0;background:var(--surface);
-                          border-top:1px solid var(--border);padding:12px;margin-top:8px;
-                          border-radius:0 0 8px 8px;z-index:10">
-                <span style="font-size:13px;color:var(--muted)"
-                      x-text="selectedIds.length + ' Konto(en) ausgewaehlt'"></span>
-                <button class="btn btn-danger" @click="startBulkArchive()"
-                        x-text="selectedIds.length + ' Konten archivieren'"></button>
-              </div>
             </div>
           </template>
-        </div>
-      </template>
-
-      <!-- Bulk archive confirm modal -->
-      <template x-if="bulkConfirmVisible">
-        <div class="modal-overlay" @click.self="cancelBulkArchive()" @keydown.escape.window="cancelBulkArchive()" style="z-index:200">
-          <div class="modal" style="max-width:540px">
-            <h3 style="margin-bottom:12px"
-                x-text="bulkConfirmAccounts.length + ' Konten archivieren'"></h3>
-
-            <div class="approval-banner">
-              Transaktionen und Umsaetze bleiben erhalten.
-            </div>
-
-            <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px 16px;margin-bottom:12px;max-height:300px;overflow-y:auto;font-size:13px">
-              <template x-for="(accounts, instName) in selectedAccountsGrouped()" :key="instName">
-                <div style="margin-bottom:8px">
-                  <div style="font-weight:600;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px"
-                       x-text="instName"></div>
-                  <template x-for="acct in accounts" :key="acct.id">
-                    <div style="padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-                      <span x-text="acct.displayName"></span>
-                      <span style="color:var(--muted);margin-left:4px">
-                        <span class="iban-full" x-text="acct.iban"></span>
-                        <span class="iban-short" x-text="ibanShort(acct.iban)"></span>
-                      </span>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-
-            <div class="approval-timer" x-text="'Gueltig: ' + bulkTimerText"></div>
-            <div class="approval-actions">
-              <button class="btn" @click="cancelBulkArchive()">Abbrechen</button>
-              <button class="btn btn-danger" @click="confirmBulkArchive()" :disabled="bulkArchiving">
-                <span x-show="!bulkArchiving" x-text="'Archivieren (' + bulkConfirmAccounts.length + ')'"></span>
-                <span x-show="bulkArchiving">Archiviere…</span>
-              </button>
-            </div>
-          </div>
         </div>
       </template>
     </div>`;
@@ -368,17 +283,6 @@ document.addEventListener('alpine:init', () => {
     pushTanTimedOut: false,
     pushTanRetryMsg: null,
 
-    // Archive UI state (Sprint 2.10-B Etappe c)
-    bulkMode: false,
-    selectedIds: [],
-    bulkConfirmVisible: false,
-    bulkConfirmToken: null,
-    bulkConfirmExpiresAt: null,
-    bulkConfirmAccounts: [],
-    bulkArchiving: false,
-    bulkTimerText: '',
-    _bulkTimerInterval: null,
-
     async init() {
       // Fetch CSRF token
       await Alpine.store('csrf').refresh();
@@ -410,209 +314,6 @@ document.addEventListener('alpine:init', () => {
     accountsForInst(instId) {
       return this.accounts.filter(a => a.institutionId === instId && a.status === 'active');
     },
-
-    // ── IBAN display helpers ──────────────────────────────────────────────
-
-    ibanFull(iban) {
-      return iban || '';
-    },
-
-    ibanShort(iban) {
-      if (!iban || iban.length < 8) return iban || '';
-      return iban.slice(0, 4) + ' \u2026 ' + iban.slice(-4);
-    },
-
-    // ── Single archive ────────────────────────────────────────────────────
-
-    async archiveSingle(accountId) {
-      try {
-        const result = await bankingApprovalMutation(
-          'banking-accounts.archive', 'POST',
-          { account_id: accountId },
-          {}
-        );
-        if (result !== false) {
-          await this.loadOverview();
-        }
-      } catch {}
-    },
-
-    // ── Bulk archive ──────────────────────────────────────────────────────
-
-    toggleBulkMode() {
-      this.bulkMode = !this.bulkMode;
-      this.selectedIds = [];
-    },
-
-    toggleSelection(id) {
-      const idx = this.selectedIds.indexOf(id);
-      if (idx === -1) {
-        this.selectedIds.push(id);
-      } else {
-        this.selectedIds.splice(idx, 1);
-      }
-    },
-
-    isSelected(id) {
-      return this.selectedIds.includes(id);
-    },
-
-    async startBulkArchive() {
-      if (this.selectedIds.length === 0) return;
-
-      // Sort + dedup (backend requirement for canonical hash match)
-      const sortedIds = [...new Set(this.selectedIds)].sort((a, b) => a - b);
-
-      // Cross-institution check (frontend guard — backend also validates)
-      const selectedInstitutions = new Set(
-        sortedIds.map(id => {
-          const acct = this.accounts.find(a => a.id === id);
-          return acct ? acct.institutionId : null;
-        }).filter(Boolean)
-      );
-      if (selectedInstitutions.size > 1) {
-        Alpine.store('toast').error('Bulk-Archive nur innerhalb derselben Bank moeglich.');
-        return;
-      }
-
-      const body = { account_ids: sortedIds };
-
-      // Enrich account list for modal display
-      const enriched = sortedIds.map(id => {
-        const acct = this.accounts.find(a => a.id === id);
-        const inst = acct ? this.institutions.find(i => i.id === acct.institutionId) : null;
-        return {
-          id,
-          displayName: acct ? acct.displayName : 'ID ' + id,
-          iban: acct ? acct.iban : '',
-          institutionName: inst ? inst.name : '',
-        };
-      });
-
-      // Call preview to get approval token
-      const csrf = Alpine.store('csrf');
-      try {
-        const previewRes = await csrf.fetch('/api/banking/approval-preview', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            endpoint_key: 'banking-accounts.bulk-archive',
-            http_method: 'POST',
-            method: 'POST',
-            path_params: {},
-            body: body,
-          }),
-        });
-
-        if (!previewRes.ok) {
-          const err = await previewRes.json().catch(() => ({}));
-          Alpine.store('toast').error('Vorschau fehlgeschlagen: ' + (err.error || 'Fehler'));
-          return;
-        }
-
-        const preview = await previewRes.json();
-        this.bulkConfirmToken = preview.token;
-        this.bulkConfirmExpiresAt = preview.expires_at;
-        this.bulkConfirmAccounts = enriched;
-        this.bulkConfirmVisible = true;
-        this._startBulkTimer();
-      } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
-      }
-    },
-
-    async confirmBulkArchive() {
-      if (this.bulkArchiving) return;
-      this.bulkArchiving = true;
-
-      const sortedIds = this.bulkConfirmAccounts.map(a => a.id).sort((a, b) => a - b);
-      const body = { account_ids: sortedIds };
-
-      const csrf = Alpine.store('csrf');
-      try {
-        const res = await csrf.fetch('/api/banking/accounts/bulk-archive', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Approval-Token': this.bulkConfirmToken,
-          },
-          body: JSON.stringify(body),
-        });
-
-        if (res.status === 410) {
-          Alpine.store('toast').error('Genehmigung abgelaufen. Bitte neu pruefen.');
-          this.cancelBulkArchive();
-          this.bulkArchiving = false;
-          return;
-        }
-
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error || 'HTTP ' + res.status);
-        }
-
-        const result = await res.json();
-        const archived = result.archived || [];
-        const skipped = result.skipped || [];
-
-        if (skipped.length > 0) {
-          Alpine.store('toast').success(
-            archived.length + ' archiviert, ' + skipped.length + ' uebersprungen (bereits archiviert oder nicht gefunden)'
-          );
-        } else {
-          Alpine.store('toast').success(archived.length + ' Konten archiviert');
-        }
-
-        // Cleanup state
-        this.cancelBulkArchive();
-        this.selectedIds = [];
-        this.bulkMode = false;
-        await this.loadOverview();
-      } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
-      }
-      this.bulkArchiving = false;
-    },
-
-    cancelBulkArchive() {
-      this.bulkConfirmVisible = false;
-      this.bulkConfirmToken = null;
-      this.bulkConfirmExpiresAt = null;
-      this.bulkConfirmAccounts = [];
-      if (this._bulkTimerInterval) {
-        clearInterval(this._bulkTimerInterval);
-        this._bulkTimerInterval = null;
-      }
-      this.bulkTimerText = '';
-    },
-
-    _startBulkTimer() {
-      if (this._bulkTimerInterval) clearInterval(this._bulkTimerInterval);
-      this._bulkTimerInterval = setInterval(() => {
-        if (!this.bulkConfirmExpiresAt) return;
-        const remaining = Math.max(0, Math.floor((new Date(this.bulkConfirmExpiresAt) - Date.now()) / 1000));
-        if (remaining <= 0) {
-          this.bulkTimerText = 'Abgelaufen';
-          clearInterval(this._bulkTimerInterval);
-          return;
-        }
-        const m = Math.floor(remaining / 60);
-        const s = remaining % 60;
-        this.bulkTimerText = m + ':' + String(s).padStart(2, '0');
-      }, 1000);
-    },
-
-    selectedAccountsGrouped() {
-      const groups = {};
-      for (const acct of this.bulkConfirmAccounts) {
-        const key = acct.institutionName || 'Unbekannt';
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(acct);
-      }
-      return groups;
-    },
-
-    // ── Connect form ──────────────────────────────────────────────────────
 
     showConnectForm() {
       this.view = 'connect';
