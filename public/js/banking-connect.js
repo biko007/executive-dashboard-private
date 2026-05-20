@@ -17,6 +17,7 @@ Object.assign(ENDPOINT_MAP, {
   'banking-connect.initiate':    () => '/api/banking/connect',
   'banking-complete-tan':        () => '/api/banking/complete-tan',
   'banking.approval-preview':    () => '/api/banking/approval-preview',
+  'banking-accounts.archive':    (p) => `/api/banking/accounts/${p.account_id}/archive`,
 });
 
 // ── Banking Approval Mutation Helper ────────────────────────────────────────
@@ -231,9 +232,14 @@ function bankingOverviewHtml() {
                             <span x-text="acct.displayName"></span>
                             <span style="color:var(--muted)" x-text="'(…' + acct.iban.slice(-4) + ')'"></span>
                           </span>
-                          <span x-show="acct.currentBalance != null"
-                                :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
-                                x-text="Number(acct.currentBalance).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' ' + acct.currency">
+                          <span style="display:flex;align-items:center;gap:8px">
+                            <span x-show="acct.currentBalance != null"
+                                  :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
+                                  x-text="Number(acct.currentBalance).toLocaleString('de-DE', {minimumFractionDigits:2}) + ' ' + acct.currency">
+                            </span>
+                            <button class="btn btn-danger" style="font-size:11px;padding:3px 8px"
+                                    @click="archiveSingle(acct.id)"
+                                    title="Konto archivieren">📦</button>
                           </span>
                         </div>
                       </template>
@@ -313,6 +319,17 @@ document.addEventListener('alpine:init', () => {
 
     accountsForInst(instId) {
       return this.accounts.filter(a => a.institutionId === instId && a.status === 'active');
+    },
+
+    async archiveSingle(accountId) {
+      try {
+        const result = await bankingApprovalMutation(
+          'banking-accounts.archive', 'POST',
+          { account_id: accountId },
+          {}
+        );
+        if (result !== false) await this.loadOverview();
+      } catch {}
     },
 
     showConnectForm() {
