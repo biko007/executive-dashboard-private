@@ -325,7 +325,7 @@ function bankingOverviewHtml() {
             <div class="approval-timer" x-text="'Gueltig: ' + bulkTimerText"></div>
             <div class="approval-actions">
               <button class="btn" @click="cancelBulkArchive()">Abbrechen</button>
-              <button class="btn btn-danger" @click="confirmBulkArchive()" :disabled="bulkArchiving || bulkTimerText === 'Abgelaufen'">
+              <button class="btn btn-danger" @click="confirmBulkArchive()" :disabled="bulkArchiving">
                 <span x-show="!bulkArchiving" x-text="'Archivieren (' + bulkConfirmAccounts.length + ')'"></span>
                 <span x-show="bulkArchiving">Archiviere…</span>
               </button>
