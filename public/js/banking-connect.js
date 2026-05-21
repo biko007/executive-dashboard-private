@@ -192,7 +192,10 @@ function bankingOverviewHtml() {
       <div class="filters-row" style="margin-bottom:16px">
         <h2 style="margin:0;font-size:18px">Banking</h2>
         <div style="flex:1"></div>
-        <button class="btn btn-primary" @click="showConnectForm()">+ Bank verbinden</button>
+        <button class="btn btn-ghost" style="margin-right:8px"
+                @click="toggleBulkMode()"
+                x-text="bulkMode ? 'Auswahl beenden' : 'Mehrere auswaehlen'"></button>
+        <button class="btn btn-primary" x-show="!bulkMode" @click="showConnectForm()">+ Bank verbinden</button>
       </div>
 
       <template x-if="bankingLoading">
@@ -228,13 +231,20 @@ function bankingOverviewHtml() {
                     <div style="margin-top:8px">
                       <template x-for="acct in accountsForInst(inst.id)" :key="acct.id">
                         <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-                          <span x-text="formatIban(acct.iban)"></span>
+                          <span style="display:flex;align-items:center;gap:10px">
+                            <input type="checkbox" x-show="bulkMode"
+                                   :checked="isSelected(acct.id)"
+                                   @change="toggleSelection(acct.id)"
+                                   style="width:18px;height:18px;cursor:pointer">
+                            <span x-text="formatIban(acct.iban)"></span>
+                          </span>
                           <span style="display:flex;align-items:center;gap:8px">
                             <span x-show="acct.currentBalance != null"
                                   :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
                                   x-text="formatBalance(acct.currentBalance, acct.currency)">
                             </span>
                             <button class="btn btn-danger" style="font-size:11px;padding:3px 8px"
+                                    x-show="!bulkMode"
                                     @click="archiveSingle(acct.id)"
                                     title="Konto archivieren">📦</button>
                           </span>
@@ -247,6 +257,12 @@ function bankingOverviewHtml() {
                   </template>
                 </div>
               </template>
+            </div>
+            <div x-show="bulkMode && selectedIds.length > 0"
+                 style="position:sticky;bottom:0;background:var(--surface);padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+              <span x-text="selectedIds.length + ' Konto(en) ausgewaehlt'"></span>
+              <button class="btn btn-danger" disabled
+                      title="Bulk-Archive folgt in c3">Archivieren</button>
             </div>
           </template>
         </div>
@@ -285,6 +301,10 @@ document.addEventListener('alpine:init', () => {
     pushTanTimeoutId: null,
     pushTanTimedOut: false,
     pushTanRetryMsg: null,
+
+    // Bulk-selection state (c2)
+    bulkMode: false,
+    selectedIds: [],
 
     async init() {
       // Fetch CSRF token
@@ -325,6 +345,24 @@ document.addEventListener('alpine:init', () => {
     formatBalance(balance, currency) {
       if (balance == null) return '';
       return Number(balance).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (currency || '');
+    },
+
+    toggleBulkMode() {
+      this.bulkMode = !this.bulkMode;
+      this.selectedIds = [];
+    },
+
+    toggleSelection(accountId) {
+      const idx = this.selectedIds.indexOf(accountId);
+      if (idx === -1) {
+        this.selectedIds.push(accountId);
+      } else {
+        this.selectedIds.splice(idx, 1);
+      }
+    },
+
+    isSelected(accountId) {
+      return this.selectedIds.indexOf(accountId) !== -1;
     },
 
     async archiveSingle(accountId) {
