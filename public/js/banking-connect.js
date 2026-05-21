@@ -194,7 +194,7 @@ function bankingOverviewHtml() {
         <div style="flex:1"></div>
         <button class="btn btn-ghost" style="margin-right:8px"
                 @click="toggleBulkMode()"
-                x-text="bulkMode ? 'Auswahl beenden' : 'Mehrere auswaehlen'"></button>
+                x-text="bulkToggleLabel()"></button>
         <button class="btn btn-primary" x-show="!bulkMode" @click="showConnectForm()">+ Bank verbinden</button>
       </div>
 
@@ -219,12 +219,13 @@ function bankingOverviewHtml() {
 
           <template x-if="institutions.length > 0">
             <div>
-              <template x-for="inst in institutions" :key="inst.id">
+              <div>
+                <template x-for="inst in institutions" :key="inst.id">
                 <div class="card card-pad" style="margin-bottom:12px">
                   <div style="display:flex;justify-content:space-between;align-items:center">
                     <div>
                       <strong x-text="inst.name"></strong>
-                      <span class="badge badge-muted" x-text="'BLZ ' + inst.blz" style="margin-left:8px"></span>
+                      <span class="badge badge-muted" x-text="instBlzLabel(inst.blz)" style="margin-left:8px"></span>
                     </div>
                   </div>
                   <template x-if="accountsForInst(inst.id).length > 0">
@@ -257,13 +258,43 @@ function bankingOverviewHtml() {
                   </template>
                 </div>
               </template>
+              </div>
+              <div x-show="hasBulkSelection()"
+                   style="position:sticky;bottom:0;background:var(--surface);padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:16px">
+              <span x-text="selectionCountLabel()"></span>
+              <button class="btn btn-danger"
+                      @click="openBulkConfirm()"
+                      x-text="archiveBtnLabel()"></button>
             </div>
-            <div x-show="bulkMode && selectedIds.length > 0"
-                 style="position:sticky;bottom:0;background:var(--surface);padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:16px">
-              <span x-text="selectedIds.length + ' Konto(en) ausgewaehlt'"></span>
-              <button class="btn btn-danger" disabled
-                      title="Bulk-Archive folgt in c3">Archivieren</button>
+            <div x-show="bulkConfirmVisible"
+                 class="modal-overlay" style="z-index:200"
+                 x-on:click.self="closeBulkConfirm()"
+                 @keydown.escape.window="closeBulkConfirm()">
+              <div class="modal" style="max-width:540px">
+                <h3 style="margin-bottom:12px"
+                    x-text="modalTitle()"></h3>
+                <div style="margin-bottom:16px;padding:10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:13px;color:var(--red)">
+                  Transaktionen und Umsaetze bleiben erhalten. Archivierte Konten koennen nicht reaktiviert werden.
+                </div>
+                <div style="max-height:300px;overflow-y:auto;margin-bottom:16px">
+                  <template x-for="group in selectedAccountsGrouped()" :key="group.institution.id">
+                    <div style="margin-bottom:12px">
+                      <div style="font-weight:600;font-size:13px;margin-bottom:4px;color:var(--muted)"
+                           x-text="group.institution.name"></div>
+                      <template x-for="acct in group.accounts" :key="acct.id">
+                        <div style="padding:4px 0;font-size:13px"
+                             x-text="formatIban(acct.iban)"></div>
+                      </template>
+                    </div>
+                  </template>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px">
+                  <button class="btn btn-ghost" @click="closeBulkConfirm()">Abbrechen</button>
+                  <button class="btn btn-danger" @click="confirmBulkArchive()">Archivieren</button>
+                </div>
+              </div>
             </div>
+          </div>
           </template>
         </div>
       </template>
@@ -305,6 +336,7 @@ document.addEventListener('alpine:init', () => {
     // Bulk-selection state (c2)
     bulkMode: false,
     selectedIds: [],
+    bulkConfirmVisible: false,
 
     async init() {
       // Fetch CSRF token
@@ -363,6 +395,61 @@ document.addEventListener('alpine:init', () => {
 
     isSelected(accountId) {
       return this.selectedIds.indexOf(accountId) !== -1;
+    },
+
+    hasBulkSelection() {
+      return this.bulkMode && this.selectedIds.length > 0;
+    },
+
+    bulkToggleLabel() {
+      return this.bulkMode ? 'Auswahl beenden' : 'Mehrere auswaehlen';
+    },
+
+    selectionCountLabel() {
+      return this.selectedIds.length + ' Konto(en) ausgewaehlt';
+    },
+
+    archiveBtnLabel() {
+      return 'Archivieren (' + this.selectedIds.length + ')';
+    },
+
+    modalTitle() {
+      return this.selectedIds.length + ' Konto(en) archivieren';
+    },
+
+    instBlzLabel(blz) {
+      return 'BLZ ' + blz;
+    },
+
+    selectedAccountsGrouped() {
+      const selected = this.accounts.filter(a => this.selectedIds.indexOf(a.id) !== -1);
+      const groups = [];
+      for (const inst of this.institutions) {
+        const accts = selected.filter(a => a.institutionId === inst.id);
+        if (accts.length > 0) {
+          groups.push({ institution: inst, accounts: accts });
+        }
+      }
+      return groups;
+    },
+
+    openBulkConfirm() {
+      if (this.selectedIds.length === 0) return;
+      const groups = this.selectedAccountsGrouped();
+      if (groups.length > 1) {
+        Alpine.store('toast').error('Konten aus verschiedenen Banken koennen nicht zusammen archiviert werden.');
+        return;
+      }
+      this.bulkConfirmVisible = true;
+    },
+
+    closeBulkConfirm() {
+      this.bulkConfirmVisible = false;
+    },
+
+    confirmBulkArchive() {
+      Alpine.store('toast').info('Funktion folgt in c3b');
+      this.bulkConfirmVisible = false;
     },
 
     async archiveSingle(accountId) {
