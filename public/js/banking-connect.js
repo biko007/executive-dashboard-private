@@ -18,6 +18,7 @@ Object.assign(ENDPOINT_MAP, {
   'banking-complete-tan':        () => '/api/banking/complete-tan',
   'banking.approval-preview':    () => '/api/banking/approval-preview',
   'banking-accounts.archive':    (p) => `/api/banking/accounts/${p.account_id}/archive`,
+  'banking-accounts.bulk-archive': () => '/api/banking/accounts/bulk-archive',
 });
 
 // ── Banking Approval Mutation Helper ────────────────────────────────────────
@@ -276,6 +277,10 @@ function bankingOverviewHtml() {
                 <div style="margin-bottom:16px;padding:10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:13px;color:var(--red)">
                   Transaktionen und Umsaetze bleiben erhalten. Archivierte Konten koennen nicht reaktiviert werden.
                 </div>
+                <div style="font-size:12px;color:var(--muted);margin-bottom:12px"
+                     x-show="hasBulkTimer()">
+                  Gueltig: <span x-text="bulkTimerText"></span>
+                </div>
                 <div style="max-height:300px;overflow-y:auto;margin-bottom:16px">
                   <template x-for="group in selectedAccountsGrouped()" :key="group.institution.id">
                     <div style="margin-bottom:12px">
@@ -290,7 +295,10 @@ function bankingOverviewHtml() {
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:8px">
                   <button class="btn btn-ghost" @click="closeBulkConfirm()">Abbrechen</button>
-                  <button class="btn btn-danger" @click="confirmBulkArchive()">Archivieren</button>
+                  <button class="btn btn-danger"
+                          @click="confirmBulkArchive()"
+                          :disabled="isBulkConfirmDisabled()"
+                          x-text="bulkArchivingLabel()"></button>
                 </div>
               </div>
             </div>
@@ -337,6 +345,11 @@ document.addEventListener('alpine:init', () => {
     bulkMode: false,
     selectedIds: [],
     bulkConfirmVisible: false,
+    bulkConfirmToken: null,
+    bulkConfirmExpiresAt: null,
+    bulkTimerText: '',
+    bulkArchiving: false,
+    _bulkTimerInterval: null,
 
     async init() {
       // Fetch CSRF token
@@ -433,23 +446,121 @@ document.addEventListener('alpine:init', () => {
       return groups;
     },
 
-    openBulkConfirm() {
+    async openBulkConfirm() {
       if (this.selectedIds.length === 0) return;
       const groups = this.selectedAccountsGrouped();
       if (groups.length > 1) {
         Alpine.store('toast').error('Konten aus verschiedenen Banken koennen nicht zusammen archiviert werden.');
         return;
       }
-      this.bulkConfirmVisible = true;
+      try {
+        const csrf = Alpine.store('csrf');
+        const sortedIds = this.selectedIds.slice().sort((a, b) => a - b);
+        const resp = await csrf.fetch('/api/banking/approval-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            endpoint_key: 'banking-accounts.bulk-archive',
+            method: 'POST',
+            body: { account_ids: sortedIds },
+          }),
+        });
+        if (!resp.ok) throw new Error('Preview fehlgeschlagen');
+        const data = await resp.json();
+        this.bulkConfirmToken = data.token;
+        this.bulkConfirmExpiresAt = data.expires_at;
+        this.bulkConfirmVisible = true;
+        this._startBulkTimer();
+      } catch (e) {
+        Alpine.store('toast').error('Fehler beim Laden der Bestaetigung');
+      }
     },
 
     closeBulkConfirm() {
-      this.bulkConfirmVisible = false;
+      this._cleanupBulk();
     },
 
-    confirmBulkArchive() {
-      Alpine.store('toast').info('Funktion folgt in c3b');
+    async confirmBulkArchive() {
+      if (!this.bulkConfirmToken || this.bulkArchiving) return;
+      if (this.isTokenExpired()) return;
+      this.bulkArchiving = true;
+      try {
+        const csrf = Alpine.store('csrf');
+        const sortedIds = this.selectedIds.slice().sort((a, b) => a - b);
+        const resp = await csrf.fetch('/api/banking/accounts/bulk-archive', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Approval-Token': this.bulkConfirmToken,
+          },
+          body: JSON.stringify({ account_ids: sortedIds }),
+        });
+        if (!resp.ok) throw new Error('Archivierung fehlgeschlagen');
+        const data = await resp.json();
+        const archivedCount = data.archived ? data.archived.length : 0;
+        const skippedCount = data.skipped ? data.skipped.length : 0;
+        if (skippedCount > 0) {
+          Alpine.store('toast').info(archivedCount + ' archiviert, ' + skippedCount + ' uebersprungen');
+        } else {
+          Alpine.store('toast').success(archivedCount + ' Konten archiviert');
+        }
+        this._cleanupBulk();
+        await this.loadOverview();
+      } catch (e) {
+        Alpine.store('toast').error('Archivierung fehlgeschlagen');
+        this.bulkArchiving = false;
+      }
+    },
+
+    _startBulkTimer() {
+      if (this._bulkTimerInterval) clearInterval(this._bulkTimerInterval);
+      this._updateBulkTimerText();
+      this._bulkTimerInterval = setInterval(() => {
+        this._updateBulkTimerText();
+      }, 1000);
+    },
+
+    _updateBulkTimerText() {
+      if (!this.bulkConfirmExpiresAt) return;
+      const remaining = Math.max(0, Math.floor((new Date(this.bulkConfirmExpiresAt) - Date.now()) / 1000));
+      const mins = Math.floor(remaining / 60);
+      const secs = remaining % 60;
+      this.bulkTimerText = mins + ':' + (secs < 10 ? '0' : '') + secs;
+      if (remaining <= 0) {
+        this.bulkTimerText = 'Abgelaufen';
+        clearInterval(this._bulkTimerInterval);
+      }
+    },
+
+    _cleanupBulk() {
+      if (this._bulkTimerInterval) clearInterval(this._bulkTimerInterval);
       this.bulkConfirmVisible = false;
+      this.bulkConfirmToken = null;
+      this.bulkConfirmExpiresAt = null;
+      this.bulkTimerText = '';
+      this.bulkArchiving = false;
+      this._bulkTimerInterval = null;
+      this.selectedIds = [];
+      this.bulkMode = false;
+    },
+
+    isTokenExpired() {
+      if (!this.bulkConfirmExpiresAt) return false;
+      return Date.now() >= new Date(this.bulkConfirmExpiresAt).getTime();
+    },
+
+    isBulkConfirmDisabled() {
+      return this.bulkArchiving || this.isTokenExpired();
+    },
+
+    bulkArchivingLabel() {
+      if (this.bulkArchiving) return 'Wird archiviert...';
+      if (this.isTokenExpired()) return 'Abgelaufen';
+      return 'Archivieren';
+    },
+
+    hasBulkTimer() {
+      return this.bulkTimerText.length > 0;
     },
 
     async archiveSingle(accountId) {
