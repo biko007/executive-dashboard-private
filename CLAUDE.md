@@ -37,9 +37,9 @@ Sprint 1 + 2 + 3 + 4 + 5 (5.5a + 5.5b + 5.5c) + 10 + 11 vollständig abgeschloss
   Neuer Proxy-Route `POST /api/sharepoint/cleanup-missing` (Sprint 11.6).
   Settings-Modul: Postgres-backed `system_settings` (Sprint 11.3).
 
-### Agent-Module (11)
+### Agent-Module (14)
 
-executive, instagram, assets, nk, health, fleet, travel, pe, mail, calendar, sharepoint.
+assets, banking, calendar, executive, fleet, health, instagram, links, location, mail, nk, pe, sharepoint, travel.
 
 ### Daten-Hygiene
 
@@ -101,7 +101,7 @@ Body: `{ "message": "...", "severity": "info"|"warn"|"error" }`
 Diese Regeln stehen über allem, was in Implementierungs-Sessions vorgeschlagen wird:
 
 1. **Eine Schraube pro Sprint.** Niemals zwei Module gleichzeitig migrieren.
-2. **n8n bleibt dumm.** Nur Trigger an `/api/n8n/trigger/*`. Linter erzwingt das.
+2. **n8n bleibt dumm.** n8n macht nur Trigger + Routing, keine Business-Logik. n8n ruft dedizierte, Bearer-`CORE_SERVICE_TOKEN`-geschützte Core-Endpoints auf (z.B. `/api/internal/banking/*`, `/api/sharepoint/cleanup-missing`, `/api/health/*`, `/api/instagram/*`). Der Core bindet ausschließlich auf `127.0.0.1`; `/api/internal/*` ist zusätzlich per nginx-IP-Whitelist (127.0.0.1) abgesichert. Es gibt KEINE Linter-Regel für Routen — ESLint erzwingt nur Modul-Grenzen (`no-deep-module-import`).
 3. **Modul-Grenzen sind heilig.** ESLint erzwingt — nicht Disziplin.
 4. **Backup-Restore vor Backup-Schreiben.** Jedes neue Backup-Ziel: erst Restore-Test.
 5. **Tests für Geld.** Alles, was IBANs oder Posts ins Internet schickt, hat Tests.
@@ -178,7 +178,7 @@ Reload:    sudo nginx -t && sudo systemctl reload nginx
 
 ## Tabs im Dashboard
 
-Trips | Health | Drafts | Kalender | Fuhrpark | Assets | SharePoint | Dokumente | Instagram
+Health | Trips | Kalender | Fuhrpark | Assets | Trading | Banking | Private Equity | Instagram | SharePoint | Agents | Status
 
 ## Grundregeln
 
