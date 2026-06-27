@@ -763,12 +763,13 @@ async function syncAllSegCal(tripId) {
 async function loadHealth() {
   const c = document.getElementById('content');
   try {
-    const [entries, trends, alerts, weightData, sleepData] = await Promise.all([
+    const [entries, trends, alerts, weightData, sleepData, hrvData] = await Promise.all([
       apiFetch('/api/health?days=90'),
       apiFetch('/api/health/trends?days=30'),
       apiFetch('/api/health/alerts'),
       apiFetch('/api/health/chart-data?type=weight&days=90'),
       apiFetch('/api/health/chart-data?type=sleep&days=30'),
+      apiFetch('/api/health/chart-data?type=hrv&days=30'),
     ]);
 
     if (!entries.length && !alerts.length) {
@@ -821,12 +822,32 @@ async function loadHealth() {
       hrHtml = `<div class="s-card"><div class="lbl">❤️ Ruheherzfrequenz</div><div class="val">${hr.current} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${hr.avg} bpm (30 T, ${hr.dataPoints} Messungen)</div></div>`;
     }
 
+    // HRV summary card
+    const hrvTrend = trends.hrv;
+    let hrvHtml = '';
+    if (hrvTrend) {
+      const hrvCol = hrvTrend.direction === 'up' ? 'var(--green)' : hrvTrend.direction === 'down' ? 'var(--red)' : 'var(--accent)';
+      const hrvArrow = hrvTrend.direction === 'up' ? '📈' : hrvTrend.direction === 'down' ? '📉' : '➡️';
+      hrvHtml = `<div class="s-card"><div class="lbl">💓 HRV</div><div class="val">${hrvTrend.current} <small style="font-size:16px">ms</small></div><div class="sub" style="color:${hrvCol}">${hrvArrow} Ø ${hrvTrend.avg} ms (${hrvTrend.dataPoints} Messungen)</div></div>`;
+    }
+
+    // Readiness summary card
+    const lastReadiness = byType('readiness')[0];
+    let readinessHtml = '';
+    if (lastReadiness) {
+      const score = Number(lastReadiness.value) || 0;
+      const rdCol = score >= 85 ? 'var(--green)' : score >= 70 ? 'var(--yellow)' : 'var(--red)';
+      readinessHtml = `<div class="s-card"><div class="lbl">🎯 Readiness</div><div class="val" style="color:${rdCol}">${score}</div><div class="sub">${fmtDate(lastReadiness.timestamp)}</div></div>`;
+    }
+
     const summaryGrid = `<div class="summary-grid">
       ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
       ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
       ${sleepTrendHtml}
       ${hrHtml}
+      ${hrvHtml}
+      ${readinessHtml}
       ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
     </div>`;
 
@@ -852,11 +873,23 @@ async function loadHealth() {
       </div>`;
     }
 
-    c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml;
+    // ── HRV Chart (SVG line, 30 days) ──
+    let hrvChartHtml = '';
+    if (hrvData.length >= 2) {
+      hrvChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
+        <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">💓 HRV (30 Tage)</div>
+        <div style="position:relative;width:100%;overflow-x:auto">
+          <svg id="hrvChart" width="100%" height="220" style="min-width:600px"></svg>
+        </div>
+      </div>`;
+    }
+
+    c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml + hrvChartHtml;
 
     // ── Render Charts ──
     if (weightData.length >= 2) renderWeightChart(weightData);
     if (sleepData.length >= 2) renderSleepChart(sleepData);
+    if (hrvData.length >= 2) renderHrvChart(hrvData);
 
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
@@ -957,6 +990,61 @@ function renderSleepChart(data) {
   const y6 = yScale(6);
   svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
   svgContent += `<text x="${W-pad.r+2}" y="${y6+3}" fill="var(--red)" font-size="9" opacity="0.6">6h</text>`;
+
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.innerHTML = svgContent;
+}
+
+function renderHrvChart(data) {
+  const svg = document.getElementById('hrvChart');
+  if (!svg) return;
+  const W = svg.clientWidth || 600, H = 200;
+  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
+  const vals = data.map(d => d.value);
+  const vMin = Math.floor(Math.min(...vals) - 5);
+  const vMax = Math.ceil(Math.max(...vals) + 5);
+  const xScale = i => pad.l + (i / (data.length - 1)) * cw;
+  const yScale = v => pad.t + ch - ((v - vMin) / (vMax - vMin)) * ch;
+
+  let svgContent = '';
+
+  // Grid lines
+  const steps = 5;
+  for (let i = 0; i <= steps; i++) {
+    const v = vMin + (vMax - vMin) * (i / steps);
+    const y = yScale(v);
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${Math.round(v)}</text>`;
+  }
+
+  // X-axis labels
+  const step = Math.max(1, Math.floor(data.length / 8));
+  for (let i = 0; i < data.length; i += step) {
+    const x = xScale(i);
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+  }
+
+  // Line
+  const points = data.map((d, i) => `${xScale(i).toFixed(1)},${yScale(d.value).toFixed(1)}`).join(' ');
+  svgContent += `<polyline points="${points}" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linejoin="round"/>`;
+
+  // Trend line (linear regression)
+  const n = data.length;
+  const xMean = (n - 1) / 2;
+  const yMean = vals.reduce((a, b) => a + b, 0) / n;
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) { num += (i - xMean) * (vals[i] - yMean); den += (i - xMean) ** 2; }
+  const slope = den ? num / den : 0;
+  const intercept = yMean - slope * xMean;
+  const ty0 = yScale(intercept);
+  const ty1 = yScale(slope * (n - 1) + intercept);
+  svgContent += `<line x1="${pad.l}" y1="${ty0}" x2="${W-pad.r}" y2="${ty1}" stroke="var(--yellow)" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7"/>`;
+
+  // Dots
+  data.forEach((d, i) => {
+    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="#a78bfa" opacity="0.8"><title>${d.date}: ${d.value} ms</title></circle>`;
+  });
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = svgContent;
