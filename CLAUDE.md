@@ -153,7 +153,53 @@ GET       /api/sharepoint/default-site  → proxyToCore (Sprint 11.4)
 POST      /api/sharepoint/cleanup-missing → proxyToCore (Sprint 11.6)
 GET       /api/sharepoint/download     → Graph pre-auth URL (direct)
 POST      /api/sharepoint/upload       → Graph + Core upsert-uploaded
+GET       /api/wiki/pages              → proxyToCore
+GET       /api/wiki/search?q=          → proxyToCore
+GET       /api/wiki/pages/:slug        → Core + Markdown-Rendering (bodyHtml)
+PUT       /api/wiki/pages/:slug        → proxyToCore (CSRF, neue Revision)
+POST      /api/wiki/pages              → proxyToCore (CSRF)
+PATCH     /api/wiki/pages/:slug/category → proxyToCore (CSRF)
+GET       /api/wiki/pages/:slug/revisions[/:rev] → proxyToCore
+GET       /api/wiki/file|preview|thumb/:slug/:filename → Datei vom Dateisystem
+POST      /api/wiki/pages/:slug/attachments → Upload + Core-Metadaten (CSRF)
+GET       /wiki/:slug                  → Redirect auf /dashboard/?tab=wiki&page=<slug>
 ```
+
+## Wiki-Tab (Stand 2026-09-28)
+
+Ablösung des gehosteten JSPWiki bei Nuveon. Fachliche Logik und Datenhaltung liegen im
+Agent-Repo (`src/modules/wiki`, Tabellen `wiki_*`); Architekturdetails in dessen
+`docs/ARCHITECTURE.md §15`.
+
+**Aufteilung im Dashboard:**
+
+- JSON-Routen gehen per `proxyToCore` an den Core — keine Geschäftslogik hier.
+- `GET /api/wiki/pages/:slug` ist ein **eigener** Handler: der Core liefert Markdown, das
+  Dashboard rendert es mit `marked` und reduziert es mit `sanitize-html` auf eine
+  Erlaubnisliste (kein `<script>`, keine Event-Attribute, keine `javascript:`-URLs).
+  Darstellung ist Aufgabe des Dashboards, nicht des Core.
+- Anhänge (`/api/wiki/file|preview|thumb/...`) werden **direkt vom Dateisystem** ausgeliefert,
+  weil `proxyToCore` nur JSON und Text überträgt. Zusätzlich `path.resolve`-Prüfung gegen
+  Ausbruch aus `artifacts/personal/wiki/`.
+- **Jede** Wiki-Route liegt hinter `requireSession` bzw. `auth` — auch Download und Vorschau.
+  Ohne Token: 401, intern wie extern über nginx (verifiziert).
+- Mutationen zusätzlich hinter `requireCsrf`.
+
+**Frontend:** `public/js/wiki.js` + `public/css/wiki.css`, bewusst **ohne Alpine** im schlichten
+Stil der übrigen Tabs (globale `loadWiki()`, `apiFetch`, `esc`). Damit entfallen die
+Alpine-CSP-Fallstricke konstruktiv. Neue Dependencies: `marked`, `sanitize-html`.
+
+**Zwei Fallen, die beim Bauen aufgefallen sind:**
+
+1. Der Token steckt nicht im gerenderten HTML. `wikiEnhanceLinks()` hängt ihn im Browser an
+   Anhang-Links und Bild-Quellen an und fängt interne `/dashboard/wiki/...`-Links ab, damit sie
+   im Tab öffnen statt die Seite neu zu laden.
+2. `/api/csrf-refresh` **überschreibt** mit seinem `res.setHeader('Set-Cookie', …)` das
+   Session-Cookie, wenn es der allererste Aufruf einer `requireSession`-Route ist — danach
+   passen Session und CSRF-Token nicht mehr zusammen (403 `CSRF_INVALID`). In der Praxis lädt
+   die Oberfläche zuerst Daten und holt den CSRF-Token danach, deshalb fällt es nicht auf.
+   `wiki.js` hält sich an diese Reihenfolge. **Vorbestehender Befund, nicht behoben**
+   (unabhängig vom Wiki-Auftrag); Fix wäre ein Anhängen statt Überschreiben der Kopfzeile.
 
 ## Deployment
 
@@ -179,7 +225,7 @@ Reload:    sudo nginx -t && sudo systemctl reload nginx
 
 ## Tabs im Dashboard
 
-Health | Trips | Kalender | Fuhrpark | Assets | Trading | Banking | Private Equity | Instagram | SharePoint | Agents | Status
+Health | Trips | Kalender | Fuhrpark | Assets | Trading | Banking | Private Equity | Instagram | SharePoint | Wiki | Agents | Status
 
 ## Grundregeln
 
@@ -286,6 +332,12 @@ Beispiele:
 Nummerierung in Upload-Reihenfolge, zweistellig (01, 02, ...).
 Niemals: Hashes, UUIDs, Timestamps allein, Telegram-interne Dateinamen
 (z.B. `file_60---AgACAgIAAxkDAAIC.jpg`).
+
+**Ausnahme Wiki-Anhänge (2026-09-28):** Anhänge im Wiki-Tab behalten ihren
+Originaldateinamen. Der Name ist dort Teil der Identität und wird aus dem Seitentext
+verlinkt — eine Umbenennung würde die aus JSPWiki konvertierten Links brechen.
+Abgesichert ist stattdessen der Pfad: kein Schrägstrich, kein `..`, keine Steuerzeichen,
+zusätzlich `path.resolve`-Prüfung gegen Ausbruch aus dem Wiki-Verzeichnis.
 
 ## Trading Safety
 

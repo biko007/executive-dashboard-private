@@ -2,10 +2,13 @@ import express from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import multer from 'multer';
 import sharp from 'sharp';
 import pg from 'pg';
+import { marked } from 'marked';
+import sanitizeHtml from 'sanitize-html';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -2155,6 +2158,266 @@ app.get('/api/dashboard/status', auth, async (_req, res) => {
     if (_statusCache.data) return res.json({ ..._statusCache.data, _stale: true });
     res.status(503).json({ error: e.message });
   }
+});
+
+// ── Wiki (Nuveon-Ablösung) ──────────────────────────────────────────────────
+//
+// Aufteilung:
+//   JSON-Routen        → proxyToCore (Core besitzt die Geschäftslogik)
+//   Seitenansicht      → eigener Handler, weil Markdown hier serverseitig
+//                        gerendert und saniert wird (Darstellung ist Aufgabe
+//                        des Dashboards, nicht des Core)
+//   Anhänge (binär)    → direkt vom Dateisystem, weil proxyToCore nur
+//                        JSON/Text überträgt
+//
+// Auth: jede Route liegt hinter requireSession bzw. auth (Dashboard-Token).
+// Ohne Token liefert jede Wiki-Route 401 — auch Datei-Downloads und Vorschauen.
+
+const WIKI_DIR = path.join(HOME, '.openclaw/workspace/artifacts/personal/wiki');
+const wikiUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } });
+
+/**
+ * Markdown → HTML, serverseitig gerendert und saniert.
+ *
+ * sanitize-html arbeitet mit einer Erlaubnisliste: alles nicht Genannte fällt
+ * weg. Damit sind Skript, Event-Handler und fremde Protokolle ausgeschlossen,
+ * auch wenn im Wiki-Text HTML steht (JSPWiki-Seiten enthalten teils HTML).
+ */
+function renderWikiMarkdown(markdown) {
+  const rawHtml = marked.parse(String(markdown ?? ''), { gfm: true, breaks: false });
+  return sanitizeHtml(rawHtml, {
+    allowedTags: [
+      'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr',
+      'strong', 'em', 'del', 'code', 'pre', 'blockquote',
+      'ul', 'ol', 'li', 'a', 'img',
+      'table', 'thead', 'tbody', 'tr', 'th', 'td',
+    ],
+    allowedAttributes: {
+      a: ['href', 'title'],
+      img: ['src', 'alt', 'title'],
+      td: ['align'],
+      th: ['align'],
+    },
+    // Keine javascript:- oder data:-URLs; relative Wiki-Links bleiben erlaubt.
+    allowedSchemes: ['http', 'https', 'mailto', 'ftp'],
+    allowProtocolRelative: false,
+    disallowedTagsMode: 'discard',
+  });
+}
+
+/** Lesende Core-Anfrage aus einem eigenen Handler heraus. */
+async function wikiCoreGet(req, corePath) {
+  const session = req.dashboardSession;
+  const res = await fetch(CORE_BASE + corePath, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${CORE_SERVICE_TOKEN}`,
+      'X-Actor': session ? session.actor : 'dashboard',
+      'X-Request-ID': randomUUID(),
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(30_000),
+  });
+  return { status: res.status, body: await res.json().catch(() => ({})) };
+}
+
+const WIKI_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,99}$/;
+
+/** Dateiname für Dateisystemzugriffe absichern (kein Pfadausbruch). */
+function safeWikiFilename(name) {
+  const value = String(name ?? '');
+  if (!value || value.length > 255) return null;
+  if (value.includes('/') || value.includes('\\')) return null;
+  if (value === '.' || value === '..' || value.startsWith('.')) return null;
+  // Steuerzeichen U+0000 bis U+001F sind in Dateinamen nicht zulaessig.
+  if (/[\u0000-\u001f]/.test(value)) return null;
+  return value;
+}
+
+// JSON-Routen: Liste, Suche, Kategorien, Kennzahlen, Revisionen
+app.get('/api/wiki/pages', requireSession, proxyToCore);
+app.get('/api/wiki/search', requireSession, proxyToCore);
+app.get('/api/wiki/categories', requireSession, proxyToCore);
+app.get('/api/wiki/stats', requireSession, proxyToCore);
+app.get('/api/wiki/pages/:slug/revisions', requireSession, proxyToCore);
+app.get('/api/wiki/pages/:slug/revisions/:rev', requireSession, proxyToCore);
+
+// Mutationen: zusätzlich CSRF
+app.post('/api/wiki/pages', requireSession, requireCsrf, proxyToCore);
+app.put('/api/wiki/pages/:slug', requireSession, requireCsrf, proxyToCore);
+app.patch('/api/wiki/pages/:slug/category', requireSession, requireCsrf, proxyToCore);
+
+/**
+ * Seitenansicht: Core liefert Markdown, hier entsteht das gerenderte HTML.
+ * Muss NACH den spezifischeren /revisions-Routen stehen, damit Express die
+ * Revisionspfade nicht auf diesen Handler zieht.
+ */
+app.get('/api/wiki/pages/:slug', requireSession, async (req, res) => {
+  const slug = String(req.params.slug || '');
+  if (!WIKI_SLUG_RE.test(slug)) return res.status(400).json({ error: 'Ungültiger Slug' });
+  try {
+    const core = await wikiCoreGet(req, `/api/wiki/pages/${encodeURIComponent(slug)}`);
+    if (core.status !== 200) return res.status(core.status).json(core.body);
+    const page = core.body;
+    page.bodyHtml = renderWikiMarkdown(page.bodyMd);
+    res.json(page);
+  } catch (e) {
+    console.error(`[dashboard] Wiki-Seite ${slug}: ${e.message}`);
+    res.status(502).json({ error: 'Core nicht erreichbar', detail: e.message });
+  }
+});
+
+/**
+ * Anhänge ausliefern. `variant` entscheidet über Original, Vorschau oder
+ * Miniatur. Der Pfad kommt aus der Datenbank und wird zusätzlich gegen
+ * Ausbruch aus WIKI_DIR geprüft (doppelter Boden).
+ */
+function serveWikiAttachment(variant) {
+  return async (req, res) => {
+    const slug = String(req.params.slug || '');
+    const filename = safeWikiFilename(req.params.filename);
+    if (!WIKI_SLUG_RE.test(slug) || !filename) {
+      return res.status(400).json({ error: 'Ungültiger Pfad' });
+    }
+    try {
+      const core = await wikiCoreGet(
+        req,
+        `/api/wiki/pages/${encodeURIComponent(slug)}/attachments/${encodeURIComponent(filename)}`,
+      );
+      if (core.status !== 200) return res.status(core.status).json(core.body);
+      const attachment = core.body;
+
+      const relPath = variant === 'preview' ? (attachment.previewPath || attachment.path)
+        : variant === 'thumb' ? (attachment.thumbPath || attachment.previewPath || attachment.path)
+        : attachment.path;
+      if (!relPath) return res.status(404).json({ error: 'Datei nicht vorhanden' });
+
+      const absPath = path.resolve(WIKI_DIR, relPath);
+      if (!absPath.startsWith(WIKI_DIR + path.sep)) {
+        return res.status(400).json({ error: 'Pfad außerhalb des Wiki-Verzeichnisses' });
+      }
+      if (!fs.existsSync(absPath)) {
+        return res.status(404).json({ error: 'Datei nicht vorhanden' });
+      }
+
+      const isDerived = relPath !== attachment.path;
+      res.setHeader('Content-Type', isDerived ? 'image/jpeg' : (attachment.mime || 'application/octet-stream'));
+      res.setHeader('Cache-Control', 'private, max-age=600');
+      if (variant === 'original') {
+        // Originaldateien als Download anbieten, statt sie im Browser zu öffnen.
+        res.setHeader('Content-Disposition',
+          `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`);
+      }
+      res.sendFile(absPath);
+    } catch (e) {
+      console.error(`[dashboard] Wiki-Anhang ${slug}: ${e.message}`);
+      res.status(502).json({ error: 'Core nicht erreichbar', detail: e.message });
+    }
+  };
+}
+
+app.get('/api/wiki/file/:slug/:filename', auth, serveWikiAttachment('original'));
+app.get('/api/wiki/preview/:slug/:filename', auth, serveWikiAttachment('preview'));
+app.get('/api/wiki/thumb/:slug/:filename', auth, serveWikiAttachment('thumb'));
+
+/**
+ * Anhang hochladen: Datei landet im Wiki-Verzeichnis, die Metadaten meldet
+ * der Core. Bei Bildern entsteht zusätzlich eine Vorschau, bei PDF wird Text
+ * extrahiert — damit sind hochgeladene Dateien genauso durchsuchbar wie
+ * importierte.
+ */
+app.post('/api/wiki/pages/:slug/attachments', requireSession, requireCsrf,
+  wikiUpload.single('file'), async (req, res) => {
+    const slug = String(req.params.slug || '');
+    if (!WIKI_SLUG_RE.test(slug)) return res.status(400).json({ error: 'Ungültiger Slug' });
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei übertragen' });
+
+    const filename = safeWikiFilename(req.file.originalname);
+    if (!filename) return res.status(400).json({ error: 'Ungültiger Dateiname' });
+
+    try {
+      const relPath = path.join(slug, filename);
+      const absPath = path.resolve(WIKI_DIR, relPath);
+      if (!absPath.startsWith(WIKI_DIR + path.sep)) {
+        return res.status(400).json({ error: 'Pfad außerhalb des Wiki-Verzeichnisses' });
+      }
+      fs.mkdirSync(path.dirname(absPath), { recursive: true });
+      fs.writeFileSync(absPath, req.file.buffer);
+
+      const sha256 = createHash('sha256').update(req.file.buffer).digest('hex');
+      const ext = path.extname(filename).toLowerCase();
+
+      let previewPath = null;
+      let thumbPath = null;
+      let textContent = null;
+
+      if (['.jpg', '.jpeg', '.png', '.gif', '.tif', '.tiff', '.webp'].includes(ext)) {
+        try {
+          const previewRel = path.join(slug, '_preview', `${filename}.jpg`);
+          const thumbRel = path.join(slug, '_thumb', `${filename}.jpg`);
+          fs.mkdirSync(path.join(WIKI_DIR, slug, '_preview'), { recursive: true });
+          fs.mkdirSync(path.join(WIKI_DIR, slug, '_thumb'), { recursive: true });
+          await sharp(absPath).rotate()
+            .resize(2000, 2000, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 85 }).toFile(path.join(WIKI_DIR, previewRel));
+          await sharp(absPath).rotate()
+            .resize(320, 320, { fit: 'inside', withoutEnlargement: true })
+            .jpeg({ quality: 80 }).toFile(path.join(WIKI_DIR, thumbRel));
+          previewPath = previewRel;
+          thumbPath = thumbRel;
+        } catch (e) {
+          console.error(`[dashboard] Wiki-Vorschau fehlgeschlagen: ${e.message}`);
+        }
+      } else if (ext === '.pdf') {
+        try {
+          textContent = execFileSync('pdftotext', ['-layout', '-enc', 'UTF-8', absPath, '-'],
+            { timeout: 120_000, maxBuffer: 32 * 1024 * 1024 }).toString('utf-8').trim();
+        } catch (e) {
+          console.error(`[dashboard] Wiki-PDF-Text fehlgeschlagen: ${e.message}`);
+        }
+      }
+
+      const session = req.dashboardSession;
+      const coreRes = await fetch(
+        `${CORE_BASE}/api/wiki/pages/${encodeURIComponent(slug)}/attachments`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${CORE_SERVICE_TOKEN}`,
+            'X-Actor': session ? session.actor : 'dashboard',
+            'X-Request-ID': randomUUID(),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            filename,
+            mime: req.file.mimetype || 'application/octet-stream',
+            size: req.file.size,
+            sha256,
+            path: relPath,
+            previewPath,
+            thumbPath,
+            textContent,
+          }),
+          signal: AbortSignal.timeout(30_000),
+        },
+      );
+      const body = await coreRes.json().catch(() => ({}));
+      res.status(coreRes.status).json(body);
+    } catch (e) {
+      console.error(`[dashboard] Wiki-Upload ${slug}: ${e.message}`);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+/**
+ * Tiefer Link aus konvertiertem Markup: /dashboard/wiki/<slug>.
+ * Die Oberfläche fängt Klicks normalerweise selbst ab; diese Route greift,
+ * wenn jemand den Link direkt aufruft oder weitergibt.
+ */
+app.get('/wiki/:slug', (req, res) => {
+  const slug = String(req.params.slug || '');
+  if (!WIKI_SLUG_RE.test(slug)) return res.redirect('/dashboard/?tab=wiki');
+  res.redirect(`/dashboard/?tab=wiki&page=${encodeURIComponent(slug)}`);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

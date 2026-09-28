@@ -11,6 +11,7 @@
 <meta name="csrf-token" content="">
 <link rel="stylesheet" href="/dashboard/css/assets.css">
 <link rel="stylesheet" href="/dashboard/css/entity-tile.css">
+<link rel="stylesheet" href="/dashboard/css/wiki.css">
 <style>
 :root {
   --bg:      #0f1117;
@@ -210,6 +211,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 <script defer src="/dashboard/js/fleet-stores.js"></script>
 <script defer src="/dashboard/js/fleet-detail.js"></script>
 <script defer src="/dashboard/js/banking-connect.js"></script>
+<script defer src="/dashboard/js/wiki.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>
 </head>
 <body>
@@ -245,6 +247,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('pe')"              >💼 Private Equity</button>
     <button onclick="showTab('instagram')"       >📷 Instagram</button>
     <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
+    <button onclick="showTab('wiki')"            >📚 Wiki</button>
     <button onclick="showTab('agents')"          >🤖 Agents</button>
     <button onclick="showTab('status')"         >🔌 Status</button>
   </nav>
@@ -335,11 +338,11 @@ function showTab(tab) {
   // Handle banking-connect deep link as banking tab
   if (tab === 'banking-connect') tab = 'banking';
   currentTab = tab;
-  const tabs = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','agents','status'];
+  const tabs = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, agents: loadAgents, status: loadStatus })[tab]();
+  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
 }
 
 /* ── Fetch helper ── */
