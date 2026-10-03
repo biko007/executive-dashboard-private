@@ -134,3 +134,11 @@
   line-height: 1.45;
 }
 .wiki-check input { flex: 0 0 auto; margin-top: 2px; }
+
+/* Tabellen ohne Kopfzeile im Quellwiki.
+   JSPWiki rendert dort durchgehend <td>, nie <th>. Markdown verlangt aber eine
+   Kopfzeile, deshalb erzeugt der Konverter eine leere — sachlich richtig, nur
+   optisch ein leerer Streifen. Hier wird er ausgeblendet. */
+.wiki-body thead tr:has(th:empty:only-child),
+.wiki-body thead tr.wiki-leerer-kopf { display: none; }
+.wiki-body thead th:empty { padding: 0; border: 0; height: 0; }

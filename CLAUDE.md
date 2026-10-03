@@ -189,6 +189,13 @@ Agent-Repo (`src/modules/wiki`, Tabellen `wiki_*`); Architekturdetails in dessen
 Stil der übrigen Tabs (globale `loadWiki()`, `apiFetch`, `esc`). Damit entfallen die
 Alpine-CSP-Fallstricke konstruktiv. Neue Dependencies: `marked`, `sanitize-html`.
 
+**Leere Tabellenkopfzeilen (2026-10-03).** Tabellen aus dem Quellwiki haben meist keine
+Kopfzeile — JSPWiki rendert dort durchgehend `<td>`. Markdown verlangt aber eine, also
+erzeugt der Konverter eine leere. `renderWikiMarkdown()` markiert eine vollständig leere
+Kopfzeile mit `class="wiki-leerer-kopf"`, die Stilvorlage blendet sie aus. Der Sanitizer
+erlaubt dafür genau diese eine Klasse auf `tr` (`allowedClasses`) — keine freie
+Klassenvergabe aus dem Seiteninhalt.
+
 **Zwei Fallen, die beim Bauen aufgefallen sind:**
 
 1. Der Token steckt nicht im gerenderten HTML. `wikiEnhanceLinks()` hängt ihn im Browser an

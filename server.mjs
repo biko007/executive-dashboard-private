@@ -2184,7 +2184,16 @@ const wikiUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
  * auch wenn im Wiki-Text HTML steht (JSPWiki-Seiten enthalten teils HTML).
  */
 function renderWikiMarkdown(markdown) {
-  const rawHtml = marked.parse(String(markdown ?? ''), { gfm: true, breaks: false });
+  let rawHtml = marked.parse(String(markdown ?? ''), { gfm: true, breaks: false });
+
+  // Tabellen aus dem Quellwiki haben oft keine Kopfzeile; der Konverter erzeugt
+  // dann eine leere, weil Markdown eine verlangt. Hier wird sie ausgezeichnet,
+  // damit die Stilvorlage sie ohne :has()-Selektor ausblenden kann.
+  rawHtml = rawHtml.replace(
+    /<thead>\s*<tr>(?:\s*<th[^>]*>\s*<\/th>)+\s*<\/tr>\s*<\/thead>/g,
+    (treffer) => treffer.replace('<tr>', '<tr class="wiki-leerer-kopf">'),
+  );
+
   return sanitizeHtml(rawHtml, {
     allowedTags: [
       'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr',
@@ -2197,7 +2206,11 @@ function renderWikiMarkdown(markdown) {
       img: ['src', 'alt', 'title'],
       td: ['align'],
       th: ['align'],
+      // Nur die eine Klasse, mit der eine leere Kopfzeile markiert wird —
+      // keine freie Klassenvergabe aus dem Seiteninhalt.
+      tr: ['class'],
     },
+    allowedClasses: { tr: ['wiki-leerer-kopf'] },
     // Keine javascript:- oder data:-URLs; relative Wiki-Links bleiben erlaubt.
     allowedSchemes: ['http', 'https', 'mailto', 'ftp'],
     allowProtocolRelative: false,
