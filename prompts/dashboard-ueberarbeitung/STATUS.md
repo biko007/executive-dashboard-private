@@ -5,9 +5,8 @@ Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächlic
 **Letzte Aktualisierung:** 04.10.2026, 18:46 UTC
 **Aktuelle Phase:** Phase 1 begonnen — P1-1 erledigt, P1-2 als Nächstes
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** P1-1 ist produktiv. Dashboard-Dienst und Gateway neu gestartet.
-`executive-agent` ist committet, aber **noch nicht gepusht** — `index.ts` ist Red-Zone-Pfad
-und wartet auf `/arm push` durch den Owner.
+**Änderungsstand Code:** P1-1 ist produktiv und in allen drei Repositories gepusht.
+Dashboard-Dienst und Gateway neu gestartet.
 **Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
 
 ---
@@ -252,11 +251,12 @@ Offen bleibt die **Owner-Aufgabe** Hetzner-Snapshot vor Phase 2.
 |---|---|---|
 | executive-dashboard | `701763d` feat(dashboard): P1-1 — Datenstand, Zustandsvokabular, Demodaten ausgeblendet | ✅ nach `origin` gepusht |
 | openclaw-workspace (Pointer) | `aa3b88b` chore(pointer): 06eb7c5 → 701763d | ✅ nach `origin` gepusht |
-| executive-agent | `9481e72` fix(status): IB-Gateway-Zustand live prüfen · `c255833` docs(changelog) | ⏳ **wartet auf `/arm push`** (Red Zone: `index.ts`) |
+| executive-agent | `9481e72` fix(status): IB-Gateway-Zustand live prüfen · `c255833` docs(changelog) | ✅ nach `origin` gepusht (04.10.2026 19:39 UTC, Armed-Flag verbraucht) |
+| openclaw-workspace (Pointer executive-agent) | `d2bb8c1` chore(pointer): e76ff43 → c255833 | ✅ nach `origin` gepusht |
 
-**Owner-Aktion offen:** `/arm` und Push des Agent-Repos. Bis dahin ist der Core-Fix lokal
-produktiv (Gateway läuft mit dem neuen Stand), aber nicht auf `origin` gesichert. Der
-Workspace-Pointer für `executive-agent` steht bewusst noch auf `e76ff43`.
+**Keine Owner-Aktion offen.** Der Red-Zone-Push für `index.ts` wurde am 04.10.2026 19:39 UTC
+mit gesetztem Armed-Flag durchgeführt; das Flag ist verbraucht (Einmalnutzung). Beide
+Workspace-Pointer stehen auf dem gepushten Stand.
 
 ---
 
