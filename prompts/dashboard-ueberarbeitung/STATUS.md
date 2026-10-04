@@ -2,8 +2,9 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 04.10.2026, 18:46 UTC
-**Aktuelle Phase:** Phase 1 begonnen — P1-1 erledigt, P1-2 als Nächstes
+**Letzte Aktualisierung:** 04.10.2026, 20:20 UTC
+**Aktuelle Phase:** Phase 1 — P1-1, P1-2, P1-3, P1-4 und P1-6 erledigt.
+**P1-5 (Kalenderlogik, Befund F) ist noch offen** und muss vor CHECKPOINT 1 kommen.
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** P1-1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet.
@@ -17,12 +18,12 @@ Dashboard-Dienst und Gateway neu gestartet.
 |---|---|---|---|---|---|
 | **Phase 0** | Bestandsaufnahme, Sicherung, Arbeitsdateien | — | **erledigt** | `1fe1499` | Report `~/bikosoc-spec/report-dashboard-phase0-1700.md` |
 | P1-1 | Aktualität und Statuskonsistenz (A, B) | L | **erledigt** | siehe unten | Report `~/bikosoc-spec/report-dashboard-p1-1-1846.md` |
-| P1-2 | Fuhrparkfilter (C) | S | offen | — | — |
-| P1-3 | Mietvertragsfilter und Suche (D) | M | offen | — | — |
-| P1-4 | SharePoint-Datenzuordnung (E) | M | offen | — | — |
-| P1-5 | Kalenderlogik (F) | M | offen | — | — |
-| P1-6 | Nebenkosten-Meldungen (G) | M | offen | — | — |
-| **CHECKPOINT 1** | unabhängige Browserprüfung | — | offen | — | `04-…` §2 |
+| P1-2 | Fuhrparkfilter (C) | S | **erledigt** | `30ac07b` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
+| P1-3 | Mietvertragsfilter und Suche (D) | M | **erledigt** | `f66bfce` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
+| P1-4 | SharePoint-Datenzuordnung (E) | M | **erledigt** | `94f49ea` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
+| P1-5 | Kalenderlogik (F) | M | **offen** | — | — |
+| P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
+| **CHECKPOINT 1** | unabhängige Browserprüfung | — | offen (wartet auf P1-5) | — | `04-…` §2 |
 | P2-1 | Helles Design | M | offen | — | — |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
@@ -257,6 +258,230 @@ Offen bleibt die **Owner-Aufgabe** Hetzner-Snapshot vor Phase 2.
 **Keine Owner-Aktion offen.** Der Red-Zone-Push für `index.ts` wurde am 04.10.2026 19:39 UTC
 mit gesetztem Armed-Flag durchgeführt; das Flag ist verbraucht (Einmalnutzung). Beide
 Workspace-Pointer stehen auf dem gepushten Stand.
+
+### P1-2 — Fuhrparkfilter (Befund C) — 04.10.2026
+
+**Durchgeführt**
+- Lade- und Fehlerzustand im Fuhrpark von `x-if` auf `x-show` umgestellt. Damit liegt
+  das Element mit `x-ref="fleetListContent"` dauerhaft im DOM und kann aus `$refs` nicht
+  mehr verschwinden. Die Detailansicht behält `x-if`, weil `fleetDetailView` bei jeder
+  Auswahl neu aufgebaut werden muss.
+- Zusammengesetzte Bedingungen in Alpine-Methoden ausgelagert (`zeigtLadehinweis()`,
+  `zeigtFehler()`, `zeigtListe()`, `zeigtDetail()`, `fehlerText()`) — CLAUDE.md
+  Alpine-CSP-Regel 2, keine `&&`-Ausdrücke mehr in `x-show`/`x-if`.
+- `_renderList()` bricht nicht mehr still ab: fehlt das Renderziel, erscheint ein
+  sichtbarer Fehlerzustand.
+- Leerzustand nennt den aktiven Filter, mit Rücksetzen-Schaltfläche. Eigene Texte für
+  „Archiviert", „Aktiv" und einen tatsächlich leeren Bestand.
+- Neue Trefferzeile „7 Fahrzeuge · Filter: Aktiv"; neue Brücke `fleetSetzeFilter()`.
+
+**Geänderte Dateien:** `public/js/fleet-stores.js`, `public/index.html` (Fuhrpark-Template),
+`public/css/datenstand.css` (Trefferzeile)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `node --check` fleet-stores.js und Inline-Skript | Exit 0 |
+| Template-Struktur maschinell | Tags balanciert; alle 5 `x-if` mit genau einem direkten Kind |
+| Core erneut gegengeprüft | `status=active` 7, `archived` 0, `all` 7 |
+| Komponentenlogik isoliert (Node, ohne Browser) | Abfolge Aktiv→Archiviert→Alle→Aktiv→Archiviert→Alle→Aktiv jedes Mal korrekt; während des Ladens Liste ausgeblendet, danach sichtbar; Trefferzeile stimmt |
+| Fehlendes Renderziel | setzt Fehlerzustand statt stillem Abbruch |
+| Detailansicht/Rückweg | `zeigtListe()`/`zeigtDetail()` schalten korrekt |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Noch nicht verifiziert — CP1 prüfen**
+- **CP1 prüfen:** die vier Filterwechsel im echten Browser (der Isolationstest deckt die
+  Komponentenlogik ab, nicht das Zusammenspiel mit dem Alpine-CSP-Build im DOM).
+- **CP1 prüfen:** `?fleet_code=`-Deeplink und Detail-Unterbereiche weiterhin funktionsfähig.
+- **CP1 prüfen:** Assets- und Banking-Bereich (gleiches Alpine-Muster) ohne Regression.
+
+**Commit:** `30ac07b` · kein Dienst-Restart nötig (nur `public/`)
+
+---
+
+### P1-3 — Mietvertragsfilter und Suche (Befund D) — 04.10.2026
+
+**Durchgeführt**
+- `_filteredLeases()` filtert kombinierbar nach Objekt (`property_code`), Status und
+  Freitext. Vorher gab die Methode die Liste ungefiltert zurück.
+- `vertraegeFilter()` war eine leere Funktion („Future: implement client-side filtering")
+  und ist jetzt implementiert: liest die Bedienelemente in den Alpine-Zustand und ersetzt
+  nur Trefferliste und Trefferzeile. Die Bedienelemente bleiben stehen und behalten ihre
+  Werte — das Suchfeld verliert beim Tippen weder Inhalt noch Fokus.
+- Suche über Mieternamen, Objektname, Objektcode, Einheit und Vertragsnummer.
+- Trefferzeile „3 von 17 Verträgen · Objekt N24, Suche ‚Bickel'".
+- `vertraegeFilterReset()` in Filterzeile und Leerzustand.
+- Leerzustand unterscheidet „Keine Treffer" (nennt die Einschränkung) von
+  „Keine Mietverträge erfasst".
+- `aria-label` an den drei Bedienelementen.
+
+**Geänderte Dateien:** `public/js/assets-vertraege.js`
+
+**Prüfungen und Resultate** — gegen die echten Core-Antworten (17 Verträge, 6 Objekte)
+
+| Prüfung | Resultat |
+|---|---|
+| Objekt I83 | 1 Vertrag (`i83-w1-2025`) |
+| Objekt N24 / L19 | 7 / 4 |
+| Status Aktiv / Beendet / Zukünftig | 17 / 0 / 0 |
+| Suche `zzzzAuditKeinTreffer` | 0 Treffer mit Leerzustand |
+| Suche „Bickel" (groß/klein) | je 5 |
+| N24+„Bickel" / L19+„Bickel" / I83+„Bickel" | 3 / 2 / 0 |
+| N24 + Status Aktiv + „Bickel" | 3 — Kombination greift |
+| Zurücksetzen | stellt alle 17 wieder her |
+| Bedienelemente behalten Werte | Objekt, Status und Suchwert im erzeugten HTML gesetzt |
+| HTML-Einfügeprobe mit `<script>` im Suchbegriff | escaped |
+| `node --check` | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Hinweis zur Datenlage:** alle 17 Verträge stehen auf `active`. „Beendet" und „Zukünftig"
+liefern deshalb korrekt null Treffer — das ist der Bestand, kein Fehler. Der Leerzustand
+sagt das jetzt ausdrücklich. Zur Klärung von `n24-w6-2024` siehe Befund H / P2-11.
+
+**Noch nicht verifiziert — CP1 prüfen**
+- **CP1 prüfen:** Tippen im Suchfeld behält Fokus und Cursorposition.
+- **CP1 prüfen:** schnelle Wechsel zwischen drei Objekten (strukturell ausgeschlossen,
+  weil rein im Browser gefiltert wird — am echten System bestätigen).
+- **CP1 prüfen:** Zeilenklick öffnet weiterhin das richtige Vertragsdetail.
+
+**Commit:** `f66bfce` · kein Dienst-Restart nötig
+
+---
+
+### P1-4 — SharePoint-Datenzuordnung (Befund E) — 04.10.2026
+
+**Durchgeführt**
+- Neue Normalisierungsschicht `spSite()`, `spDrive()`, `spDatei()` — die einzige Stelle im
+  Frontend, an der Feldnamen der Quelle vorkommen. Sprint 10 hatte auf `snake_case`
+  umgestellt, das Frontend las weiter Graph-`camelCase`.
+- `spOeffnenAktion()` verlinkt nur echte Web-Adressen (`http:`/`https:`). Fehlt die Adresse
+  oder trägt sie ein anderes Schema, erscheint die deaktivierte Aktion
+  „Kein Link verfügbar". Es wird nie mehr ein leerer `href` erzeugt — ein leerer `href`
+  lädt die aktuelle Seite neu, genau so entstand der zweite Dashboard-Tab.
+- Site- und Bibliotheksnamen werden angezeigt; ein leerer Name erscheint als
+  „Name nicht erfasst". Die Altzeile mit derselben `site_id` ist als
+  „Alteintrag mit derselben Site-Kennung" gekennzeichnet — nur angezeigt, nicht bereinigt
+  (Owner-Entscheidung Nr. 8).
+- Änderungsdatum aus `last_modified_at`; Ordnerpfad aus `path` unter dem Dateinamen.
+- Sortierung arbeitet auf den normalisierten Feldern; vorher war die Datumssortierung
+  wirkungslos.
+- Ordner-Navigation entfernt (der Core liefert eine flache Liste; `isFolder` existiert
+  nicht, die Zweige liefen nie an). Download-Schaltfläche entfernt (`downloadUrl`
+  existiert nicht, sie erschien nie).
+- Die Serverbegrenzung wird benannt: „100 Einträge angezeigt von 11.160 im Index".
+- HTML-Einfügelücke bei `h.summary` (ohne `esc()`) geschlossen.
+
+**Geänderte Dateien:** `public/index.html` (SharePoint-Bereich), `public/css/datenstand.css`
+
+**Prüfungen und Resultate** — gegen die echten Core-Antworten
+
+| Prüfung | Resultat |
+|---|---|
+| Bestand | 4 Sites, 2 Bibliotheken, 100 Dateien (von 11.160), 25 Suchtreffer |
+| `href=""` in Sites/Bibliotheken/Dateien/Suche | **0** |
+| Dateiliste | 100/100 mit „Öffnen ↗", 0 „Kein Link verfügbar", 0 Zeilen mit „–" als Datum, 100 Zeilen mit Pfad |
+| `undefined` im erzeugten HTML | keines |
+| Datei ohne `web_url` | „Kein Link verfügbar", kein leerer `href` |
+| Datumssortierung | kehrt um (desc 2026-01-18, asc 2021-01-04) |
+| Gleichnamige Dateien | `0001_Rechnung.pdf` 2× mit unterschiedlichem Ordner (…/2024, …/2025) |
+| Suche „Mietvertrag" | 25 Treffer inkl. „I83 Mietvertrag Cambier-Jacobs.pdf" |
+| Suche ohne Treffer | „Keine Ergebnisse" |
+| Einfügeprobe `<script>`, `<img onerror>`, `javascript:` | escaped bzw. nicht verlinkt |
+| `node --check` Inline-Skript | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Noch nicht verifiziert — CP1 prüfen**
+- **CP1 prüfen:** drei Stichproben verschiedener Dateiarten (PDF, Office, Bild) öffnen im
+  Browser tatsächlich das Dokument in SharePoint — der Isolationstest prüft nur, dass die
+  Adresse korrekt in den `href` gelangt.
+- **CP1 prüfen:** kein Klick auf „Öffnen" lädt das Dashboard neu.
+- **CP1 prüfen:** Upload-Dialog weiterhin funktionsfähig (nur öffnen und abbrechen, kein
+  Upload zu Testzwecken).
+- **CP1 prüfen:** Dokumenten-Verknüpfungen „📎" in Kalender, Fuhrpark und Assets — die
+  nutzen `l.spWebUrl` aus `/api/links` und sind nicht betroffen, trotzdem Stichprobe.
+
+**Commit:** `94f49ea` · kein Dienst-Restart nötig
+
+---
+
+### P1-6 — Nebenkosten: Schweregrade und Meldungen (Befund G) — 04.10.2026
+
+**Durchgeführt**
+- Drei Lesefehler behoben: Vergleich gegen `'blocking'` statt `'blocker'` (jeder Blocker
+  erschien als „Info"), `f.detail` statt `message` (Beschreibung immer leer) und die
+  nie erscheinende „Beheben"-Schaltfläche (verlangte `suggested_action`, `display_id`,
+  `entity_id` — Felder, die der Core nicht liefert).
+- Neue Datei `public/js/nk-befunde.js`: Zuordnung für **alle 21** Prüfcodes aus
+  `precheck.ts` mit Titel, Ursache, Auswirkung und nächstem Schritt auf Deutsch.
+- Unbekannter Schweregrad wird „unbekannter Schweregrad", nicht „Info".
+- Die `details` des Core erscheinen als Klartextzeile („Einheit (ID): 27"); die englische
+  Originalmeldung bleibt als Quellenangabe sichtbar.
+- Unbekannte Prüfcodes werden nicht verschluckt.
+- Zielansichten über `nkBeheben()` in vorhandene Ansichten; 20 von 21 Codes haben ein
+  Ziel. Neue Brücke `assetsSwitchSubTab()`, weil die Deeplinks vorher nur
+  `vertraegeSwitch()` riefen und damit aus dem Nebenkosten-Unterbereich unsichtbar blieben.
+- Readiness-Matrix zeigt den benannten Zustand („2 Blocker") plus sichtbare
+  Aufschlüsselung; vorher nackte Zahl mit Erklärung nur im `title` (Hover).
+  `.nk-badge` war ein 24×24-Kreis und ist jetzt eine mitwachsende Pille.
+- „Keine Pflichten" von „nicht eingerichtet" und „Ladefehler" getrennt — in Pre-Check,
+  §556-Pflichten und Matrix-Detailansicht, jeweils mit Wiederholungsschaltfläche.
+
+**Geänderte Dateien:** `public/js/nk-befunde.js` (neu), `public/js/assets-nebenkosten.js`,
+`public/js/assets-status.js`, `public/css/assets.css`, `public/css/datenstand.css`,
+`public/index.html` (Skript-Einbindung). **`precheck.ts` unangetastet.**
+
+**Prüfungen und Resultate** — gegen die echten Core-Antworten, alle sechs Objekte, Jahr 2025
+
+| Prüfung | Resultat |
+|---|---|
+| Abdeckung | 21 von 21 Prüfcodes mit Ursache, Auswirkung und Schritt |
+| Schweregrad | `blocker`→Blocker, `warning`→Warnung, `info`→Hinweis; `blocking`/``/`null`→„unbekannter Schweregrad" |
+| Blocker im Bestand | 13, **alle** korrekt als Blocker; **0** fälschlich als Info/Hinweis |
+| D4/2025 | Ampel „3 Blocker"; alle drei Einzelbefunde mit Abzeichen Blocker, deutschem Titel, Ursache, Schritt und Zielansicht |
+| Ampeltexte | L19 2/5/2, N24 2/7/2, MG24 2/4/0, S28 2/3/0, I83 2/1/0 — Einzahl/Mehrzahl korrekt |
+| Details | 6× Einheit-ID bei N24, 2× Mietvertrag plus Einheit |
+| unbekannter Code | Code, Schweregrad und Originalmeldung bleiben sichtbar |
+| Aktion ohne Objektcode | erzeugt keine Schaltfläche |
+| HTML-Einfügeprobe in `code`, `message`, `details` | alles escaped |
+| `node --check` alle JS + Inline | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Noch nicht verifiziert — CP1 prüfen**
+- **CP1 prüfen:** mindestens zwei „Beheben"-Schaltflächen führen im Browser in die
+  richtige Zielansicht (Unterbereichswechsel plus Schubfach).
+- **CP1 prüfen:** Readiness-Matrix bei 1440 px und 390 px lesbar; Erklärung ohne Hover.
+- **CP1 prüfen:** Vorschau bleibt bei allen sechs Objekten gesperrt.
+- **CP1 prüfen:** Unterbereiche „Vorschau", „Runs & Statements" und „§556-Pflichten"
+  weiterhin bedienbar; Audit-Viewer unverändert.
+- **Owner-Prüfung (Entscheidung Nr. 7):** fachliche Richtigkeit der Schweregrad-Zuordnung
+  der 21 Regeln.
+
+**Commit:** `4ff083e` · kein Dienst-Restart nötig
+
+---
+
+### Offen nach diesem Bündel
+
+- **P1-5 (Kalenderlogik, Befund F)** ist nicht Teil dieses Bündels und weiterhin offen.
+  Es muss vor CHECKPOINT 1 umgesetzt werden, weil die Abnahmetabelle `04-…` §2.5 dazugehört.
+- Das Paket enthält einen **Schreibtest an einem selbst angelegten Testtermin** — der
+  einzige Punkt in Phase 1, der eine echte Mutation berührt.
+
+### Vorbestehende Befunde, nicht Teil dieses Bündels
+
+- Neue Oberflächentexte in `fleet-stores.js` und `assets-vertraege.js` verwenden weiterhin
+  die ASCII-Umschrift des Umfelds („zuruecksetzen", „Vertraege"). Die Umstellung auf echte
+  Umlaute macht **P2-8** für alle Bereiche in einem Zug; eine Teilmigration jetzt hätte
+  die Dateien inkonsistent gemacht.
+- Die Spalte „Typ" in der Mietvertragstabelle zeigt weiterhin den Rohwert
+  (`residential`/`temporary`) — Übersetzung ebenfalls P2-8.
+- `fleet-detail.js` hat dasselbe `x-ref`-in-`x-if`-Muster wie vormals `fleetRoot`, aber
+  **nicht** den Fehler: `switchTab()` rendert synchron und setzt `loading` nicht.
+  Der Teilbaum wird dabei nicht abgebaut. Nicht angefasst, hier vermerkt.
+- `/api/sharepoint/download` in `server.mjs` wird vom Frontend nicht mehr aufgerufen
+  (die Route erwartet eine Graph-Preauth-Adresse, die der Core nicht liefert). Die Route
+  bleibt bestehen; Entfernen wäre außerhalb des Pakets.
 
 ---
 
