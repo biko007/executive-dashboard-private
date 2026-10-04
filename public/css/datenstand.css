@@ -105,6 +105,17 @@
 
 .ds-leer-sub { font-size: 12px; }
 
+/* ── Trefferzeile ueber Listen und Tabellen (P1-2, P1-3) ──────────────────── */
+
+/* Macht sichtbar, wie viele Eintraege der aktive Filter uebrig laesst. */
+.treffer-zeile {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 2px 0 10px;
+}
+
+.treffer-zeile:empty { display: none; }
+
 /* ── Zustandsabzeichen in Tabellen und Kacheln ────────────────────────────── */
 
 /* .badge setzt text-transform: uppercase — fuer mehrwortige Zustandstexte

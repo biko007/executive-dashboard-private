@@ -1863,15 +1863,22 @@ let _leasesCache = [];
 
 async function loadFleet() {
   const c = document.getElementById('content');
+  // P1-2: Lade- und Fehlerzustand werden mit x-show gesteuert, nicht mehr mit
+  // x-if. Grund: x-if baut den Teilbaum ab und neu auf. Dabei verschwand das
+  // Element mit x-ref="fleetListContent" aus $refs, und _renderList() brach
+  // still ab — nach dem ersten Filterwechsel blieb die Liste deshalb leer.
+  // Die Liste liegt jetzt dauerhaft im DOM; nur ihre Sichtbarkeit wechselt.
+  // Die Detailansicht behaelt x-if, weil fleetDetailView bei jeder Auswahl
+  // neu aufgebaut werden MUSS (x-init="init()").
+  // Zusammengesetzte Bedingungen sind nach CLAUDE.md in Alpine-Methoden
+  // ausgelagert (keine &&-Ausdruecke in x-show/x-if).
   c.innerHTML = '<div x-data="fleetRoot">'
     // Loading state
-    + '<template x-if="loading"><div class="spinner">Laden...</div></template>'
+    + '<div class="spinner" x-show="zeigtLadehinweis()">Laden...</div>'
     // Error state
-    + '<template x-if="error"><div class="empty" x-text="\'Fehler: \' + error"></div></template>'
-    // Main content
-    + '<template x-if="!loading && !error"><div>'
+    + '<div class="empty" x-show="zeigtFehler()" x-text="fehlerText()"></div>'
     // List view (no vehicle selected)
-    + '<template x-if="!selectedVehicle"><div>'
+    + '<div x-show="zeigtListe()">'
     + '<div class="filters-row">'
     + '<button class="btn" :class="statusFilter===\'active\' ? \'btn-primary\' : \'btn-ghost\'" @click="switchStatus(\'active\')">Aktiv</button>'
     + '<button class="btn" :class="statusFilter===\'archived\' ? \'btn-primary\' : \'btn-ghost\'" @click="switchStatus(\'archived\')">Archiviert</button>'
@@ -1879,10 +1886,11 @@ async function loadFleet() {
     + '<div style="flex:1"></div>'
     + '<button class="btn btn-primary" onclick="fleetNewVehicleModal()">+ Fahrzeug anlegen</button>'
     + '</div>'
+    + '<div class="treffer-zeile" x-text="trefferText()"></div>'
     + '<div x-ref="fleetListContent"></div>'
-    + '</div></template>'
+    + '</div>'
     // Detail view (vehicle selected)
-    + '<template x-if="selectedVehicle"><div>'
+    + '<template x-if="zeigtDetail()"><div>'
     + '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">'
     + '<button class="btn-ghost" @click="backToList()">&#x2190; Zurueck</button>'
     + '</div>'
@@ -1902,7 +1910,6 @@ async function loadFleet() {
     + '<div x-ref="fleetDetailContent"></div>'
     + '</div></template>'
     + '</div>'
-    + '</div></template>'
     + '</div></template>'
     // Approval Modal (same pattern as Assets)
     + '<template x-if="$store.approval.visible">'

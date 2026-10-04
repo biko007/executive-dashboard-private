@@ -82,6 +82,17 @@ function fleetTuevInfo(tuevDate) {
   return { cls: 'tuev-green', text: dateStr };
 }
 
+// ── Globale Bruecke fuer Schaltflaechen in innerHTML-Inhalten ───────────────
+//
+// Die Fahrzeugkacheln und der Leerzustand werden als HTML-String gerendert und
+// koennen deshalb keine Alpine-Direktiven nutzen. Diese Bruecke setzt den
+// Filter auf der laufenden Komponente.
+function fleetSetzeFilter(status) {
+  const el = document.querySelector('[x-data=fleetRoot]');
+  if (!el || !el._x_dataStack) return;
+  el._x_dataStack[0].switchStatus(status);
+}
+
 // ── Fleet Root Component ─────────────────────────────────────────────────────
 
 document.addEventListener('alpine:init', () => {
@@ -131,6 +142,53 @@ document.addEventListener('alpine:init', () => {
       this.loadVehicles();
     },
 
+    /* ── Sichtbarkeit (P1-2) ────────────────────────────────────────────────
+       Zusammengesetzte Bedingungen gehoeren nach CLAUDE.md in Methoden und
+       nicht in den x-show-Ausdruck. Die Liste wird mit x-show ein- und
+       ausgeblendet statt mit x-if abgebaut — sonst verliert $refs das
+       Render-Ziel (siehe Kommentar in loadFleet()). */
+    zeigtLadehinweis() {
+      return this.loading === true;
+    },
+
+    zeigtFehler() {
+      return this.loading !== true && !!this.error;
+    },
+
+    fehlerText() {
+      return 'Fehler: ' + (this.error || 'unbekannt');
+    },
+
+    zeigtListe() {
+      return this.loading !== true && !this.error && !this.selectedVehicle;
+    },
+
+    zeigtDetail() {
+      return this.loading !== true && !this.error && !!this.selectedVehicle;
+    },
+
+    /* Beschriftung des aktiven Filters — wird in der Trefferzeile und im
+       Leerzustand verwendet. */
+    filterLabel() {
+      if (this.statusFilter === 'archived') return 'Archiviert';
+      if (this.statusFilter === 'all') return 'Alle';
+      return 'Aktiv';
+    },
+
+    /* Trefferzahl je Filter. Macht sichtbar, dass der Filter die Auswahl
+       einschraenkt und nicht die Gesamtliste veraendert. */
+    trefferText() {
+      if (this.loading === true) return '';
+      const n = this.vehicles.length;
+      const wort = n === 1 ? 'Fahrzeug' : 'Fahrzeuge';
+      return n + ' ' + wort + ' · Filter: ' + this.filterLabel();
+    },
+
+    /* Vom Leerzustand aus aufgerufen (globale Bruecke fleetSetzeFilter). */
+    resetFilter() {
+      this.switchStatus('all');
+    },
+
     openDetail(vehicleCode) {
       this.selectedVehicle = vehicleCode;
       // Update URL without reload
@@ -150,11 +208,43 @@ document.addEventListener('alpine:init', () => {
       this.loadVehicles();
     },
 
+    /* Leerzustand benennt den aktiven Filter. Vorher stand hier nur
+       "Keine Fahrzeuge gefunden." — nicht unterscheidbar von einem leeren
+       Bestand (Spec §4 C, §4 M "keine Daten" vs. "keine Treffer"). */
+    _leerzustand() {
+      if (this.statusFilter === 'archived') {
+        return '<div class="empty">'
+          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine archivierten Fahrzeuge</div>'
+          + '<div style="font-size:13px;margin-bottom:14px">Der Filter &bdquo;Archiviert&ldquo; ist aktiv. '
+          + 'Es ist derzeit kein Fahrzeug archiviert &mdash; &bdquo;Alle&ldquo; zeigt den vollstaendigen Bestand.</div>'
+          + '<button class="btn btn-primary" onclick="fleetSetzeFilter(\'all\')">Filter zuruecksetzen</button>'
+          + '</div>';
+      }
+      if (this.statusFilter === 'active') {
+        return '<div class="empty">'
+          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine aktiven Fahrzeuge</div>'
+          + '<div style="font-size:13px;margin-bottom:14px">Der Filter &bdquo;Aktiv&ldquo; ist aktiv. '
+          + '&bdquo;Alle&ldquo; zeigt auch archivierte Fahrzeuge.</div>'
+          + '<button class="btn btn-primary" onclick="fleetSetzeFilter(\'all\')">Filter zuruecksetzen</button>'
+          + '</div>';
+      }
+      return '<div class="empty">'
+        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Fahrzeuge erfasst</div>'
+        + '<div style="font-size:13px">Im Fuhrpark ist noch kein Fahrzeug angelegt.</div>'
+        + '</div>';
+    },
+
     _renderList() {
       const el = this.$refs.fleetListContent;
-      if (!el) return;
+      if (!el) {
+        /* Darf nach dem Umbau auf x-show nicht mehr vorkommen. Falls doch:
+           sichtbarer Fehler statt stillem Abbruch (P1-2). */
+        this.error = 'Die Fahrzeugliste konnte nicht dargestellt werden '
+          + '(Render-Ziel fehlt). Bitte Bereich neu laden.';
+        return;
+      }
       if (!this.vehicles.length) {
-        el.innerHTML = '<div class="empty">Keine Fahrzeuge gefunden.</div>';
+        el.innerHTML = this._leerzustand();
         return;
       }
 
