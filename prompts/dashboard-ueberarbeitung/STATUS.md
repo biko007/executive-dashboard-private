@@ -5,8 +5,8 @@ Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächlic
 **Letzte Aktualisierung:** 04.10.2026, 17:00 UTC
 **Aktuelle Phase:** Phase 0 abgeschlossen — Phase 1 nicht begonnen
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** unverändert gegenüber `735d5b8` (nur Arbeitsdateien unter
-`prompts/dashboard-ueberarbeitung/` hinzugefügt)
+**Änderungsstand Code:** funktional unverändert gegenüber `735d5b8`; HEAD ist `1fe1499`
+(nur Arbeitsdateien unter `prompts/dashboard-ueberarbeitung/` hinzugefügt)
 
 ---
 
@@ -14,7 +14,7 @@ Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächlic
 
 | Paket | Thema | Aufwand | Status | Commit | Prüfung |
 |---|---|---|---|---|---|
-| **Phase 0** | Bestandsaufnahme, Sicherung, Arbeitsdateien | — | **erledigt** | siehe unten | Report `~/bikosoc-spec/report-dashboard-phase0-1700.md` |
+| **Phase 0** | Bestandsaufnahme, Sicherung, Arbeitsdateien | — | **erledigt** | `1fe1499` | Report `~/bikosoc-spec/report-dashboard-phase0-1700.md` |
 | P1-1 | Aktualität und Statuskonsistenz (A, B) | L | offen | — | — |
 | P1-2 | Fuhrparkfilter (C) | S | offen | — | — |
 | P1-3 | Mietvertragsfilter und Suche (D) | M | offen | — | — |
@@ -110,7 +110,9 @@ Für Phase 1 nicht erforderlich.
 |---|---|
 | Tag Dashboard-Repo | `pre-dashboard-ueberarbeitung-20261004` → `735d5b8` |
 | Tag Workspace-Repo | `pre-dashboard-ueberarbeitung-20261004` → `a86bd2a` |
-| Commit Arbeitsdateien | _wird beim Commit eingetragen_ |
+| Commit Arbeitsdateien (Dashboard) | `1fe1499` — docs(dashboard): Phase 0 … Arbeitsdateien |
+| Commit Pointer (Workspace) | `53959c4` — chore(pointer): executive-dashboard 735d5b8 → 1fe1499 |
+| Push | beide Repos nach `origin` gepusht, kein Red-Zone-Treffer |
 
 ---
 
