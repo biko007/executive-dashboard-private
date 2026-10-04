@@ -250,9 +250,13 @@ Offen bleibt die **Owner-Aufgabe** Hetzner-Snapshot vor Phase 2.
 
 | Repo | Commit | Push |
 |---|---|---|
-| executive-dashboard | _wird eingetragen_ | nach `origin` |
-| openclaw-workspace (Pointer) | _wird eingetragen_ | nach `origin` |
-| executive-agent | _wird eingetragen_ | **wartet auf `/arm push`** (Red Zone: `index.ts`) |
+| executive-dashboard | `701763d` feat(dashboard): P1-1 — Datenstand, Zustandsvokabular, Demodaten ausgeblendet | ✅ nach `origin` gepusht |
+| openclaw-workspace (Pointer) | `aa3b88b` chore(pointer): 06eb7c5 → 701763d | ✅ nach `origin` gepusht |
+| executive-agent | `9481e72` fix(status): IB-Gateway-Zustand live prüfen · `c255833` docs(changelog) | ⏳ **wartet auf `/arm push`** (Red Zone: `index.ts`) |
+
+**Owner-Aktion offen:** `/arm` und Push des Agent-Repos. Bis dahin ist der Core-Fix lokal
+produktiv (Gateway läuft mit dem neuen Stand), aber nicht auf `origin` gesichert. Der
+Workspace-Pointer für `executive-agent` steht bewusst noch auf `e76ff43`.
 
 ---
 
