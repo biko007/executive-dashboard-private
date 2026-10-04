@@ -1495,9 +1495,13 @@ let _spDrivesCache = [];
 let _spFilesCache = [];
 let _spCurrentSiteId = '';
 let _spCurrentDriveId = '';
-let _spCurrentFolderId = '';
-let _spBreadcrumb = []; // [{name, folderId}]
-let _spSortField = 'lastModifiedDateTime'; // 'name' | 'lastModifiedDateTime'
+let _spCurrentDriveName = '';
+let _spCurrentDriveFiles = null;  // Umfang der Bibliothek im Index
+let _spSearchBegriff = '';
+// Ordner-Zustand entfaellt (P1-4): der Core liefert eine flache Dateiliste mit
+// vollem Pfad, keine Ordnerhierarchie. Der Pfad steht als Spalte in der Liste.
+// P1-4: Sortierfelder sind jetzt die normalisierten Namen aus spDatei().
+let _spSortField = 'geaendertAm'; // 'name' | 'ordner' | 'geaendertAm'
 let _spSortDir = 'desc'; // 'asc' | 'desc'
 
 async function loadSharePoint() {
@@ -1507,8 +1511,8 @@ async function loadSharePoint() {
     _spSitesCache = sites;
     _spCurrentSiteId = '';
     _spCurrentDriveId = '';
-    _spCurrentFolderId = '';
-    _spBreadcrumb = [];
+    _spCurrentDriveName = '';
+    _spCurrentDriveFiles = null;
 
     c.innerHTML = `
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
@@ -1561,7 +1565,9 @@ async function spLoadDefault() {
   try {
     const data = await apiFetch('/api/sharepoint/default-site');
     _spCurrentSiteId = data.site_id;
-    spOpenDrive(data.drive_id, null, data.drive_name);
+    /* Der Umfang der Bibliothek ist hier nicht bekannt — spOpenDrive erhaelt
+       deshalb null und die Dateiliste nennt nur die Zahl der Eintraege. */
+    spOpenDrive(data.drive_id, null, data.drive_name || '');
   } catch (e) {
     if (e.message?.includes('503') || e.message?.includes('no sharepoint')) {
       btn.disabled = true;
@@ -1581,70 +1587,185 @@ async function spLoadDefault() {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   SharePoint — Normalisierung der Core-Antworten (P1-4, Befund E)
+
+   Sprint 10 hat die lesenden SharePoint-Wege von der Graph-API auf Postgres
+   umgestellt. Der Core liefert seitdem snake_case: site_id, site_name,
+   drive_id, drive_name, web_url, last_modified_at, path, size, mime_type.
+   Das Frontend las weiter die Graph-Namen (id, displayName, webUrl,
+   lastModifiedDateTime, downloadUrl, isFolder). Folgen im Betrieb:
+
+     - href="" bei jedem "Öffnen ↗" — ein leerer href laedt die AKTUELLE
+       Seite neu, deshalb erschien ein weiterer Dashboard-Tab statt des
+       Dokuments.
+     - Site- und Bibliotheksnamen fehlten.
+     - Das Aenderungsdatum stand dauerhaft auf "–".
+     - Der Ordnerpfad wurde nicht angezeigt, obwohl `path` geliefert wird —
+       gleichnamige Dateien waren dadurch nicht unterscheidbar.
+     - f.downloadUrl existiert nie, die Download-Schaltflaeche erschien nie.
+
+   Diese drei Funktionen sind ab jetzt die EINZIGE Stelle im Frontend, an der
+   Feldnamen der Quelle vorkommen. Aendert der Core sein Format, ist nur hier
+   nachzuziehen.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function spSite(roh) {
+  const name = (roh.site_name || '').trim();
+  return {
+    id: roh.site_id || '',
+    name: name,
+    nameFehlt: !name,
+    dateien: roh.file_count != null ? Number(roh.file_count) : null,
+  };
+}
+
+function spDrive(roh) {
+  const name = (roh.drive_name || '').trim();
+  return {
+    id: roh.drive_id || '',
+    name: name,
+    nameFehlt: !name,
+    dateien: roh.file_count != null ? Number(roh.file_count) : null,
+  };
+}
+
+function spDatei(roh) {
+  const pfad = roh.path || '';
+  const i = pfad.lastIndexOf('/');
+  return {
+    id: roh.id != null ? String(roh.id) : '',
+    name: roh.name || '',
+    url: roh.web_url || '',
+    pfad: pfad,
+    ordner: i > 0 ? pfad.slice(0, i) : '',
+    geaendertAm: roh.last_modified_at || null,
+    groesse: roh.size != null ? Number(roh.size) : null,
+    typ: roh.mime_type || '',
+    fehltSeit: roh.missing_since || null,
+  };
+}
+
+/* Nur echte Web-Adressen werden verlinkt. Alles andere — fehlender Wert oder
+   ein anderes Schema wie javascript: oder data: — wird als deaktivierte Aktion
+   dargestellt. Vorher erzeugte ein fehlender Wert href="" und ein leerer href
+   laedt die AKTUELLE Seite neu: genau so entstand der zweite Dashboard-Tab
+   statt des Dokuments (Spec §4 E). */
+function spIstWebAdresse(url) {
+  if (!url) return false;
+  try {
+    const p = new URL(String(url), window.location.origin).protocol;
+    return p === 'http:' || p === 'https:';
+  } catch { return false; }
+}
+
+function spOeffnenAktion(url) {
+  if (!spIstWebAdresse(url)) {
+    const grund = url
+      ? 'Die im Index gespeicherte Adresse ist keine Web-Adresse.'
+      : 'Für dieses Dokument ist im Index keine SharePoint-Adresse gespeichert.';
+    return `<span class="sp-aktion-aus" title="${esc(grund)}">Kein Link verfügbar</span>`;
+  }
+  return `<a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+     style="color:var(--accent);font-size:12px">Öffnen ↗</a>`;
+}
+
+function spNameOderHinweis(eintrag) {
+  return eintrag.nameFehlt
+    ? '<em style="color:var(--muted)">Name nicht erfasst</em>'
+    : `<strong>${esc(eintrag.name)}</strong>`;
+}
+
+function spDateienText(n) {
+  if (n == null) return '–';
+  return n.toLocaleString('de-DE') + (n === 1 ? ' Datei' : ' Dateien');
+}
+
+/* ── Sites ────────────────────────────────────────────────────────────────── */
+
 function renderSPSites(sites) {
   const wrap = document.getElementById('sp-main');
-  if (!sites.length) { wrap.innerHTML = '<div class="empty">Keine SharePoint-Sites gefunden.</div>'; return; }
-  const rows = sites.map(s => `<tr style="cursor:pointer" onclick="spOpenSite('${esc(s.id)}')">
-    <td><strong>${esc(s.displayName)}</strong></td>
-    <td style="color:var(--muted);font-size:12px">${esc(s.description || '–')}</td>
-    <td style="white-space:nowrap"><a href="${esc(s.webUrl)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+  if (!sites.length) { wrap.innerHTML = '<div class="empty">Keine SharePoint-Sites im Index.</div>'; return; }
+
+  const liste = sites.map(spSite);
+  /* Mehrere Eintraege koennen dieselbe site_id tragen (Altbestand aus dem
+     Einmal-Import vom 16.05.2026). Sie werden angezeigt, nicht bereinigt
+     (Owner-Entscheidung Nr. 8). */
+  const mehrfach = {};
+  liste.forEach(x => { mehrfach[x.id] = (mehrfach[x.id] || 0) + 1; });
+
+  const rows = liste.map(x => `<tr style="cursor:pointer" onclick="spOpenSite('${esc(x.id)}')">
+    <td>${spNameOderHinweis(x)}${mehrfach[x.id] > 1 && x.nameFehlt
+      ? '<div style="color:var(--muted);font-size:11px;margin-top:3px">Alteintrag mit derselben Site-Kennung</div>' : ''}</td>
+    <td style="color:var(--muted);font-size:12px">${esc(spDateienText(x.dateien))}</td>
+    <td style="white-space:nowrap">${spOeffnenAktion('')}</td>
   </tr>`).join('');
+
   wrap.innerHTML = `<table>
-    <thead><tr><th>Site</th><th>Beschreibung</th><th></th></tr></thead>
+    <thead><tr><th>Site</th><th>Umfang im Index</th><th>Aktion</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table>`;
+  </table>
+  <div class="sp-hinweis">Der Index enthält keine Site-Adresse. Einzelne Dokumente lassen sich
+  über „Öffnen ↗" in der Dateiliste direkt in SharePoint aufrufen.</div>`;
 }
 
 async function spOpenSite(siteId) {
   _spCurrentSiteId = siteId;
   _spCurrentDriveId = '';
-  _spCurrentFolderId = '';
-  _spBreadcrumb = [];
+  _spCurrentDriveName = '';
+  _spCurrentDriveFiles = null;
   const wrap = document.getElementById('sp-main');
-  wrap.innerHTML = '<div class="spinner">Drives laden…</div>';
+  wrap.innerHTML = '<div class="spinner">Bibliotheken laden…</div>';
   try {
     const drives = await apiFetch(`/api/sharepoint/drives/${encodeURIComponent(siteId)}`);
     _spDrivesCache = drives;
     renderSPDrives(drives);
-  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(e.message)}</div>`; }
 }
+
+/* ── Bibliotheken ─────────────────────────────────────────────────────────── */
 
 function renderSPDrives(drives) {
   const wrap = document.getElementById('sp-main');
   const backBtn = `<div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-    <button class="btn-ghost" onclick="loadSharePoint()" style="font-size:12px">← Zurück zu Sites</button>
+    <button class="btn-ghost" onclick="loadSharePoint()" style="font-size:12px">← Zurück zu den Sites</button>
   </div>`;
-  if (!drives.length) { wrap.innerHTML = backBtn + '<div class="empty">Keine Dokumentbibliotheken gefunden.</div>'; return; }
-  const rows = drives.map(d => `<tr style="cursor:pointer" onclick="spOpenDrive('${esc(d.id)}',null,'${esc(d.name)}')">
-    <td><strong>${esc(d.name)}</strong></td>
-    <td><span class="badge badge-blue">${esc(d.driveType)}</span></td>
-    <td style="white-space:nowrap"><a href="${esc(d.webUrl)}" target="_blank" onclick="event.stopPropagation()" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
+  if (!drives.length) { wrap.innerHTML = backBtn + '<div class="empty">Keine Dokumentbibliotheken im Index.</div>'; return; }
+
+  const liste = drives.map(spDrive);
+  const rows = liste.map(x => `<tr style="cursor:pointer"
+      onclick="spOpenDrive('${esc(x.id)}', ${x.dateien == null ? 'null' : x.dateien}, '${esc(x.name)}')">
+    <td>${spNameOderHinweis(x)}</td>
+    <td style="color:var(--muted);font-size:12px">${esc(spDateienText(x.dateien))}</td>
   </tr>`).join('');
+
   wrap.innerHTML = backBtn + `<table>
-    <thead><tr><th>Bibliothek</th><th>Typ</th><th></th></tr></thead>
+    <thead><tr><th>Bibliothek</th><th>Umfang im Index</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-async function spOpenDrive(driveId, folderId, folderName) {
-  if (driveId) _spCurrentDriveId = driveId;
-  _spCurrentFolderId = folderId || '';
+/* ── Dateiliste ───────────────────────────────────────────────────────────── */
+//
+// Der Core liefert eine FLACHE Dateiliste mit vollem Pfad; eine
+// Ordnerhierarchie gibt es in den Daten nicht. Die frueheren
+// Ordner-Navigationszweige liefen deshalb nie an (f.isFolder war immer
+// undefined). Statt eine Hierarchie zu erfinden, wird der Pfad als Spalte
+// angezeigt — damit sind gleichnamige Dateien unterscheidbar.
 
-  if (folderId && folderName) {
-    _spBreadcrumb.push({ name: folderName, folderId });
-  } else if (!folderId) {
-    _spBreadcrumb = [];
-  }
+async function spOpenDrive(driveId, dateienImIndex, driveName) {
+  if (driveId) _spCurrentDriveId = driveId;
+  if (driveName !== undefined && driveName !== null) _spCurrentDriveName = driveName;
+  if (dateienImIndex !== undefined) _spCurrentDriveFiles = dateienImIndex;
 
   const wrap = document.getElementById('sp-main');
   wrap.innerHTML = '<div class="spinner">Dateien laden…</div>';
   try {
-    let url = `/api/sharepoint/files/${encodeURIComponent(_spCurrentSiteId)}/${encodeURIComponent(_spCurrentDriveId)}`;
-    if (_spCurrentFolderId) url += `?folderId=${encodeURIComponent(_spCurrentFolderId)}`;
+    const url = `/api/sharepoint/files/${encodeURIComponent(_spCurrentSiteId)}/${encodeURIComponent(_spCurrentDriveId)}`;
     const files = await apiFetch(url);
     _spFilesCache = files;
     renderSPFiles(files);
-  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(e.message)}</div>`; }
 }
 
 function spSortIndicator(field) {
@@ -1657,96 +1778,69 @@ function spToggleSort(field, rerender) {
     _spSortDir = _spSortDir === 'asc' ? 'desc' : 'asc';
   } else {
     _spSortField = field;
-    _spSortDir = field === 'lastModifiedDateTime' ? 'desc' : 'asc';
+    _spSortDir = field === 'geaendertAm' ? 'desc' : 'asc';
   }
   rerender();
 }
 
+/* Sortiert die NORMALISIERTEN Eintraege. Vorher wurde nach
+   lastModifiedDateTime sortiert — ein Feld, das der Core nicht liefert;
+   die Datumssortierung war damit wirkungslos. */
 function spSortItems(items) {
+  const dir = _spSortDir === 'asc' ? 1 : -1;
   return [...items].sort((a, b) => {
-    // Folders always first
-    if (a.isFolder && !b.isFolder) return -1;
-    if (!a.isFolder && b.isFolder) return 1;
-    const dir = _spSortDir === 'asc' ? 1 : -1;
-    if (_spSortField === 'name') {
-      return dir * a.name.localeCompare(b.name);
-    }
-    const da = a.lastModifiedDateTime || '';
-    const db = b.lastModifiedDateTime || '';
-    return dir * da.localeCompare(db);
+    if (_spSortField === 'name') return dir * a.name.localeCompare(b.name, 'de');
+    if (_spSortField === 'ordner') return dir * a.ordner.localeCompare(b.ordner, 'de');
+    return dir * String(a.geaendertAm || '').localeCompare(String(b.geaendertAm || ''));
   });
 }
 
 function renderSPFiles(files) {
   const wrap = document.getElementById('sp-main');
-
-  // Breadcrumb
-  const crumbs = [{name: '← Drives', folderId: null}].concat(_spBreadcrumb);
-  const breadcrumbHtml = crumbs.map((cr, i) => {
-    if (i === 0) return `<span style="cursor:pointer;color:var(--accent)" onclick="spOpenSite('${esc(_spCurrentSiteId)}')">${esc(cr.name)}</span>`;
-    if (i === crumbs.length - 1) return `<span style="color:var(--text)">${esc(cr.name)}</span>`;
-    return `<span style="cursor:pointer;color:var(--accent)" onclick="spNavToCrumb(${i})">${esc(cr.name)}</span>`;
-  }).join(' <span style="color:var(--muted)">›</span> ');
-
   const toolbar = `<div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-    <div style="font-size:13px">${breadcrumbHtml}</div>
+    <div style="font-size:13px">
+      <span style="cursor:pointer;color:var(--accent)" onclick="spOpenSite('${esc(_spCurrentSiteId)}')">← Bibliotheken</span>
+      <span style="color:var(--muted)"> › </span>
+      <span>${_spCurrentDriveName ? esc(_spCurrentDriveName) : '<em style="color:var(--muted)">Name nicht erfasst</em>'}</span>
+    </div>
     <button class="btn btn-primary" style="font-size:12px" onclick="spUploadModal()">⬆ Upload</button>
   </div>`;
 
-  if (!files.length) { wrap.innerHTML = toolbar + '<div class="empty">Keine Dateien in diesem Ordner.</div>'; return; }
+  if (!files.length) { wrap.innerHTML = toolbar + '<div class="empty">Keine Dateien im Index dieser Bibliothek.</div>'; return; }
 
-  const sorted = spSortItems(files);
+  const liste = spSortItems(files.map(spDatei));
 
-  const rows = sorted.map(f => {
-    const icon = f.isFolder ? '📁' : '📄';
-    const nameCell = f.isFolder
-      ? `<td style="cursor:pointer" onclick="spOpenDrive(null,'${esc(f.id)}','${esc(f.name)}')">${icon} <strong>${esc(f.name)}</strong>${f.childCount != null ? ` <span style="color:var(--muted);font-size:11px">(${f.childCount})</span>` : ''}</td>`
-      : `<td>${icon} ${esc(f.name)}</td>`;
-    const sizeStr = f.isFolder ? '–' : fmtSize(f.size);
-    const dateStr = f.lastModifiedDateTime ? f.lastModifiedDateTime.slice(0,10) : '–';
-    const actions = f.isFolder ? '' : (f.downloadUrl
-      ? `<a href="/dashboard/api/sharepoint/download?url=${encodeURIComponent(f.downloadUrl)}&token=${encodeURIComponent(TOKEN)}" class="btn btn-primary" style="padding:3px 8px;font-size:11px;text-decoration:none" download="${esc(f.name)}">⬇</a>`
-      : `<a href="${esc(f.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a>`);
-    return `<tr>
-      ${nameCell}
-      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
-      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
-      <td style="white-space:nowrap">${actions}</td>
-    </tr>`;
-  }).join('');
+  /* Der Core begrenzt die Antwort (Standard 100). Das wird benannt statt
+     stillschweigend eine Teilliste als vollstaendig darzustellen. */
+  const begrenzt = _spCurrentDriveFiles != null && _spCurrentDriveFiles > liste.length;
+  const umfang = `<div class="treffer-zeile">${liste.length.toLocaleString('de-DE')} Einträge angezeigt${
+    begrenzt ? ' von ' + _spCurrentDriveFiles.toLocaleString('de-DE') + ' im Index — die Serverantwort ist begrenzt. Für ein bestimmtes Dokument die Volltextsuche verwenden.' : ''
+  }</div>`;
+
+  const rows = liste.map(f => `<tr>
+    <td>
+      <div>📄 ${esc(f.name)}</div>
+      ${f.ordner ? `<div class="sp-pfad" title="${esc(f.pfad)}">${esc(f.ordner)}</div>` : ''}
+      ${f.fehltSeit ? `<div class="sp-fehlt">⚠️ seit ${fmtDate(f.fehltSeit)} nicht mehr in SharePoint gefunden</div>` : ''}
+    </td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
+    <td style="white-space:nowrap">${spOeffnenAktion(f.url)}</td>
+  </tr>`).join('');
 
   const thStyle = 'cursor:pointer;user-select:none';
-  wrap.innerHTML = toolbar + `<table>
+  wrap.innerHTML = toolbar + umfang + `<table>
     <thead><tr>
-      <th style="${thStyle}" onclick="spToggleSort('name', () => renderSPFiles(_spFilesCache))">Name${spSortIndicator('name')}</th>
+      <th style="${thStyle}" onclick="spToggleSort('name', () => renderSPFiles(_spFilesCache))">Name und Ordner${spSortIndicator('name')}</th>
       <th>Größe</th>
-      <th style="${thStyle}" onclick="spToggleSort('lastModifiedDateTime', () => renderSPFiles(_spFilesCache))">Geändert${spSortIndicator('lastModifiedDateTime')}</th>
-      <th>Aktionen</th>
+      <th style="${thStyle}" onclick="spToggleSort('geaendertAm', () => renderSPFiles(_spFilesCache))">Geändert${spSortIndicator('geaendertAm')}</th>
+      <th>Aktion</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
 }
 
-function spNavToCrumb(index) {
-  const target = _spBreadcrumb[index - 1]; // index 0 = Drives (handled separately)
-  _spBreadcrumb = _spBreadcrumb.slice(0, index);
-  if (target) {
-    _spCurrentFolderId = target.folderId;
-    const wrap = document.getElementById('sp-main');
-    wrap.innerHTML = '<div class="spinner">Dateien laden…</div>';
-    (async () => {
-      try {
-        let url = `/api/sharepoint/files/${encodeURIComponent(_spCurrentSiteId)}/${encodeURIComponent(_spCurrentDriveId)}`;
-        if (_spCurrentFolderId) url += `?folderId=${encodeURIComponent(_spCurrentFolderId)}`;
-        const files = await apiFetch(url);
-        _spFilesCache = files;
-        renderSPFiles(files);
-      } catch (e) { document.getElementById('sp-main').innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
-    })();
-  } else {
-    spOpenDrive(_spCurrentDriveId, null, null);
-  }
-}
+/* ── Volltextsuche ────────────────────────────────────────────────────────── */
 
 let _spSearchHits = [];
 
@@ -1758,36 +1852,41 @@ async function spSearch() {
   wrap.innerHTML = '<div class="spinner">Suche…</div>';
   try {
     _spSearchHits = await apiFetch(`/api/sharepoint/search?q=${encodeURIComponent(q)}`);
+    _spSearchBegriff = q;
     renderSPSearchHits();
-  } catch (e) { wrap.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div class="empty">Suche fehlgeschlagen: ${esc(e.message)}</div>`; }
 }
 
 function renderSPSearchHits() {
   const wrap = document.getElementById('sp-main');
-  if (!_spSearchHits.length) { wrap.innerHTML = '<div class="empty">Keine Ergebnisse.</div>'; return; }
-  const sorted = [..._spSearchHits].sort((a, b) => {
-    const dir = _spSortDir === 'asc' ? 1 : -1;
-    if (_spSortField === 'name') return dir * (a.name || '').localeCompare(b.name || '');
-    return dir * (a.lastModifiedDateTime || '').localeCompare(b.lastModifiedDateTime || '');
-  });
-  const rows = sorted.map(h => {
-    const sizeStr = h.size ? fmtSize(h.size) : '–';
-    const dateStr = h.lastModifiedDateTime ? h.lastModifiedDateTime.slice(0,10) : '–';
-    const snippet = h.summary ? `<div style="color:var(--muted);font-size:12px;margin-top:3px">${h.summary}</div>` : '';
-    return `<tr>
-      <td><strong>${esc(h.name)}</strong>${snippet}</td>
-      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${sizeStr}</td>
-      <td style="white-space:nowrap;color:var(--muted);font-size:12px">${dateStr}</td>
-      <td style="white-space:nowrap"><a href="${esc(h.webUrl)}" target="_blank" style="color:var(--accent);font-size:12px">Öffnen ↗</a></td>
-    </tr>`;
-  }).join('');
+  const kopf = `<div style="padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px">
+    Suche nach „${esc(_spSearchBegriff)}"
+  </div>`;
+  if (!_spSearchHits.length) {
+    wrap.innerHTML = kopf + '<div class="empty">Keine Ergebnisse.</div>';
+    return;
+  }
+
+  const liste = spSortItems(_spSearchHits.map(spDatei));
+  const rows = liste.map(f => `<tr>
+    <td>
+      <div><strong>${esc(f.name)}</strong></div>
+      ${f.ordner ? `<div class="sp-pfad" title="${esc(f.pfad)}">${esc(f.ordner)}</div>` : ''}
+    </td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
+    <td style="white-space:nowrap">${spOeffnenAktion(f.url)}</td>
+  </tr>`).join('');
+
   const thStyle = 'cursor:pointer;user-select:none';
-  wrap.innerHTML = `<table>
+  wrap.innerHTML = kopf
+    + `<div class="treffer-zeile">${liste.length.toLocaleString('de-DE')} ${liste.length === 1 ? 'Treffer' : 'Treffer'}</div>`
+    + `<table>
     <thead><tr>
-      <th style="${thStyle}" onclick="spToggleSort('name', renderSPSearchHits)">Datei${spSortIndicator('name')}</th>
+      <th style="${thStyle}" onclick="spToggleSort('name', renderSPSearchHits)">Datei und Ordner${spSortIndicator('name')}</th>
       <th>Größe</th>
-      <th style="${thStyle}" onclick="spToggleSort('lastModifiedDateTime', renderSPSearchHits)">Geändert${spSortIndicator('lastModifiedDateTime')}</th>
-      <th></th>
+      <th style="${thStyle}" onclick="spToggleSort('geaendertAm', renderSPSearchHits)">Geändert${spSortIndicator('geaendertAm')}</th>
+      <th>Aktion</th>
     </tr></thead>
     <tbody>${rows}</tbody>
   </table>`;
@@ -1850,7 +1949,8 @@ async function spUploadFile() {
     if (res.status === 401) { logout(); throw new Error('401'); }
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
     closeModal();
-    spOpenDrive(null, _spCurrentFolderId || null, null);
+    // Aktuelle Bibliothek neu laden; Name und Umfang bleiben erhalten.
+    spOpenDrive();
   } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 

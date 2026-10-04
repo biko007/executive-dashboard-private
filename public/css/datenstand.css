@@ -116,6 +116,38 @@
 
 .treffer-zeile:empty { display: none; }
 
+/* ── SharePoint-Dateiliste (P1-4) ─────────────────────────────────────────── */
+
+/* Deaktivierte Aktion statt leerem Link. Ein leerer href laedt die aktuelle
+   Seite neu — genau das erzeugte den zweiten Dashboard-Tab. */
+.sp-aktion-aus {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: italic;
+  cursor: not-allowed;
+}
+
+/* Ordnerpfad unter dem Dateinamen — macht gleichnamige Dateien unterscheidbar. */
+.sp-pfad {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 3px;
+  word-break: break-word;
+}
+
+.sp-fehlt {
+  color: var(--yellow);
+  font-size: 11px;
+  margin-top: 3px;
+}
+
+.sp-hinweis {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
 /* ── Zustandsabzeichen in Tabellen und Kacheln ────────────────────────────── */
 
 /* .badge setzt text-transform: uppercase — fuer mehrwortige Zustandstexte
