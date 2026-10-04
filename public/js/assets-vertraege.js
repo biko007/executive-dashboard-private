@@ -73,26 +73,40 @@ document.addEventListener('alpine:init', () => {
       target.innerHTML = html;
     },
 
+    /* P1-3: Die Steuerelemente werden einmal gerendert und behalten ihre Werte
+       aus dem Zustand. Die Trefferliste liegt in einem eigenen Container, der
+       bei jeder Filteraenderung allein neu gefuellt wird — so verliert das
+       Suchfeld beim Tippen weder Inhalt noch Fokus. */
     _renderLeases() {
-      const leases = this._filteredLeases();
-      let html = `
+      const selected = (wert) => (wert ? ' selected' : '');
+      return `
         <div class="filters-row">
-          <select class="filter-select" id="vt-filter-prop" onchange="vertraegeFilter()">
-            <option value="">Alle Objekte</option>
-            ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
+          <select class="filter-select" id="vt-filter-prop" onchange="vertraegeFilter()" aria-label="Objekt filtern">
+            <option value=""${selected(!this.filterProperty)}>Alle Objekte</option>
+            ${this.properties.map(p => `<option value="${esc(p.code)}"${selected(this.filterProperty === p.code)}>${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
-          <select class="filter-select" id="vt-filter-status" onchange="vertraegeFilter()">
-            <option value="">Alle Status</option>
-            <option value="active">Aktiv</option>
-            <option value="ended">Beendet</option>
-            <option value="future">Zukuenftig</option>
+          <select class="filter-select" id="vt-filter-status" onchange="vertraegeFilter()" aria-label="Status filtern">
+            <option value=""${selected(!this.filterStatus)}>Alle Status</option>
+            <option value="active"${selected(this.filterStatus === 'active')}>Aktiv</option>
+            <option value="ended"${selected(this.filterStatus === 'ended')}>Beendet</option>
+            <option value="future"${selected(this.filterStatus === 'future')}>Zukuenftig</option>
           </select>
-          <input class="search-input" placeholder="Mieter suchen..." id="vt-search-tenant" oninput="vertraegeFilter()">
+          <input class="search-input" placeholder="Mieter, Objekt oder Einheit suchen..." id="vt-search-tenant"
+                 value="${esc(this.searchTenant)}" oninput="vertraegeFilter()" aria-label="Mietvertraege durchsuchen">
+          <button class="btn btn-ghost" onclick="vertraegeFilterReset()" id="vt-filter-reset">Filter zuruecksetzen</button>
         </div>
-        <div class="card"><table class="assets-table">
+        <div class="treffer-zeile" id="vt-treffer">${esc(this._trefferText())}</div>
+        <div id="vt-leases-list">${this._renderLeasesListe()}</div>`;
+    },
+
+    /* Nur die Trefferliste — wird von vertraegeFilter() einzeln ersetzt. */
+    _renderLeasesListe() {
+      const leases = this._filteredLeases();
+      if (!leases.length) return this._leerzustandLeases();
+
+      let html = `<div class="card"><table class="assets-table">
         <thead><tr><th>Objekt/Einheit</th><th>Mieter</th><th>Typ</th><th>Status</th><th>Beginn</th><th>Ende</th><th>Auszug</th></tr></thead>
         <tbody>`;
-
       for (const l of leases) {
         const statusBadge = l.status === 'active' ? '<span class="badge badge-green">Aktiv</span>'
           : l.status === 'ended' ? '<span class="badge badge-muted">Beendet</span>'
@@ -108,13 +122,81 @@ document.addEventListener('alpine:init', () => {
           <td>${l.actual_move_out ? fmtDate(l.actual_move_out) : '–'}</td>
         </tr>`;
       }
-
-      html += '</tbody></table></div>';
-      return html;
+      return html + '</tbody></table></div>';
     },
 
+    /* P1-3: vorher gab `_filteredLeases()` die Liste ungefiltert zurueck und
+       `vertraegeFilter()` war eine leere Funktion — Objektauswahl und Suche
+       hatten keine Wirkung (Befund D).
+
+       Die Filterung laeuft rein im Browser auf der bereits geladenen Liste
+       (17 Eintraege). Damit gibt es keinen asynchronen Ablauf und deshalb
+       auch keine veralteten Ergebnisse bei schnellen Wechseln. */
     _filteredLeases() {
-      return this.leases;
+      const objekt = this.filterProperty || '';
+      const status = this.filterStatus || '';
+      const suche = (this.searchTenant || '').trim().toLowerCase();
+
+      return this.leases.filter(l => {
+        if (objekt && l.property_code !== objekt) return false;
+        if (status && l.status !== status) return false;
+        if (suche && !this._suchtext(l).includes(suche)) return false;
+        return true;
+      });
+    },
+
+    /* Durchsucht werden Mieternamen, Objekt, Einheit und Vertragsnummer. */
+    _suchtext(l) {
+      return [
+        l.tenant_names, l.property_name, l.property_code,
+        l.unit_label, l.unit_code, l.lease_number,
+      ].filter(Boolean).join(' ').toLowerCase();
+    },
+
+    _filterAktiv() {
+      return !!(this.filterProperty || this.filterStatus || (this.searchTenant || '').trim());
+    },
+
+    _trefferText() {
+      const gesamt = this.leases.length;
+      if (!this._filterAktiv()) {
+        return gesamt + ' ' + (gesamt === 1 ? 'Vertrag' : 'Vertraege');
+      }
+      const n = this._filteredLeases().length;
+      return n + ' von ' + gesamt + ' Vertraegen · ' + this._filterBeschreibung();
+    },
+
+    /* Benennt die aktive Einschraenkung im Klartext — damit null Treffer nicht
+       mit "keine Daten" verwechselt werden (Spec §4 D, §4 M). */
+    _filterBeschreibung() {
+      const teile = [];
+      if (this.filterProperty) {
+        const p = this.properties.find(x => x.code === this.filterProperty);
+        teile.push('Objekt ' + (p ? (p.name || p.code) : this.filterProperty));
+      }
+      if (this.filterStatus) {
+        const m = { active: 'Aktiv', ended: 'Beendet', future: 'Zukuenftig' };
+        teile.push('Status ' + (m[this.filterStatus] || this.filterStatus));
+      }
+      const suche = (this.searchTenant || '').trim();
+      if (suche) teile.push('Suche "' + suche + '"');
+      return teile.join(', ');
+    },
+
+    _leerzustandLeases() {
+      if (!this.leases.length) {
+        return '<div class="empty">'
+          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Mietvertraege erfasst</div>'
+          + '<div style="font-size:13px">Es ist noch kein Mietvertrag angelegt.</div>'
+          + '</div>';
+      }
+      return '<div class="empty">'
+        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Treffer</div>'
+        + '<div style="font-size:13px;margin-bottom:14px">Kein Mietvertrag passt zu: '
+        + esc(this._filterBeschreibung()) + '. Insgesamt sind ' + this.leases.length
+        + ' Vertraege erfasst.</div>'
+        + '<button class="btn btn-primary" onclick="vertraegeFilterReset()">Filter zuruecksetzen</button>'
+        + '</div>';
     },
 
     _renderExpenses() {
@@ -188,8 +270,44 @@ function vertraegeSwitch(section) {
   }
 }
 
+/* P1-3: liest die Steuerelemente in den Alpine-Zustand und ersetzt nur die
+   Trefferliste samt Trefferzeile. Die Steuerelemente selbst bleiben stehen,
+   damit das Suchfeld beim Tippen Inhalt und Fokus behaelt. */
 function vertraegeFilter() {
-  // Future: implement client-side filtering
+  const tabEl = document.querySelector('[x-data="vertraegeTab"]');
+  if (!tabEl) return;
+  const d = Alpine.$data(tabEl);
+
+  d.filterProperty = document.getElementById('vt-filter-prop')?.value || '';
+  d.filterStatus   = document.getElementById('vt-filter-status')?.value || '';
+  d.searchTenant   = document.getElementById('vt-search-tenant')?.value || '';
+
+  const liste = document.getElementById('vt-leases-list');
+  if (liste) liste.innerHTML = d._renderLeasesListe();
+  const treffer = document.getElementById('vt-treffer');
+  if (treffer) treffer.textContent = d._trefferText();
+}
+
+function vertraegeFilterReset() {
+  const tabEl = document.querySelector('[x-data="vertraegeTab"]');
+  if (!tabEl) return;
+  const d = Alpine.$data(tabEl);
+
+  d.filterProperty = '';
+  d.filterStatus = '';
+  d.searchTenant = '';
+
+  const prop = document.getElementById('vt-filter-prop');
+  const status = document.getElementById('vt-filter-status');
+  const suche = document.getElementById('vt-search-tenant');
+  if (prop) prop.value = '';
+  if (status) status.value = '';
+  if (suche) suche.value = '';
+
+  const liste = document.getElementById('vt-leases-list');
+  if (liste) liste.innerHTML = d._renderLeasesListe();
+  const treffer = document.getElementById('vt-treffer');
+  if (treffer) treffer.textContent = d._trefferText();
 }
 
 async function assetsOpenLeaseDrawer(leaseId) {
