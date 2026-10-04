@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/dashboard/css/assets.css">
 <link rel="stylesheet" href="/dashboard/css/entity-tile.css">
 <link rel="stylesheet" href="/dashboard/css/wiki.css">
+<link rel="stylesheet" href="/dashboard/css/datenstand.css">
 <style>
 :root {
   --bg:      #0f1117;
@@ -202,6 +203,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
 .detail-img-wrap input[type=file] { display: none; }
 </style>
+<script defer src="/dashboard/js/datenstand.js"></script>
 <script defer src="/dashboard/js/assets-stores.js"></script>
 <script defer src="/dashboard/js/assets-stammdaten.js"></script>
 <script defer src="/dashboard/js/assets-vertraege.js"></script>
@@ -251,6 +253,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
     <button onclick="showTab('agents')"          >🤖 Agents</button>
     <button onclick="showTab('status')"         >🔌 Status</button>
   </nav>
+  <div id="datenstandLeiste" class="ds-leiste" hidden></div>
   <main id="content">
     <div class="spinner">Laden…</div>
   </main>
@@ -341,6 +344,7 @@ function showTab(tab) {
   const tabs = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
+  leereDatenstand();
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
   ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
 }
@@ -437,8 +441,10 @@ function fmtSize(bytes) {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+/* Kopfzeile: Zeitpunkt des Seitenabrufs. Ausdruecklich NICHT das Alter der
+   angezeigten Daten — das steht in der Datenstand-Leiste (datenstand.js). */
 function stamp() {
-  document.getElementById('lastUpdate').textContent = 'Stand: ' + fmtDT(new Date().toISOString());
+  document.getElementById('lastUpdate').textContent = seitenabrufText();
 }
 
 /* ── Modal helpers ── */
@@ -1522,6 +1528,28 @@ async function loadSharePoint() {
 
     renderSPSites(sites);
     stamp();
+
+    /* Die Dokumentenliste kommt aus Postgres, nicht live aus SharePoint.
+       Ohne diesen Hinweis sah ein 141 Tage alter Indexstand wie der
+       aktuelle Dateibestand aus. */
+    try {
+      const sync = await apiFetch('/api/sharepoint/sync-status');
+      const lauf = sync.last_run || null;
+      setDatenstand([{
+        quelle: 'SharePoint-Dokumentenindex',
+        stand: sync.last_success_at || lauf?.finished_at || lauf?.started_at || null,
+        abgleich: sync.last_success_at || null,
+        hinweis: (sync.active_files != null ? sync.active_files + ' Dateien im Index. ' : '')
+          + (lauf
+              ? 'Letzter Lauf: ' + (lauf.status || 'unbekannt') + ', ausgelöst von ' + (lauf.triggered_by || 'unbekannt') + '.'
+              : 'Kein Synchronisationslauf aufgezeichnet.'),
+      }]);
+    } catch {
+      setDatenstand([{
+        quelle: 'SharePoint-Dokumentenindex', zustand: 'unbekannt', stand: null, abgleich: null,
+        hinweis: 'Synchronisationszeitpunkt nicht abrufbar.',
+      }]);
+    }
   } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
 }
 
@@ -2102,6 +2130,13 @@ async function loadAssets() {
 
 /* ── Instagram Tab ── */
 
+/* ACHTUNG: _INSTA_MOCK ist ein Demodatensatz aus dem urspruenglichen Entwurf
+   (public/instagram-mockup.html). Er wird seit Paket P1-1 NICHT MEHR gerendert
+   (Owner-Entscheidung Nr. 2: ausblenden statt als echte Zahlen anzeigen).
+   Die betroffenen Bloecke — Top-Beitraege, Quick Insights, Content-Plan,
+   Analyse und "KI-Empfehlung" — zeigen jetzt einen Leerzustand mit dem
+   tatsaechlichen Datenstand. Das Objekt bleibt bewusst stehen, bis Paket P2-7
+   die Bloecke auf echte Datenquellen umstellt; dann entfaellt es. */
 const _INSTA_MOCK = {
   account: { username: "jurgen_bickel", followers: 14700, followersChange: 127, posts: 285, engagement: 2.13, reach7d: 23400, impressions7d: 41200 },
   followerHistory: [
@@ -2171,37 +2206,60 @@ let _instaForensicsCache = null;
 
 async function loadInstagram() {
   const c = document.getElementById('content');
-  const d = _INSTA_MOCK;
 
   if (!_instaMediaCache) {
-    try { _instaMediaCache = await apiFetch('/api/instagram/media'); } catch { _instaMediaCache = { items: [] }; }
+    try { _instaMediaCache = await apiFetch('/api/instagram/media'); } catch { _instaMediaCache = null; }
   }
   if (!_instaDraftsCache) {
     try { _instaDraftsCache = await apiFetch('/api/instagram/drafts'); } catch { _instaDraftsCache = []; }
   }
   if (!_instaInsightsCache) {
-    try { _instaInsightsCache = await apiFetch('/api/instagram/insights'); } catch { _instaInsightsCache = {}; }
+    try { _instaInsightsCache = await apiFetch('/api/instagram/insights'); } catch { _instaInsightsCache = null; }
   }
+  if (!_instaForensicsCache) {
+    try { _instaForensicsCache = await apiFetch('/api/instagram/forensics'); } catch { _instaForensicsCache = null; }
+  }
+  /* Token-Restlaufzeit kommt aus derselben Quelle wie der Status-Bereich
+     (Core /api/system-status -> Tabelle insta_tokens). Der frueher hier
+     hartcodierte Wert 55 Tage war ein Mock-Wert und wich vom echten ab. */
+  let metaToken = null;
+  let tokenZustand = 'unbekannt';
+  try {
+    const sys = await apiFetch('/api/dashboard/status');
+    metaToken = (sys.tokens || []).find(t => t.name === 'Meta') || null;
+    tokenZustand = sys._stale ? 'degradiert' : 'erreichbar';
+  } catch { tokenZustand = 'getrennt'; }
+
+  /* Datenstaende der drei Instagram-Quellen — jede hat ihr eigenes Alter. */
+  const medienStand    = _instaMediaCache ? (_instaMediaCache.datenstand || _instaMediaCache.fetched_at || null) : null;
+  const insightsStand  = _instaInsightsCache ? (_instaInsightsCache.datenstand || _instaInsightsCache.fetched_at || null) : null;
+  const forensicStand  = _instaForensicsCache?.forensic
+    ? (_instaForensicsCache.datenstand || _instaForensicsCache.forensic.analysis_timestamp || null) : null;
+  const kontoName = _instaForensicsCache?.forensic?.account?.username || '';
 
   const tabBtn = (id, label) => `<button onclick="_instaSubTab='${id}';loadInstagram()" style="
     background:none;border:none;border-bottom:2px solid ${_instaSubTab === id ? 'var(--accent)' : 'transparent'};
     color:${_instaSubTab === id ? 'var(--text)' : 'var(--muted)'};padding:8px 16px;font-size:13px;font-weight:600;
     cursor:pointer;font-family:var(--font);margin-bottom:-1px">${label}</button>`;
 
-  const tokenColor = d.tokenExpiry > 30 ? 'var(--green)' : d.tokenExpiry > 7 ? 'var(--yellow)' : 'var(--red)';
-  const tokenBg = d.tokenExpiry > 30 ? 'rgba(74,222,128,.1)' : d.tokenExpiry > 7 ? 'rgba(251,191,36,.1)' : 'rgba(248,113,113,.1)';
+  const tokenTage = metaToken ? metaToken.days_remaining : null;
+  const tokenColor = tokenTage == null ? 'var(--muted)' : tokenTage > 30 ? 'var(--green)' : tokenTage > 7 ? 'var(--yellow)' : 'var(--red)';
+  const tokenBg = tokenTage == null ? 'rgba(255,255,255,.06)' : tokenTage > 30 ? 'rgba(74,222,128,.1)' : tokenTage > 7 ? 'rgba(251,191,36,.1)' : 'rgba(248,113,113,.1)';
+  const tokenText = tokenTage == null ? 'Token: unbekannt' : 'Token: ' + tokenTage + ' Tage';
 
   let header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:12px">
       <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
       <div>
         <div style="font-size:16px;font-weight:700">Instagram</div>
-        <div style="font-size:12px;color:var(--muted)">@${esc(d.account.username)}</div>
+        <div style="font-size:12px;color:var(--muted)">${kontoName ? '@' + esc(kontoName) : 'Konto nicht ermittelbar'}</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600">🔑 Token: ${d.tokenExpiry} Tage</span>
-      <button class="btn btn-primary" style="font-size:12px;padding:5px 12px">↻ Sync</button>
+      <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600"
+            title="Quelle: Core /api/system-status (Tabelle insta_tokens)">🔑 ${esc(tokenText)}</span>
+      <button class="btn" style="font-size:12px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:not-allowed"
+              disabled title="Abgleich wird nicht aus dem Dashboard ausgelöst. Befehl /instasync im Telegram-Bot.">↻ Sync nur per /instasync</button>
     </div>
   </div>`;
 
@@ -2267,61 +2325,41 @@ async function loadInstagram() {
 
     const ins = _instaInsightsCache || {};
     const hasInsights = ins.followers_count != null;
+    /* Untertitel nennt den tatsaechlichen Datenstand. Vorher stand hier
+       "Ø letzte 30 Tage" — die Werte sind aber so alt wie der Insights-Cache. */
+    const insightsSub = hasInsights
+      ? 'Insights, Stand ' + datenstandZeitpunktText(insightsStand) + ' (' + altersText(insightsStand) + ')'
+      : 'Keine Daten';
 
     body = `
       <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
-        ${kpi('Follower', hasInsights ? Number(ins.followers_count).toLocaleString('de-DE') : '–', null, hasInsights ? 'Instagram Insights' : 'Keine Daten', '')}
-        ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? Number(ins.engagement_rate) + '%' : '–', null, 'Ø letzte 30 Tage', '')}
-        ${kpi('Ø Likes', hasInsights && ins.recent_avg_likes != null ? Math.round(Number(ins.recent_avg_likes)).toLocaleString('de-DE') : '–', null, 'pro Beitrag', '')}
-        ${kpi('Beiträge', hasInsights && ins.media_count != null ? Number(ins.media_count).toLocaleString('de-DE') : '–', null, 'gesamt', '')}
+        ${kpi('Follower', hasInsights ? Number(ins.followers_count).toLocaleString('de-DE') : '–', null, insightsSub, '')}
+        ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? Number(ins.engagement_rate) + '%' : '–', null, insightsSub, '')}
+        ${kpi('Ø Likes', hasInsights && ins.recent_avg_likes != null ? Math.round(Number(ins.recent_avg_likes)).toLocaleString('de-DE') : '–', null, 'pro Beitrag · ' + insightsSub, '')}
+        ${kpi('Beiträge', hasInsights && ins.media_count != null ? Number(ins.media_count).toLocaleString('de-DE') : '–', null, 'gesamt · ' + insightsSub, '')}
       </div>` + liveFeed + `
 
       <div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge (30 Tage)</div>
-        <table><thead><tr><th>#</th><th>Typ</th><th>Caption</th><th>❤️</th><th>💬</th><th>Eng.</th><th>Datum</th></tr></thead><tbody>
-        ${d.topPosts.map((p, i) => {
-          const engColor = p.eng > 4 ? 'var(--green)' : p.eng > 2.5 ? 'var(--yellow)' : 'var(--muted)';
-          return `<tr>
-            <td style="color:var(--muted);font-weight:700">${i + 1}</td>
-            <td>${_instaTypeIcon(p.type)}</td>
-            <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.caption)}</td>
-            <td>${p.likes}</td><td>${p.comments}</td>
-            <td style="color:${engColor};font-weight:700">${p.eng}%</td>
-            <td style="color:var(--muted);font-size:12px">${p.date}</td>
-          </tr>`;
-        }).join('')}
-        </tbody></table>
+        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge</div>
+        ${keineAktuellenDaten(medienStand, 'Eine Auswertung der Beitragsleistung gibt es erst nach einem neuen Abgleich (P2-7).')}
       </div>
 
       <div class="card card-pad">
         <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Quick Insights</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Beste Posting-Zeit</div><div style="font-weight:600">${d.insights.bestTime}</div></div>
-          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Top-Format</div><div style="font-weight:600">${d.insights.bestFormat}</div></div>
-          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Wachstum</div><div style="font-weight:600;color:var(--green)">${d.insights.growth}</div></div>
-          <div><div style="font-size:11px;color:var(--muted);margin-bottom:4px">Top Hashtags</div>
-            <div style="display:flex;flex-wrap:wrap;gap:4px">${d.insights.topHashtags.slice(0, 4).map(t => `<span class="badge badge-blue">${esc(t)}</span>`).join('')}</div>
-          </div>
-        </div>
+        ${keineAktuellenDaten(medienStand, 'Beste Posting-Zeit, Top-Format und Wachstum werden erst nach einem neuen Abgleich berechnet (P2-7).')}
       </div>`;
   }
 
   if (_instaSubTab === 'content') {
+    /* Der frueher hier gezeigte Content-Kalender stammte vollstaendig aus
+       _INSTA_MOCK: Kalenderwochen ohne Jahr und Verweise auf Entwuerfe
+       (insta-001, insta-002), die im echten Bestand nicht existieren.
+       Owner-Entscheidung Nr. 2: ausblenden. Aufbau auf echter Grundlage: P2-7. */
+    const anzahlEntwuerfe = (_instaDraftsCache || []).length;
     body = `<div class="card card-pad">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Content-Kalender — KW 10–11</div>
-        <button class="btn btn-primary">+ Neuen Plan generieren</button>
-      </div>
-      <table><thead><tr><th>Tag</th><th>Zeit</th><th>Typ</th><th>Titel</th><th>Status</th><th>Draft</th></tr></thead><tbody>
-      ${d.calendar.map(item => `<tr>
-        <td style="font-weight:600;white-space:nowrap">${esc(item.day)}</td>
-        <td style="color:var(--muted)">${item.time}</td>
-        <td>${_instaTypeIcon(item.type)}</td>
-        <td>${esc(item.title)}</td>
-        <td>${_instaStatusBadge(item.status)}</td>
-        <td style="color:var(--muted);font-size:12px">${item.draftId ? '→ ' + esc(item.draftId) : '–'}</td>
-      </tr>`).join('')}
-      </tbody></table>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Content-Plan</div>
+      ${keineAktuellenDaten(medienStand, 'Es ist kein Content-Plan hinterlegt. Vorhandene Entwürfe: '
+        + anzahlEntwuerfe + ' — im Unterbereich „Drafts". Verknüpfung von Plan und Entwürfen: P2-7.')}
     </div>`;
   }
 
@@ -2368,55 +2406,16 @@ async function loadInstagram() {
   }
 
   if (_instaSubTab === 'analytics') {
-    const maxEng = Math.max(...d.engagementHistory.map(x => x.v));
-    const engBars = d.engagementHistory.map((item, idx) => {
-      const h = Math.round((item.v / maxEng) * 100);
-      const isLast = idx === d.engagementHistory.length - 1;
-      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px">
-        <span style="font-size:11px;color:var(--muted);font-weight:600">${item.v}%</span>
-        <div style="width:100%;height:${h}px;background:${isLast ? 'var(--accent)' : 'var(--border)'};border-radius:4px 4px 0 0"></div>
-        <span style="font-size:10px;color:var(--muted)">${item.d}</span>
-      </div>`;
-    }).join('');
-
-    const ctPerf = [
-      { type: 'Reels', icon: '🎬', eng: 4.8, reach: 8200, color: 'var(--red)' },
-      { type: 'Carousels', icon: '📸', eng: 3.2, reach: 5400, color: 'var(--yellow)' },
-      { type: 'Bilder', icon: '🖼️', eng: 1.9, reach: 3100, color: 'var(--accent)' },
-      { type: 'Stories', icon: '📱', eng: 1.2, reach: 2800, color: 'var(--green)' },
-    ].map(ct => `<div style="flex:1;background:var(--bg);border-radius:8px;padding:16px;text-align:center">
-      <div style="font-size:28px;margin-bottom:8px">${ct.icon}</div>
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">${ct.type}</div>
-      <div style="font-size:22px;font-weight:700;color:${ct.color}">${ct.eng}%</div>
-      <div style="font-size:11px;color:var(--muted)">Ø Engagement</div>
-      <div style="font-size:12px;color:var(--muted);margin-top:8px">${ct.reach.toLocaleString('de-DE')} Reach</div>
-    </div>`).join('');
-
-    body = `<div style="display:flex;gap:16px;margin-bottom:20px">
-      <div class="card card-pad" style="flex:1">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Follower-Entwicklung (30 Tage)</div>
-        ${_instaMiniSvg(d.followerHistory, '#4f9cf9', 120)}
-        <div style="display:flex;justify-content:space-between;margin-top:8px">${d.followerHistory.map(p => `<span style="font-size:10px;color:var(--muted)">${p.d}</span>`).join('')}</div>
-      </div>
-      <div class="card card-pad" style="flex:1">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Engagement-Rate (Wochen)</div>
-        <div style="display:flex;align-items:flex-end;gap:12px;height:120px;padding-top:8px">${engBars}</div>
-      </div>
-    </div>
-
-    <div class="card card-pad" style="margin-bottom:20px">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Performance nach Content-Typ</div>
-      <div style="display:flex;gap:12px">${ctPerf}</div>
-    </div>
-
-    <div class="card card-pad" style="border-color:rgba(79,156,249,.2);background:linear-gradient(135deg,rgba(79,156,249,.04),var(--surface))">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <span style="font-size:16px">🤖</span>
-        <div style="font-size:11px;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:.4px">KI-Empfehlung</div>
-      </div>
-      <div style="font-size:13px;color:var(--muted);line-height:1.7">
-        Deine Reels performen 2.5× besser als Bilder. Empfehlung: Fokus auf kurze Reels (15–30s) mit Investment-Tipps — die haben die höchste Engagement-Rate. Optimaler Posting-Zeitpunkt: Dienstag und Donnerstag zwischen 18:00–19:00 Uhr. Carousels mit Mehrwert-Content (z.B. "5 Tipps") performen als zweitbestes Format.
-      </div>
+    /* Der komplette Analyse-Unterbereich war Demodaten: Follower-Entwicklung
+       und Engagement-Rate aus _INSTA_MOCK, "Performance nach Content-Typ" aus
+       einem Inline-Literal, und der Absatz unter der Ueberschrift
+       "KI-Empfehlung" war ein fester Text ohne jede KI-Beteiligung.
+       Owner-Entscheidung Nr. 2: ausblenden. Echte Auswertung: P2-7.
+       Belastbare Zahlen stehen bis dahin im Unterbereich "Forensic" — mit
+       eigenem Datenstand. */
+    body = `<div class="card card-pad">
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Analyse</div>
+      ${keineAktuellenDaten(medienStand, 'Follower-Entwicklung, Engagement-Rate und Auswertung nach Beitragsart brauchen einen aktuellen Abgleich. Geprüfte Rohdaten mit eigenem Datenstand: Unterbereich „Forensic".')}
     </div>`;
   }
 
@@ -2432,6 +2431,20 @@ async function loadInstagram() {
 
   c.innerHTML = header + tabs + body;
   stamp();
+  /* Drei Quellen, drei Datenstaende — der Nutzer soll nicht raten muessen,
+     welcher Block wie alt ist. */
+  setDatenstand([
+    { quelle: 'Instagram-Medien (Live-Feed)', stand: medienStand, abgleich: medienStand,
+      hinweis: 'Abgleich nur manuell per /instasync im Telegram-Bot.' },
+    { quelle: 'Instagram-Insights (Kennzahlen)', stand: insightsStand, abgleich: insightsStand },
+    { quelle: 'Instagram-Forensic', stand: forensicStand, abgleich: forensicStand },
+    { quelle: 'Meta-Token', live: true,
+      zustand: tokenZustand === 'getrennt' ? 'getrennt' : (tokenZustand === 'degradiert' ? 'degradiert' : 'aktuell'),
+      stand: new Date().toISOString(),
+      hinweis: metaToken
+        ? 'Restlaufzeit ' + metaToken.days_remaining + ' Tage — Quelle: Core, Tabelle insta_tokens.'
+        : 'Restlaufzeit nicht ermittelbar — Status-Quelle nicht erreichbar.' },
+  ]);
 }
 
 const _countryFlags = {DE:'🇩🇪',US:'🇺🇸',BR:'🇧🇷',CL:'🇨🇱',MX:'🇲🇽',AR:'🇦🇷',CO:'🇨🇴',ES:'🇪🇸',AT:'🇦🇹',CH:'🇨🇭',IT:'🇮🇹',GB:'🇬🇧',FR:'🇫🇷',NL:'🇳🇱',PT:'🇵🇹',PE:'🇵🇪',EC:'🇪🇨',VE:'🇻🇪',PY:'🇵🇾',UY:'🇺🇾',BO:'🇧🇴',IN:'🇮🇳',CA:'🇨🇦',AU:'🇦🇺',TR:'🇹🇷',PL:'🇵🇱',RO:'🇷🇴',SE:'🇸🇪',NO:'🇳🇴',DK:'🇩🇰',FI:'🇫🇮',BE:'🇧🇪',GR:'🇬🇷',CZ:'🇨🇿',HU:'🇭🇺',IE:'🇮🇪',ZA:'🇿🇦',IL:'🇮🇱',JP:'🇯🇵',KR:'🇰🇷',PH:'🇵🇭',TH:'🇹🇭',ID:'🇮🇩',MY:'🇲🇾',SG:'🇸🇬',AE:'🇦🇪',SA:'🇸🇦',EG:'🇪🇬',NG:'🇳🇬',KE:'🇰🇪',PK:'🇵🇰',BD:'🇧🇩'};
@@ -2940,6 +2953,10 @@ async function loadBanking() {
       </template>
     </div>`;
   if (window.Alpine && Alpine.initTree) Alpine.initTree(c);
+  /* Fehlte bisher — der Seitenkopf blieb im Banking-Bereich leer.
+     Der Datenstand der Salden kommt aus bankingRoot.meldeDatenstand(),
+     weil er erst nach dem Laden der Konten bekannt ist. */
+  stamp();
 }
 
 /* ── Trading ── */
@@ -2973,18 +2990,29 @@ async function loadTrading() {
         <p style="color:var(--muted);font-size:12px;margin-top:8px">${esc(status?.error || 'Trading-Agent ist nicht erreichbar.')}</p>
       </div>`;
       stamp();
+      setDatenstand([{ quelle: 'Trading-Agent', zustand: 'getrennt', stand: null, abgleich: null,
+        hinweis: 'Kein Zustand abrufbar — die Angaben unten fehlen, sie sind nicht „in Ordnung".' }]);
       return;
     }
 
     const modeLabel = status.mode === 1 ? 'Monitoring' : status.mode === 2 ? 'Semi-Auto' : 'Full-Auto';
     const modeBadge = status.mode === 1 ? 'badge-blue' : status.mode === 2 ? 'badge-yellow' : 'badge-red';
-    const connBadge = status.connected ? 'badge-green' : 'badge-red';
-    const connLabel = status.connected ? 'Verbunden' : 'Nicht verbunden';
+    /* Gleiches Zustandsvokabular wie im Status-Bereich (Spec §4 B). Vorher
+       stand hier "Verbunden", waehrend der Status-Bereich gleichzeitig
+       "IB Gateway down" meldete — ohne dass die Begriffe vergleichbar waren. */
+    const connCode = status.connected === true ? 'erreichbar'
+      : status.connected === false ? 'getrennt' : 'unbekannt';
+    /* Paper- oder Echtgeldkonto muss eindeutig sein (Spec §4 B, §7). */
+    const kontoArt = status.paperMode === true ? 'Paper Trading (kein echtes Geld)'
+      : status.paperMode === false ? 'ECHTGELD-KONTO'
+      : 'Kontoart unbekannt';
+    const kontoFarbe = status.paperMode === true ? 'var(--muted)'
+      : status.paperMode === false ? 'var(--red)' : 'var(--yellow)';
 
     // KPI cards
     const kpiHtml = `<div class="summary-grid">
       <div class="s-card"><div class="lbl">Modus</div><div class="val" style="font-size:18px"><span class="badge ${modeBadge}">${modeLabel}</span></div></div>
-      <div class="s-card"><div class="lbl">Verbindung</div><div class="val" style="font-size:18px"><span class="badge ${connBadge}">${connLabel}</span></div><div class="sub">${status.paperMode ? 'Paper Trading' : 'Live'}</div></div>
+      <div class="s-card"><div class="lbl">Verbindung zum Broker</div><div class="val" style="font-size:18px">${zustandsBadge(connCode)}</div><div class="sub" style="color:${kontoFarbe};font-weight:600">${esc(kontoArt)}${status.account ? ' · ' + esc(status.account) : ''}</div></div>
       <div class="s-card"><div class="lbl">Tages-P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.dailyPnl)}">${pnlPrefix(status.dailyPnl)}${fmtUsd(status.dailyPnl)}</div></div>
       <div class="s-card"><div class="lbl">Unrealisiert P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.unrealizedPnl)}">${pnlPrefix(status.unrealizedPnl)}${fmtUsd(status.unrealizedPnl)}</div></div>
       <div class="s-card"><div class="lbl">Net Liquidation</div><div class="val" style="font-size:22px">${fmtUsd(status.netLiquidation)}</div></div>
@@ -3100,6 +3128,14 @@ async function loadTrading() {
 
     c.innerHTML = kpiHtml + posHtml + uniHtml + wlHtml + stratHtml;
     stamp();
+    setDatenstand([{
+      quelle: 'Trading-Agent (IBKR)',
+      live: true,
+      zustand: connCode === 'erreichbar' ? 'aktuell' : connCode === 'getrennt' ? 'getrennt' : 'unbekannt',
+      stand: status.timestamp || new Date().toISOString(),
+      abgleich: status.timestamp || null,
+      hinweis: kontoArt + '. Aktualisierung alle 30 Sekunden.',
+    }]);
   }
 
   await render();
@@ -3448,18 +3484,35 @@ async function loadStatus() {
   try {
     const d = await apiFetch('/api/dashboard/status');
 
-    // Services
+    // Services — Zustandsvokabular statt roher Statuswoerter (Spec §4 B).
+    // Jede Zeile nennt zusaetzlich Herkunft (Live-Pruefung oder gespeicherter
+    // Zustand) und Pruefzeitpunkt. Ein unbekannter Zustand erscheint nie als
+    // Erfolg.
     const svcOrder = ['Core','Dashboard','Trading','n8n','Postgres','IB Gateway'];
     const svcMap = {};
     (d.services || []).forEach(s => { svcMap[s.name] = s; });
     const svcHtml = svcOrder.map(name => {
-      const s = svcMap[name] || { status: 'unknown', uptime_seconds: 0 };
-      const dot = s.status === 'up' ? '🟢' : s.status === 'down' ? '🔴' : '🟡';
-      const badge = s.status === 'up' ? 'badge-green' : s.status === 'down' ? 'badge-red' : 'badge-muted';
+      const s = svcMap[name];
+      if (!s) {
+        return `<tr>
+          <td style="padding:6px 12px;white-space:nowrap">${esc(name)}</td>
+          <td style="padding:6px 12px">${zustandsBadge('unbekannt')}</td>
+          <td style="padding:6px 12px;color:var(--muted);font-size:12px">kein Statuseintrag vorhanden</td>
+        </tr>`;
+      }
+      const code = s.status === 'up' ? 'erreichbar' : s.status === 'down' ? 'getrennt' : 'unbekannt';
+      const live = s.source === 'live';
+      const herkunft = live
+        ? 'live geprüft ' + (s.checked_at ? fmtDT(s.checked_at) : '–')
+        : 'gespeicherter Zustand' + (s.last_change ? ', unverändert seit ' + fmtDT(s.last_change) : '');
+      // Der frueher gezeigte "uptime"-Wert ist bei DB-Zeilen nur das Alter der
+      // Zeile, keine gemessene Laufzeit — deshalb nur bei Live-Pruefung zeigen.
+      const laufzeit = live && s.status === 'up' && s.uptime_seconds > 0
+        ? ' · Laufzeit ' + fmtUptime(s.uptime_seconds) : '';
       return `<tr>
-        <td style="padding:6px 12px;white-space:nowrap">${dot} ${esc(name)}</td>
-        <td style="padding:6px 12px"><span class="badge ${badge}">${esc(s.status)}</span></td>
-        <td style="padding:6px 12px;color:var(--muted);font-size:12px">${s.status === 'up' ? 'uptime ' + fmtUptime(s.uptime_seconds) : ''}</td>
+        <td style="padding:6px 12px;white-space:nowrap">${esc(name)}</td>
+        <td style="padding:6px 12px">${zustandsBadge(code)}</td>
+        <td style="padding:6px 12px;color:var(--muted);font-size:12px">${esc(herkunft)}${esc(laufzeit)}</td>
       </tr>`;
     }).join('');
 
@@ -3469,21 +3522,25 @@ async function loadStatus() {
     const backupDot = d.backup?.last ? (backupIsToday ? '🟢' : '🟡') : '🔴';
 
     // Tokens
-    const tokenHtml = (d.tokens || []).map(t => {
-      const dot = t.days_remaining > 14 ? '🟢' : t.days_remaining > 7 ? '🟡' : '🔴';
-      return `${dot} ${esc(t.name)} ${t.days_remaining}d`;
-    }).join(', ') || '–';
+    const tokenListe = d.tokens || [];
+    const tokenHtml = tokenListe.length
+      ? tokenListe.map(t => {
+          const dot = t.days_remaining > 14 ? '🟢' : t.days_remaining > 7 ? '🟡' : '🔴';
+          return `${dot} ${esc(t.name)} ${t.days_remaining} Tage`;
+        }).join(', ')
+      : zustandsBadge('unbekannt', 'kein Token-Eintrag gefunden');
 
-    // Workflows
+    // Workflows: die Tabelle `workflows` ist derzeit leer. "0" ist deshalb keine
+    // Aussage ueber n8n — das wird hier ausdruecklich gesagt statt gruen gemeldet.
     const wfCount = d.workflows?.pending || 0;
     const wfTypes = (d.workflows?.types || []).join(', ');
-    const wfDot = wfCount === 0 ? '🟢' : '🟡';
 
     c.innerHTML = `
       <div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-weight:600;margin-bottom:12px;font-size:14px">Services</div>
+        <div style="font-weight:600;margin-bottom:12px;font-size:14px">Dienste</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
-          ${svcHtml}
+          <thead><tr><th style="padding:6px 12px">Dienst</th><th style="padding:6px 12px">Zustand</th><th style="padding:6px 12px">Herkunft und Prüfzeitpunkt</th></tr></thead>
+          <tbody>${svcHtml}</tbody>
         </table>
       </div>
       <div class="summary-grid">
@@ -3493,18 +3550,34 @@ async function loadStatus() {
           <div class="sub">${backupIsToday ? 'heute' : d.backup?.last ? 'nicht heute' : 'kein Backup'}</div>
         </div>
         <div class="s-card">
-          <div class="lbl">Token-Health</div>
+          <div class="lbl">Token-Laufzeit</div>
           <div class="val" style="font-size:16px">${tokenHtml}</div>
+          <div class="sub">Quelle: Tabelle insta_tokens</div>
         </div>
         <div class="s-card">
-          <div class="lbl">Workflows pending</div>
-          <div class="val" style="font-size:16px">${wfDot} ${wfCount}</div>
-          <div class="sub">${wfTypes || 'keine'}</div>
+          <div class="lbl">Offene Vorgänge</div>
+          <div class="val" style="font-size:16px">${wfCount}</div>
+          <div class="sub">${wfTypes || 'keine Einträge in der Vorgangstabelle — kein Hinweis auf den Zustand von n8n'}</div>
         </div>
       </div>
-      ${d._stale ? '<div style="color:var(--muted);font-size:11px;margin-top:12px">Cache veraltet — Core nicht erreichbar</div>' : ''}
+      ${d._stale
+        ? '<div class="ds-leerzustand" style="margin-top:12px"><span class="ds-leer-symbol" aria-hidden="true">⚠️</span><div>'
+          + '<div class="ds-leer-titel">Statusquelle nicht erreichbar</div>'
+          + '<div class="ds-leer-sub">Angezeigt wird ein zwischengespeicherter Stand von vor '
+          + esc(String(d._cache_alter_s ?? '?')) + ' Sekunden. Die Zustände sind nicht bestätigt.</div></div></div>'
+        : ''}
     `;
     stamp();
+    setDatenstand([{
+      quelle: 'Systemstatus (Core)',
+      live: !d._stale,
+      zustand: d._stale ? 'degradiert' : 'aktuell',
+      stand: d.timestamp || new Date().toISOString(),
+      abgleich: d.timestamp || null,
+      hinweis: d._stale
+        ? 'Core nicht erreichbar — Anzeige aus dem Zwischenspeicher.'
+        : 'Zwischenspeicher ' + (d._cache_alter_s ?? 0) + ' s alt (Höchstalter 30 s).',
+    }]);
 
     _statusRefresh = setInterval(() => {
       if (currentTab === 'status') loadStatus();

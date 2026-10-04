@@ -373,10 +373,38 @@ document.addEventListener('alpine:init', () => {
         ]);
         if (instRes.ok) this.institutions = await instRes.json();
         if (acctRes.ok) this.accounts = await acctRes.json();
+        this.meldeDatenstand();
       } catch (e) {
         this.bankingError = e.message;
+        this.meldeDatenstand(e.message);
       }
       this.bankingLoading = false;
+    },
+
+    /* Salden stammen aus dem letzten FinTS-Abgleich, nicht aus dem Seitenaufruf.
+       Der jüngste `lastSyncAt` über alle Konten ist der Datenstand des Bereichs.
+       Ohne diese Angabe sah ein 97 Tage alter Saldo wie ein aktueller aus. */
+    meldeDatenstand(fehler) {
+      if (typeof setDatenstand !== 'function') return;
+      if (fehler) {
+        setDatenstand([{ quelle: 'Bankkonten (FinTS)', zustand: 'getrennt', stand: null,
+          abgleich: null, hinweis: 'Abruf fehlgeschlagen: ' + fehler }]);
+        return;
+      }
+      const zeiten = this.accounts
+        .map(a => a.lastSyncAt)
+        .filter(Boolean)
+        .map(x => new Date(x).getTime())
+        .filter(t => Number.isFinite(t));
+      const letzter = zeiten.length ? new Date(Math.max(...zeiten)).toISOString() : null;
+      const aktive = this.accounts.filter(a => a.status === 'active').length;
+      setDatenstand([{
+        quelle: 'Bankkonten (FinTS)',
+        stand: letzter,
+        abgleich: letzter,
+        hinweis: aktive + ' aktive Konten von ' + this.accounts.length
+          + '. Abgleich wird nicht aus dem Dashboard ausgelöst.',
+      }]);
     },
 
     accountsForInst(instId) {

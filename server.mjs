@@ -547,14 +547,38 @@ app.delete('/api/images/:filename', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Datenstand dateibasierter Caches (P1-1) ─────────────────────────────────
+//
+// Die Instagram-Caches tragen ihren eigenen Zeitstempel (`fetched_at` bzw.
+// `analysis_timestamp`). Fehlt er, ist die Dateizeit die naechstbeste belegbare
+// Angabe. Das Frontend soll das Alter nicht raten muessen, deshalb liefert der
+// Server beides getrennt aus: `datenstand` (gueltiger Zeitpunkt, ISO) und
+// `datenstand_quelle` ('inhalt' | 'dateizeit').
+function datenstandFelder(datei, inhaltsZeitstempel) {
+  if (inhaltsZeitstempel !== undefined && inhaltsZeitstempel !== null && inhaltsZeitstempel !== '') {
+    const ms = typeof inhaltsZeitstempel === 'number'
+      ? (inhaltsZeitstempel > 1e11 ? inhaltsZeitstempel : inhaltsZeitstempel * 1000)
+      : new Date(inhaltsZeitstempel).getTime();
+    if (Number.isFinite(ms)) {
+      return { datenstand: new Date(ms).toISOString(), datenstand_quelle: 'inhalt' };
+    }
+  }
+  try {
+    if (datei) {
+      return { datenstand: fs.statSync(datei).mtime.toISOString(), datenstand_quelle: 'dateizeit' };
+    }
+  } catch { /* Dateizeit nicht lesbar */ }
+  return { datenstand: null, datenstand_quelle: null };
+}
+
 // ── API: Instagram Media Cache ────────────────────────────────────────────────
 
 app.get('/api/instagram/media', auth, (req, res) => {
   try {
     const file = path.join(INSTA_DIR, 'media-cache.json');
-    if (!fs.existsSync(file)) return res.json({ items: [] });
+    if (!fs.existsSync(file)) return res.json({ items: [], datenstand: null, quelle: 'media-cache.json' });
     const cache = JSON.parse(fs.readFileSync(file, 'utf8'));
-    res.json(cache);
+    res.json({ ...cache, ...datenstandFelder(file, cache.fetched_at), quelle: 'media-cache.json' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -589,9 +613,9 @@ app.get('/api/instagram/media-proxy', auth, async (req, res) => {
 app.get('/api/instagram/insights', auth, (req, res) => {
   try {
     const file = path.join(INSTA_DIR, 'insights-cache.json');
-    if (!fs.existsSync(file)) return res.json({});
+    if (!fs.existsSync(file)) return res.json({ datenstand: null, quelle: 'insights-cache.json' });
     const data = JSON.parse(fs.readFileSync(file, 'utf8'));
-    res.json(data);
+    res.json({ ...data, ...datenstandFelder(file, data.fetched_at), quelle: 'insights-cache.json' });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -603,11 +627,13 @@ app.get('/api/instagram/forensics', auth, (req, res) => {
   try {
     // Find latest spike-forensic-v2 file
     let forensic = null;
+    let forensicDatei = null;
     const forensicFiles = fs.readdirSync(INSTA_DIR)
       .filter(f => f.startsWith('spike-forensic-v2-') && f.endsWith('.json'))
       .sort();
     if (forensicFiles.length) {
-      forensic = JSON.parse(fs.readFileSync(path.join(INSTA_DIR, forensicFiles[forensicFiles.length - 1]), 'utf8'));
+      forensicDatei = path.join(INSTA_DIR, forensicFiles[forensicFiles.length - 1]);
+      forensic = JSON.parse(fs.readFileSync(forensicDatei, 'utf8'));
     }
 
     // Find latest demographics snapshot
@@ -622,7 +648,12 @@ app.get('/api/instagram/forensics', auth, (req, res) => {
       }
     }
 
-    res.json({ forensic, demographics });
+    res.json({
+      forensic,
+      demographics,
+      ...datenstandFelder(forensicDatei, forensic?.analysis_timestamp),
+      quelle: forensicDatei ? path.basename(forensicDatei) : null,
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1599,6 +1630,8 @@ app.get('/api/sharepoint/drives/:siteId', requireSession, proxyToCore);
 app.get('/api/sharepoint/files/:siteId/:driveId', requireSession, proxyToCore);
 app.get('/api/sharepoint/search', requireSession, proxyToCore);
 app.get('/api/sharepoint/default-site', requireSession, proxyToCore);
+// P1-1: Datenstand der Dokumentenliste (letzter Synchronisationslauf)
+app.get('/api/sharepoint/sync-status', requireSession, proxyToCore);
 app.post('/api/sharepoint/cleanup-missing', requireSession, proxyToCore);
 
 // Download stays in dashboard (proxies to pre-auth Graph URL)
@@ -2144,7 +2177,9 @@ const STATUS_CACHE_TTL = 30_000; // 30s
 app.get('/api/dashboard/status', auth, async (_req, res) => {
   try {
     if (_statusCache.data && Date.now() - _statusCache.ts < STATUS_CACHE_TTL) {
-      return res.json(_statusCache.data);
+      // P1-1: Cache-Alter mitliefern, damit die Oberflaeche einen 30 Sekunden
+      // alten Zwischenspeicher nicht als Live-Messung darstellt.
+      return res.json({ ..._statusCache.data, _cache_alter_s: Math.round((Date.now() - _statusCache.ts) / 1000) });
     }
     const r = await fetch('http://127.0.0.1:18789/api/system-status', {
       signal: AbortSignal.timeout(10_000),
@@ -2152,10 +2187,18 @@ app.get('/api/dashboard/status', auth, async (_req, res) => {
     if (!r.ok) throw new Error(`Core returned ${r.status}`);
     const data = await r.json();
     _statusCache = { data, ts: Date.now() };
-    res.json(data);
+    res.json({ ...data, _cache_alter_s: 0 });
   } catch (e) {
-    // Return cached data if available, even if stale
-    if (_statusCache.data) return res.json({ ..._statusCache.data, _stale: true });
+    // Veralteten Zwischenspeicher ausliefern, aber ausdruecklich als veraltet
+    // kennzeichnen — sonst erscheint ein Ausfall als Erfolg.
+    if (_statusCache.data) {
+      return res.json({
+        ..._statusCache.data,
+        _stale: true,
+        _cache_alter_s: Math.round((Date.now() - _statusCache.ts) / 1000),
+        _fehler: 'Core-Statusquelle nicht erreichbar',
+      });
+    }
     res.status(503).json({ error: e.message });
   }
 });

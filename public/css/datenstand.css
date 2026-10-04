@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Datenstand-Leiste und Zustandsvokabular — Paket P1-1
+   Gehört zu public/js/datenstand.js.
+   Farben ausschließlich über die Tokens aus index.html, damit die Umstellung
+   auf das helle Design (P2-1) diese Datei nicht erneut anfassen muss.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.ds-leiste {
+  max-width: 1200px;
+  padding: 10px 24px 0;
+}
+
+.ds-abruf {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ds-liste {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ds-tz {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+/* ── Einzelner Datenstand-Eintrag ─────────────────────────────────────────── */
+
+.ds-eintrag {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 280px;
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r);
+  padding: 8px 12px;
+}
+
+.ds-symbol { font-size: 14px; line-height: 1.3; }
+
+.ds-text { min-width: 0; }
+
+.ds-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ds-quelle { font-size: 13px; font-weight: 600; }
+
+.ds-zustand { font-size: 12px; }
+
+.ds-felder,
+.ds-hinweis {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+/* Zustandsfarben nur als Ergänzung — der Text trägt die Aussage allein. */
+.ds-aktuell    { border-left-color: var(--green); }
+.ds-erreichbar { border-left-color: var(--green); }
+.ds-aktuell    .ds-zustand { color: var(--green); }
+.ds-erreichbar .ds-zustand { color: var(--green); }
+
+.ds-veraltet   { border-left-color: var(--yellow); }
+.ds-degradiert { border-left-color: var(--yellow); }
+.ds-veraltet   .ds-zustand { color: var(--yellow); }
+.ds-degradiert .ds-zustand { color: var(--yellow); }
+
+.ds-getrennt { border-left-color: var(--red); }
+.ds-getrennt .ds-zustand { color: var(--red); }
+
+.ds-unbekannt { border-left-color: var(--muted); }
+.ds-unbekannt .ds-zustand { color: var(--muted); }
+
+/* ── Leerzustand für Blöcke ohne aktuelle Datengrundlage ──────────────────── */
+
+.ds-leerzustand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--r);
+  color: var(--muted);
+}
+
+.ds-leer-symbol { font-size: 18px; line-height: 1.2; }
+
+.ds-leer-titel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+
+.ds-leer-sub { font-size: 12px; }
+
+/* ── Zustandsabzeichen in Tabellen und Kacheln ────────────────────────────── */
+
+/* .badge setzt text-transform: uppercase — fuer mehrwortige Zustandstexte
+   ("Daten aktuell", "Quelle nicht erreichbar") unleserlich. */
+.badge-zustand {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  padding: 3px 9px;
+}

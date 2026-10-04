@@ -67,9 +67,14 @@ Browser-Uhrzeit des Seitenaufbaus**. Der Wert hat **keinen Bezug zum Alter der a
 Daten** — er sagt nur „dieser Bereich wurde gerade gerendert". `showTab()` leert das Feld
 vorher (`index.html:343`); `loadBanking()` ruft `stamp()` gar nicht auf, dort bleibt der Kopf leer.
 
-Das ist die Kernursache von Befund A: ein frischer „Stand"-Zeitpunkt neben 146 Tage alten
-Quelldaten. Die Bezeichnung ist irreführend und muss in Paket **P1-1** getrennt werden in
-*Seitenabruf* / *Datenstand* / *letzter erfolgreicher Quellenabgleich*.
+Das war die Kernursache von Befund A: ein frischer „Stand"-Zeitpunkt neben 146 Tage alten
+Quelldaten.
+
+**Erledigt in P1-1 (04.10.2026; Commit siehe `STATUS.md`).** `stamp()` setzt jetzt
+„Seite geladen: …" (Zeitpunkt des Seitenabrufs). Datenstand und letzter erfolgreicher
+Quellenabgleich stehen getrennt davon in der neuen Datenstand-Leiste zwischen Navigation und
+Inhalt (`public/js/datenstand.js`, `public/css/datenstand.css`). `loadBanking()` ruft `stamp()`
+jetzt ebenfalls auf.
 
 ---
 
@@ -79,8 +84,10 @@ Vollständige Tabelle mit Ursache, Klassifikation und Paket: siehe
 `~/bikosoc-spec/report-dashboard-phase0-1700.md` §2 sowie die Pakete in `01-`…`03-`.
 
 ### Reproduzierte Funktionsfehler (Ursache am Code belegt)
-- **B1** IB-Gateway-Status: Feldname-Fehler im Core (`index.ts:3456` liest `data.ibkr?.connected`, der Trading-Service liefert `connected` auf oberster Ebene) → Status immer „down".
-- **B2** Instagram-Token „55 Tage": hartcodiert (`index.html:2133`). Echter Wert 59 Tage.
+- **A/B1/B2 — behoben in P1-1 (04.10.2026).** Einzelnachweis:
+  `~/bikosoc-spec/report-dashboard-p1-1-1846.md`.
+- **B1** IB-Gateway-Status: Feldname-Fehler im Core (`index.ts:3456` las `data.ibkr?.connected`, der Trading-Service liefert `connected` auf oberster Ebene) → Status immer „down". **Behoben**, zusätzlich hat die Live-Prüfung jetzt Vorrang vor der `service_health`-Zeile.
+- **B2** Instagram-Token „55 Tage": hartcodiert (`index.html:2133`). Echter Wert 59 Tage. **Behoben** — der Wert kommt jetzt aus derselben Quelle wie der Status-Bereich.
 - **C** Fuhrparkfilter: Liste bleibt nach Filterwechsel leer. Backend korrekt verifiziert; Fehler liegt im Render-/Alpine-Lebenszyklus. Genauer Mechanismus noch nicht ohne Browser verifiziert.
 - **D** Mietvertragsfilter/Suche: `vertraegeFilter()` ist eine leere Funktion (`assets-vertraege.js:191-193`), `_filteredLeases()` gibt ungefiltert zurück (`:116-118`).
 - **E** SharePoint: Frontend liest Graph-Feldnamen (`webUrl`, `displayName`, `id`, `lastModifiedDateTime`), der Core liefert seit Sprint 10 `web_url`, `site_name`, `site_id`, `last_modified_at`.
@@ -188,21 +195,22 @@ Vollständige Tabelle mit Ursache, Klassifikation und Paket: siehe
 
 ---
 
-## 5. Punkte mit fachlichem Entscheidungsbedarf (Owner)
+## 5. Owner-Entscheidungen
 
-Diese Punkte werden **nicht** eigenmächtig entschieden. Die betroffenen Pakete sind dort
-blockiert, wo es vermerkt ist.
+**Alle acht Punkte sind am 04.10.2026 vom Owner entschieden.** Die Entscheidungen sind
+verbindlich; die Spalte „Entscheidung" ist für die Pakete maßgeblich. Die ursprüngliche
+Befundlage bleibt als Begründung stehen.
 
-| Nr. | Punkt | Belegte Lage | Warum Owner | Blockiert |
+| Nr. | Punkt | Belegte Lage | **Entscheidung des Owners (04.10.2026)** | Umsetzung in |
 |---|---|---|---|---|
-| 1 | **n8n-Zeitpläne** | Alle vier n8n-Workflows (`banking-sync-daily`, `instagram-token-health-daily`, `health-withings-sync-daily`, `260509-openclaw-health-check`) sind **inaktiv**, n8n hat **null Ausführungen**. Banking-Daten vom 29.06.2026 (97 Tage), SharePoint vom 16.05.2026 (141 Tage) | Reaktivierung löst echte externe Abrufe aus (Bank-FinTS mit TAN, Graph, Meta). Spec §4 A verbietet automatische Synchronisation nur zur Beseitigung einer Warnung | nichts — P1-1 kennzeichnet das Alter, ohne zu synchronisieren |
-| 2 | **Instagram-Demodaten** | Top-Beiträge, Content-Plan und der ganze Analyse-Unterbereich stammen aus `_INSTA_MOCK`; „🤖 KI-Empfehlung" ist ein fester Text | Soll der Bereich (a) als „Demodaten" gekennzeichnet bleiben, (b) bis zum Ersatz ausgeblendet werden, oder (c) auf echte Insights umgebaut werden (benötigt Datenquelle und ggf. kostenpflichtige Analyse)? | Umfang von P2-7 |
-| 3 | **Mietvertrag `n24-w6-2024`** | `status = active`, `actual_move_out = 2024-11-15`, `termination_date = 2025-11-30`. Die Einheit (`unit_id 32`) hat mit `n24-w6-2025` ab 01.12.2025 einen zweiten aktiven Vertrag. Das Auszugsdatum liegt ein Jahr vor dem Kündigungsdatum — möglicher Tippfehler (2024 statt 2025) | Statusänderung und Datumskorrektur sind fachliche Bestandsdatenänderungen mit Wirkung auf Nebenkosten und Mietkonto | P2-11 (Anzeige kann vorher gebaut werden) |
-| 4 | **Vier Mieterdatensätze „Jürgen Bickel"** | IDs 31, 32, 37, 38; identische E-Mail; Codes `bickel-l19w3`, `bickel-l19w4+`, `jbickel-n24w3`, `jbickel-n24w4`; je genau ein aktiver Vertrag. Datenmodell erlaubt über `lease_tenants` mehrere Verträge pro Person | Zusammenführen ist eine Bestandsdatenänderung. Spec §4 H: keine stillschweigende Zusammenführung | P2-11 |
-| 5 | **Agentenübersicht** | Ein n8n-API-Schlüssel existiert bereits und funktioniert (`GET /api/v1/workflows` → 200, 4 Workflows). Die n8n-Datenbank ist für den `openclaw`-User bewusst gesperrt | Eine lesende Übersicht über den n8n-API-Schlüssel ist technisch ohne neue Berechtigung möglich, überträgt aber Workflow-Metadaten ins Dashboard. Soll das? | P2-10 |
-| 6 | **Kopfzeile „Hans Dampf"** | Hartcodiert in `public/index.html:233` und im Meta-Tag `:10`. `CLAUDE.md` nennt das System „Hans_Dampf" — spricht für Absicht, nicht für einen Platzhalter | Spec §4 M: nicht eigenmächtig ersetzen | eine Zeile in P2-8 |
-| 7 | **Nebenkosten-Meldungstexte** | Die 21 Regeln in `src/modules/nk/precheck.ts` liefern englische Meldungen ohne Ursache/Auswirkung/nächsten Schritt | Vorschlag: deutsche Erklärungen **im Dashboard** ergänzen, `precheck.ts` unangetastet lassen (fachliche Logik). Owner bestätigt, dass die Schweregrad-Zuordnung der 21 Regeln fachlich so gewollt ist | Freigabe des Vorgehens in P1-6 |
-| 8 | **Dokumenten-Statusdaten** | Nur ein einziger SharePoint-Sync (16.05.2026), 12.089 Dateien. Die Site-Liste enthält zwei Einträge mit derselben `site_id`, einer davon mit leerem Namen und einer Datei | Bereinigung der Altzeile ist eine Datenänderung; `POST /api/sharepoint/cleanup-missing` existiert, wurde nicht ausgeführt | Vollständigkeit von P1-4 |
+| 1 | **n8n-Zeitpläne** | Alle vier n8n-Workflows (`banking-sync-daily`, `instagram-token-health-daily`, `health-withings-sync-daily`, `260509-openclaw-health-check`) sind inaktiv, n8n hat null Ausführungen. Banking-Daten vom 29.06.2026, SharePoint vom 16.05.2026 | **n8n wird NICHT reaktiviert.** Das Datenalter wird stattdessen ehrlich gekennzeichnet. Keine automatische Synchronisation, kein Abgleich aus dem Dashboard heraus | **P1-1 erledigt** |
+| 2 | **Instagram-Demodaten** | Top-Beiträge, Quick Insights, Content-Plan, Analyse und der Absatz unter „🤖 KI-Empfehlung" stammen aus `_INSTA_MOCK` bzw. festen Textliteralen | **Ausblenden.** Die betroffenen Blöcke zeigen einen Leerzustand „Keine aktuellen Daten – letzter Abgleich \<Datum aus `media-cache.fetched_at`\>". Nichts wird gelöscht, nur nicht gerendert. Aufbau auf echter Grundlage später | **P1-1 erledigt**, Ersatz in P2-7 |
+| 3 | **Mietvertrag `n24-w6-2024`** | `status = active`, `actual_move_out = 2024-11-15`, `termination_date = 2025-11-30`; Einheit 32 hat mit `n24-w6-2025` einen zweiten aktiven Vertrag | **Nur Anzeige als Inkonsistenz. Keine Datenänderung** — kein Statuswechsel, keine Datumskorrektur | P2-11 |
+| 4 | **Vier Mieterdatensätze „Jürgen Bickel"** | IDs 31, 32, 37, 38; identische E-Mail; je genau ein aktiver Vertrag | **Die Datensätze sind KORREKT.** Der Owner ist Hauptmieter temporär vermieteter Wohnungen mit Untermietern. **Nicht zusammenführen.** Später als Hauptmieter-/Untermieter-Verhältnis darstellen | P2-11 |
+| 5 | **Agentenübersicht** | n8n-API-Schlüssel existiert und funktioniert; n8n-Datenbank für den `openclaw`-User bewusst gesperrt | **Ja** — lesende Übersicht über die n8n-API. Schlüssel bleibt serverseitig | P2-10 |
+| 6 | **Kopfzeile „Hans Dampf"** | Hartcodiert in `public/index.html:233` und Meta-Tag `:10` | **Bleibt.** Keine Änderung | — (erledigt durch Nicht-Handeln) |
+| 7 | **Nebenkosten-Meldungstexte** | 21 Regeln in `src/modules/nk/precheck.ts` liefern englische Meldungen ohne Ursache/Auswirkung/nächsten Schritt | **Deutsche Texte im Dashboard, `precheck.ts` bleibt unangetastet.** Die fachliche Prüfung der Schweregrad-Zuordnung übernimmt der Owner bei **Checkpoint 1** | P1-6 |
+| 8 | **SharePoint-Altzeile** | Zwei Einträge mit derselben `site_id`, einer mit leerem Namen und einer Datei | **Nur anzeigen, kein Cleanup.** `POST /api/sharepoint/cleanup-missing` wird nicht ausgeführt | P1-4 |
 
 ---
 

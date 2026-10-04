@@ -2,11 +2,13 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 04.10.2026, 17:00 UTC
-**Aktuelle Phase:** Phase 0 abgeschlossen — Phase 1 nicht begonnen
+**Letzte Aktualisierung:** 04.10.2026, 18:46 UTC
+**Aktuelle Phase:** Phase 1 begonnen — P1-1 erledigt, P1-2 als Nächstes
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** funktional unverändert gegenüber `735d5b8`; HEAD ist `1fe1499`
-(nur Arbeitsdateien unter `prompts/dashboard-ueberarbeitung/` hinzugefügt)
+**Änderungsstand Code:** P1-1 ist produktiv. Dashboard-Dienst und Gateway neu gestartet.
+`executive-agent` ist committet, aber **noch nicht gepusht** — `index.ts` ist Red-Zone-Pfad
+und wartet auf `/arm push` durch den Owner.
+**Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
 
 ---
 
@@ -15,7 +17,7 @@ Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächlic
 | Paket | Thema | Aufwand | Status | Commit | Prüfung |
 |---|---|---|---|---|---|
 | **Phase 0** | Bestandsaufnahme, Sicherung, Arbeitsdateien | — | **erledigt** | `1fe1499` | Report `~/bikosoc-spec/report-dashboard-phase0-1700.md` |
-| P1-1 | Aktualität und Statuskonsistenz (A, B) | L | offen | — | — |
+| P1-1 | Aktualität und Statuskonsistenz (A, B) | L | **erledigt** | siehe unten | Report `~/bikosoc-spec/report-dashboard-p1-1-1846.md` |
 | P1-2 | Fuhrparkfilter (C) | S | offen | — | — |
 | P1-3 | Mietvertragsfilter und Suche (D) | M | offen | — | — |
 | P1-4 | SharePoint-Datenzuordnung (E) | M | offen | — | — |
@@ -113,6 +115,144 @@ Für Phase 1 nicht erforderlich.
 | Commit Arbeitsdateien (Dashboard) | `1fe1499` — docs(dashboard): Phase 0 … Arbeitsdateien |
 | Commit Pointer (Workspace) | `53959c4` — chore(pointer): executive-dashboard 735d5b8 → 1fe1499 |
 | Push | beide Repos nach `origin` gepusht, kein Red-Zone-Treffer |
+
+### P1-1 — Aktualität und Statuskonsistenz (Befunde A, B) — 04.10.2026
+
+**Durchgeführt**
+- Neuer gemeinsamer Baustein `public/js/datenstand.js` + `public/css/datenstand.css`:
+  trennt **Seitenabruf**, **Datenstand** und **letzten erfolgreichen Quellenabgleich**;
+  Zustandsvokabular *erreichbar / Daten aktuell / degradiert / Daten veraltet / getrennt /
+  unbekannt* mit Symbol **und** Text. Schwelle für „veraltet": 7 Tage (je Bereich überschreibbar).
+- Kopfzeile: `stamp()` setzt jetzt „Seite geladen: …" statt „Stand: …". Neue Datenstand-Leiste
+  zwischen Navigation und Inhalt (`#datenstandLeiste`), wird von `showTab()` mitgeleert.
+- Datenstand-Leiste eingebunden in: **Instagram** (drei Quellen getrennt), **Banking**,
+  **SharePoint**, **Status**, **Trading**.
+- `loadBanking()` ruft `stamp()` jetzt auf (fehlte bisher komplett, Kopf blieb leer).
+  Banking-Datenstand = jüngster `lastSyncAt` über alle Konten, berechnet in
+  `bankingRoot.meldeDatenstand()`.
+- **B1 behoben** (Core): `index.ts` las `data.ibkr?.connected`, der Trading-Service liefert
+  `connected` auf oberster Ebene. Zusätzlich hat die **Live-Prüfung jetzt Vorrang** vor der
+  `service_health`-Zeile (vorher `if (!entry) push`, also gewann dauerhaft ein einmal
+  geschriebener Zustand). Drei unterscheidbare Ergebnisse: verbunden → `up`,
+  erreichbar aber nicht verbunden → `down`, Trading-Service nicht erreichbar → `unknown`.
+  Jeder Diensteintrag trägt jetzt `source` (`live`/`db`) und `checked_at`.
+- **B2 behoben**: hartcodierter `tokenExpiry: 55` wird nicht mehr gerendert. Die
+  Instagram-Token-Anzeige kommt aus derselben Quelle wie der Status-Bereich
+  (Core `/api/system-status` → Tabelle `insta_tokens`).
+- **Demodaten ausgeblendet** (Owner-Entscheidung Nr. 2): Top-Beiträge, Quick Insights,
+  Content-Plan und der komplette Analyse-Unterbereich inklusive des Absatzes unter
+  „🤖 KI-Empfehlung" zeigen jetzt den Leerzustand
+  „Keine aktuellen Daten – letzter Abgleich 11.05.2026, 18:05".
+  `_INSTA_MOCK` bleibt mit Warnkommentar im Code stehen (nichts gelöscht), wird aber nicht
+  mehr referenziert.
+- KPI-Untertitel im Instagram-Bereich nennen den echten Insights-Stand statt „Ø letzte 30 Tage".
+- Tote „↻ Sync"-Schaltfläche im Instagram-Kopf ist jetzt deaktiviert und beschriftet
+  „↻ Sync nur per /instasync" — ein klickbarer Sync-Knopf neben „Daten veraltet (146 Tage)"
+  war eine falsche Zusage. Owner-Entscheidung Nr. 1: kein Abgleich aus dem Dashboard.
+- Status-Bereich: Dienstetabelle mit Zustandsvokabular, Spalte „Herkunft und Prüfzeitpunkt";
+  der frühere „uptime"-Wert erscheint nur noch bei Live-Prüfung (bei DB-Zeilen war es das
+  Alter der Zeile, keine Laufzeit). „Workflows pending: 0" ist jetzt als „Offene Vorgänge"
+  beschriftet mit dem ausdrücklichen Hinweis, dass die leere Vorgangstabelle **kein** Hinweis
+  auf den Zustand von n8n ist. Bei ausgefallener Statusquelle erscheint ein Warnblock
+  „Statusquelle nicht erreichbar" statt stiller Weiterverwendung des Zwischenspeichers.
+- Trading-Bereich: dasselbe Zustandsvokabular wie im Status-Bereich; Paper- bzw.
+  Echtgeldkonto wird ausdrücklich benannt (`Paper Trading (kein echtes Geld)` /
+  `ECHTGELD-KONTO` / `Kontoart unbekannt`) samt Kontonummer.
+- Server: `/api/instagram/media|insights|forensics` liefern jetzt `datenstand` (ISO) und
+  `datenstand_quelle` (`inhalt`/`dateizeit`); `/api/dashboard/status` reicht `_cache_alter_s`
+  und bei Ausfall `_fehler` durch. Neue lesende Route `/api/sharepoint/sync-status`
+  (Dashboard-Proxy + Core-Route in `src/modules/sharepoint/routes.ts`).
+
+**Geänderte Dateien**
+
+| Repo | Datei | Art |
+|---|---|---|
+| executive-dashboard | `public/js/datenstand.js` | neu |
+| executive-dashboard | `public/css/datenstand.css` | neu |
+| executive-dashboard | `public/index.html` | geändert |
+| executive-dashboard | `public/js/banking-connect.js` | geändert |
+| executive-dashboard | `server.mjs` | geändert |
+| executive-dashboard | `prompts/dashboard-ueberarbeitung/00-masterplan.md`, `STATUS.md` | geändert |
+| executive-agent | `index.ts` | geändert (**Red Zone**) |
+| executive-agent | `src/modules/sharepoint/routes.ts` | geändert |
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `node --check server.mjs` | Exit 0 („Build OK") |
+| `node --check` auf `datenstand.js`, `banking-connect.js` | Exit 0 |
+| Inline-Skript aus `index.html` extrahiert, `node --check` | Exit 0 (3.327 Zeilen) |
+| executive-agent `npm run build` (tsc) | Exit 0 |
+| executive-agent `npm test` | **645 pass, 0 fail, 0 skip** (57 Testdateien) |
+| executive-agent `npm run verify:commands` | 118/118 bidirektional konsistent |
+| executive-agent `npm run verify-schema` | ALL OK — no drift |
+| executive-agent `npm run lint` | 2 Fehler — **vorbestehend** in `src/pdf-worker.ts:20-21` (`no-deep-module-import`), gegen HEAD gegengeprüft; meine Dateien sind sauber |
+| `scripts/smoke-test.ts` | **ALL PASS (31/31)** |
+| Gateway- und Dashboard-Restart | beide `active` |
+| `GET /health` (18800) | 200 |
+| **B1-Gegenprobe:** `18793/health` vs. `/api/dashboard/status` | `connected: true` ↔ `IB Gateway: up`, `source: live`, `checked_at` gesetzt — **konsistent** |
+| B1-Zweigtest isoliert (ohne Eingriff in den Trading-Dienst) | echter Dienst → `up`; Port nicht erreichbar → `unknown`; erreichbar mit `connected:false` → `down`; alte Lesart `data.ibkr?.connected` → `undefined` (Ursachenbeleg) |
+| **B2-Gegenprobe:** Token-Wert | `/api/dashboard/status` → Meta 59 Tage; Instagram-Kopf liest denselben Wert; kein `${d.tokenExpiry}` mehr im ausgelieferten HTML |
+| Statusquelle-Ausfall (Gateway 3 s gestoppt) | `_stale: true`, `_cache_alter_s: 38`, `_fehler: "Core-Statusquelle nicht erreichbar"` → Oberfläche zeigt Warnblock, **nicht** „in Ordnung" |
+| Datenstand-Endpunkte | Medien `2026-05-11T16:05:17Z`, Insights `2026-06-27T05:00:18Z`, Forensic `2026-05-08T15:52:49Z`, SharePoint `last_success_at 2026-05-16T17:47:10Z` (12.089 Dateien) |
+| `datenstand.js` isoliert getestet | Epoche-ms erkannt; „vor 146 Tagen"; `null` → `unbekannt` (nie „aktuell"); unbekannter Zustandscode fällt auf `unbekannt` zurück; HTML-Einfügeprobe mit `<script>` wird escaped |
+| Mock-Renderpfade im ausgelieferten HTML | `d.topPosts`, `d.insights.bestTime`, `d.calendar.map`, `d.followerHistory`, „Deine Reels performen", `${d.tokenExpiry}`, „KW 10–11" → je **0 Treffer** |
+| Ausgelieferte neue Dateien | `/js/datenstand.js` 200 (8.184 B), `/css/datenstand.css` 200 (3.349 B) |
+| Journal Dashboard und Gateway | keine neuen Fehler |
+
+**Verbleibende Fehler**
+Keine aus P1-1. Befunde C–G stehen unverändert offen (Pakete P1-2 bis P1-6).
+
+**Noch nicht verifiziert — CP1 prüfen**
+Alles Folgende ist nur im Browser prüfbar und für **Checkpoint 1** vorgemerkt
+(Abnahmetabelle `04-abnahme-und-regressionspruefung.md` §2.1):
+- **CP1 prüfen:** Kopfzeile zeigt „Seite geladen: …"; Datenstand-Leiste erscheint in
+  Instagram, Banking, SharePoint, Status und Trading und verschwindet in den übrigen Bereichen.
+- **CP1 prüfen:** Instagram zeigt drei getrennte Datenstände (Medien 146 Tage,
+  Insights 99 Tage, Forensic 149 Tage), jeweils mit Symbol und Text.
+- **CP1 prüfen:** die fünf ausgeblendeten Instagram-Blöcke zeigen den Leerzustand
+  „Keine aktuellen Daten – letzter Abgleich 11.05.2026, 18:05"; kein Absatz erhebt noch
+  einen KI-Anspruch.
+- **CP1 prüfen:** Banking zeigt den Datenstand 29.06.2026 als veraltet; Seitenkopf nicht mehr leer.
+- **CP1 prüfen:** Status-Bereich — Dienstetabelle mit Herkunft und Prüfzeitpunkt lesbar;
+  Trading-Bereich und Status-Bereich melden denselben IB-Gateway-Zustand.
+- **CP1 prüfen:** Darstellung bei 1440 px und 390 px (die Leiste bekommt ihr mobiles Verhalten
+  erst in P2-2; bei 390 px ist mit Umbrüchen zu rechnen).
+- **CP1 prüfen:** alle 13 Bereiche öffnen, keine JavaScript-Fehler in der Browser-Konsole.
+- **Owner-Prüfung (Entscheidung Nr. 7):** fachliche Richtigkeit der Schweregrad-Zuordnung der
+  21 Nebenkosten-Regeln — gehört zu P1-6, wird bei CP1 mitgeprüft.
+
+**Vorbestehende Befunde, nicht Teil von P1-1**
+- `npm run lint` im Agent-Repo meldet zwei `no-deep-module-import`-Fehler in
+  `src/pdf-worker.ts:20-21`. Gegen HEAD gegengeprüft: vorbestehend, anderes Modul.
+- Gateway-Neustart protokolliert gelegentlich
+  `Public Location-Server Fehler: listen EADDRINUSE … 127.0.0.1:18790`. Seit 01.09.2026
+  **29-mal**, auch bei Neustarts ohne Zusammenhang mit dieser Arbeit (u. a. 28./29.09.,
+  03./04.10. zur Backup-Zeit). Der Dienst fängt sich: Port 18790 wird vom laufenden Prozess
+  gehalten, `POST /location` antwortet. Vorbestehende Startreihenfolge-Kollision,
+  nicht durch P1-1 verursacht, nicht behoben.
+
+**Offene Entscheidungen**
+Keine. Alle acht Punkte sind entschieden (`00-masterplan.md` §5).
+Offen bleibt die **Owner-Aufgabe** Hetzner-Snapshot vor Phase 2.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: **ja** — `openclaw-gateway.service` (wegen `index.ts`) und
+  `openclaw-dashboard.service` (wegen `server.mjs`). Beide durchgeführt, beide `active`.
+- Keine Datenänderung, keine Synchronisation, kein externer Abruf, keine Veröffentlichung.
+- Rückweg Dashboard: `git revert <commit>` bzw. nur Frontend
+  `git checkout pre-dashboard-ueberarbeitung-20261004 -- public/` + Browser-Reload.
+- Rückweg Core: `git revert <commit>` im Agent-Repo, dann `npm run build` und
+  `systemctl --user restart openclaw-gateway.service`.
+
+**Commits**
+
+| Repo | Commit | Push |
+|---|---|---|
+| executive-dashboard | _wird eingetragen_ | nach `origin` |
+| openclaw-workspace (Pointer) | _wird eingetragen_ | nach `origin` |
+| executive-agent | _wird eingetragen_ | **wartet auf `/arm push`** (Red Zone: `index.ts`) |
 
 ---
 
