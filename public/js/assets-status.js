@@ -9,10 +9,51 @@ const DEEPLINK_MAP = {
   'open_property_drawer': (entityId) => assetsOpenPropertyDrawer(entityId),
   'open_unit_drawer': (entityId) => assetsOpenUnitDrawer(entityId, null),
   'open_lease_drawer': (entityId) => assetsOpenLeaseDrawer(entityId),
-  'open_meter_list': (entityId) => { vertraegeSwitch('meters'); },
+  'open_meter_list': (entityId) => { assetsSwitchSubTab('vertraege'); vertraegeSwitch('meters'); },
   'open_expense_booking': (entityId) => assetsEditExpense(entityId),
-  'open_allocation_rule': (entityId) => { vertraegeSwitch('allocation'); },
+  'open_allocation_rule': (entityId) => { assetsSwitchSubTab('vertraege'); vertraegeSwitch('allocation'); },
 };
+
+/* Globale Bruecke in den Assets-Unterbereich. Alle vier Unterbereiche sind
+   gleichzeitig im DOM (x-show, x-init beim Aufbau) — es genuegt also, den
+   sichtbaren zu wechseln. */
+function assetsSwitchSubTab(tab) {
+  const el = document.querySelector('[x-data="assetsRoot"]');
+  if (!el) return;
+  try { Alpine.$data(el).switchSubTab(tab); } catch { /* Komponente nicht bereit */ }
+}
+
+/* P1-6: Zielansicht eines Nebenkosten-Befunds. Der Core liefert kein
+   suggested_action; das Ziel kommt aus der Zuordnung in nk-befunde.js.
+   Einheiten- und Objektbefunde landen im Objekt-Schubfach — dort stehen die
+   Heizungskonfiguration UND die Einheitenliste mit Verweis in jede Einheit. */
+function nkBeheben(ziel, propertyCode, entityId) {
+  switch (ziel) {
+    case 'objekt':
+    case 'einheiten':
+      assetsSwitchSubTab('stammdaten');
+      assetsOpenPropertyDrawer(propertyCode);
+      break;
+    case 'zaehler':
+      assetsSwitchSubTab('vertraege');
+      vertraegeSwitch('meters');
+      break;
+    case 'verteilung':
+      assetsSwitchSubTab('vertraege');
+      vertraegeSwitch('allocation');
+      break;
+    case 'ausgaben':
+      assetsSwitchSubTab('vertraege');
+      vertraegeSwitch('expenses');
+      break;
+    case 'vertrag':
+      if (entityId) { assetsOpenLeaseDrawer(entityId); }
+      else { assetsSwitchSubTab('vertraege'); vertraegeSwitch('leases'); }
+      break;
+    default:
+      break;
+  }
+}
 
 document.addEventListener('alpine:init', () => {
 
@@ -133,29 +174,24 @@ async function loadNkReadiness() {
       try {
         const res = await csrf.fetch(`/api/assets/properties/${p.code}/nk-readiness?year=${y}`);
         if (!res.ok) {
-          cell.innerHTML = '<span class="badge badge-muted">–</span>';
+          cell.innerHTML = '<span class="nk-badge nk-badge-grau" title="HTTP ' + res.status
+            + '">Nicht abrufbar</span>';
           continue;
         }
         const data = await res.json();
-        const blocking = data.blocking_count || 0;
-        const warnings = data.warning_count || 0;
-        const infos = data.info_count || 0;
-
-        let badgeClass, icon;
-        if (blocking > 0) {
-          badgeClass = 'nk-badge-red';
-          icon = blocking;
-        } else if (warnings > 0 || infos > 0) {
-          badgeClass = 'nk-badge-yellow';
-          icon = warnings + infos;
-        } else {
-          badgeClass = 'nk-badge-green';
-          icon = '✓';
-        }
-
-        cell.innerHTML = `<span class="nk-badge ${badgeClass}" onclick="event.stopPropagation();showNkFindings('${esc(p.code)}', ${y})" title="${blocking} Blocker, ${warnings} Warnungen, ${infos} Infos">${icon}</span>`;
-      } catch {
-        cell.innerHTML = '<span class="badge badge-muted">?</span>';
+        /* P1-6: Die Zelle zeigte nur eine nackte Zahl ("2", "3"); die
+           Erlaeuterung steckte ausschliesslich im title-Attribut und war damit
+           nur per Hover erreichbar (Spec §6: nichts nur ueber Hover).
+           Jetzt steht der benannte Zustand in der Zelle. */
+        const ampel = nkAmpel(data);
+        cell.innerHTML = `<span class="nk-badge ${ampel.klasse}" style="cursor:pointer"
+          onclick="event.stopPropagation();showNkFindings('${esc(p.code)}', ${y})"
+          title="${esc(ampel.lang)}">${esc(ampel.kurz)}</span>
+          <div class="nk-matrix-sub">${esc(ampel.lang)}</div>`;
+      } catch (e) {
+        /* Ladefehler ist nicht "bereit" und nicht "keine Befunde". */
+        cell.innerHTML = '<span class="nk-badge nk-badge-grau" title="' + esc(e.message || 'Abruf fehlgeschlagen')
+          + '">Nicht abrufbar</span>';
       }
     }
   }
@@ -174,37 +210,36 @@ async function showNkFindings(propertyId, year) {
     const findings = data.findings || [];
 
     if (!findings.length) {
-      target.innerHTML = '<div class="card card-pad"><div class="empty">Keine Findings</div></div>';
+      target.innerHTML = '<div class="card card-pad"><div class="empty">'
+        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Befunde</div>'
+        + '<div style="font-size:13px">Die Pruefung lief durch und hat nichts beanstandet.</div>'
+        + '</div></div>';
       return;
     }
 
+    /* P1-6: dieselbe Lesefehler-Korrektur wie im Pre-Check — 'blocker' statt
+       'blocking', `message` statt `detail` — plus die deutschen Erklaerungen
+       aus nk-befunde.js. */
     let html = `<div class="card card-pad">
-      <h4 style="font-size:14px;margin-bottom:12px">Findings — Objekt ${propertyId} / ${year}</h4>`;
+      <h4 style="font-size:14px;margin-bottom:12px">Befunde — Objekt ${esc(propertyId)} / ${year}</h4>
+      <div class="nk-befundliste">`;
 
     for (const f of findings) {
-      const severityBadge = f.severity === 'blocking' ? '<span class="badge badge-red">Blocker</span>'
-        : f.severity === 'warning' ? '<span class="badge badge-yellow">Warnung</span>'
-        : '<span class="badge badge-blue">Info</span>';
-
-      html += `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-          ${severityBadge}
-          <span style="font-weight:600;font-size:13px">${esc(f.code || '')}</span>
-          ${f.display_id ? `<span style="color:var(--muted);font-size:12px">${esc(f.display_id)}</span>` : ''}
-        </div>
-        <div style="font-size:13px;color:var(--muted);margin-bottom:6px">${esc(f.detail || '')}</div>`;
-
-      if (f.suggested_action && DEEPLINK_MAP[f.suggested_action]) {
-        html += `<button class="btn btn-primary" style="font-size:12px" onclick="assetsDeepLink('${esc(f.suggested_action)}', ${f.entity_id || 0})">Beheben</button>`;
-      }
-
-      html += '</div>';
+      html += nkBefundBlock(f, propertyId, year);
     }
 
-    html += '</div>';
+    html += '</div></div>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    /* Ladefehler ist nicht "keine Befunde". */
+    target.innerHTML = '<div class="card card-pad"><div class="ds-leerzustand">'
+      + '<span class="ds-leer-symbol" aria-hidden="true">\u26a0\ufe0f</span><div>'
+      + '<div class="ds-leer-titel">Befunde konnten nicht geladen werden</div>'
+      + '<div class="ds-leer-sub">' + esc(e.message)
+      + ' \u2014 der Bereitschaftszustand ist unbekannt, nicht in Ordnung.</div>'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + ' onclick="showNkFindings(\'' + esc(propertyId) + '\', ' + Number(year) + ')">Erneut versuchen</button></div>'
+      + '</div></div></div>';
   }
 }
 

@@ -215,22 +215,11 @@ async function nkLoadPreCheck() {
     const infos = data.info_count || 0;
     const findings = data.findings || [];
 
-    // Ampel badge
-    let ampelClass, ampelLabel;
-    if (blocking > 0) {
-      ampelClass = 'nk-badge-red';
-      ampelLabel = `${blocking} Blocker`;
-    } else if (warnings > 0) {
-      ampelClass = 'nk-badge-yellow';
-      ampelLabel = `${warnings} Warnungen`;
-    } else {
-      ampelClass = 'nk-badge-green';
-      ampelLabel = 'Bereit';
-    }
-
+    // Ampel: benannter Zustand (P1-6)
+    const ampel = nkAmpel(data);
     let html = `<div style="margin-bottom:16px">
-      <span class="nk-badge ${ampelClass}" style="font-size:14px;padding:6px 14px">${ampelLabel}</span>
-      <span style="color:var(--muted);font-size:13px;margin-left:12px">${blocking} Blocker, ${warnings} Warnungen, ${infos} Infos</span>
+      <span class="nk-badge ${ampel.klasse}" style="font-size:14px;padding:6px 14px">${esc(ampel.kurz)}</span>
+      <span style="color:var(--muted);font-size:13px;margin-left:12px">${esc(ampel.lang)}</span>
     </div>`;
 
     if (blocking === 0 && warnings === 0) {
@@ -239,35 +228,34 @@ async function nkLoadPreCheck() {
       </div>`;
     }
 
+    /* P1-6: Schweregrad und Meldungstext werden jetzt aus den richtigen
+       Feldern gelesen ('blocker' statt 'blocking', `message` statt `detail`)
+       und um deutsche Erklaerungen mit Ursache, Auswirkung und naechstem
+       Schritt ergaenzt (public/js/nk-befunde.js). */
     if (findings.length) {
-      html += '<div style="margin-top:8px">';
+      html += '<div class="nk-befundliste">';
       for (const f of findings) {
-        const severityBadge = f.severity === 'blocking' ? '<span class="badge badge-red">Blocker</span>'
-          : f.severity === 'warning' ? '<span class="badge badge-yellow">Warnung</span>'
-          : '<span class="badge badge-blue">Info</span>';
-
-        html += `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-            ${severityBadge}
-            <span style="font-weight:600;font-size:13px">${esc(f.code || '')}</span>
-            ${f.display_id ? `<span style="color:var(--muted);font-size:12px">${esc(f.display_id)}</span>` : ''}
-          </div>
-          <div style="font-size:13px;color:var(--muted);margin-bottom:6px">${esc(f.detail || '')}</div>`;
-
-        if (f.suggested_action && typeof DEEPLINK_MAP !== 'undefined' && DEEPLINK_MAP[f.suggested_action]) {
-          html += `<button class="btn btn-primary" style="font-size:12px" onclick="assetsDeepLink('${esc(f.suggested_action)}', ${f.entity_id || 0})">Beheben</button>`;
-        }
-
-        html += '</div>';
+        html += nkBefundBlock(f, nk.selectedPropertyCode, nk.selectedYear);
       }
       html += '</div>';
-    } else if (blocking === 0 && warnings === 0 && infos === 0) {
-      html += '<div class="empty">Keine Findings</div>';
+    } else {
+      html += '<div class="empty">'
+        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Befunde</div>'
+        + '<div style="font-size:13px">Die Pruefung lief durch und hat nichts beanstandet.</div>'
+        + '</div>';
     }
 
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    /* Ein Ladefehler darf nicht wie "alles in Ordnung" aussehen (Spec §4 G). */
+    target.innerHTML = '<div class="ds-leerzustand">'
+      + '<span class="ds-leer-symbol" aria-hidden="true">⚠️</span><div>'
+      + '<div class="ds-leer-titel">Pruefung konnte nicht geladen werden</div>'
+      + '<div class="ds-leer-sub">' + esc(e.message)
+      + ' — der Bereitschaftszustand ist damit unbekannt, nicht in Ordnung.</div>'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + ' onclick="nkLoadPreCheck()">Erneut versuchen</button></div>'
+      + '</div></div>';
   }
 }
 
@@ -747,11 +735,25 @@ async function nkLoadObligationsForProperty() {
   try {
     const url = `/api/assets/properties/${nk.selectedPropertyCode}/nk-period-obligations`;
     const res = await csrf.fetch(url);
-    const obligations = res.ok ? await res.json() : [];
+    /* P1-6: Ein fehlgeschlagener Abruf wurde vorher zu einer leeren Liste und
+       erschien danach als "Keine Pflichten" — ein Ladefehler sah damit aus wie
+       ein unbedenklicher Zustand (Spec §4 G). Jetzt getrennt behandelt. */
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const obligations = await res.json();
     nk.obligations = obligations;
 
     if (!obligations.length) {
-      target.innerHTML = '<div class="empty">Keine Pflichten f\u00fcr dieses Objekt</div>';
+      /* "Nicht eingerichtet" statt "keine Pflichten": Fristen-Datensaetze
+         entstehen nicht automatisch (im Core gibt es kein INSERT auf
+         nk_period_obligations, nur SELECT und UPDATE), die Tabelle ist derzeit
+         leer. Das Fehlen ist also KEIN Nachweis, dass keine Pflicht besteht. */
+      target.innerHTML = '<div class="ds-leerzustand">'
+        + '<span class="ds-leer-symbol" aria-hidden="true">\u2754</span><div>'
+        + '<div class="ds-leer-titel">Keine \u00a7556-Fristen eingerichtet</div>'
+        + '<div class="ds-leer-sub">F\u00fcr dieses Objekt ist kein Fristen-Datensatz angelegt. '
+        + 'Solche Datens\u00e4tze entstehen nicht automatisch. '
+        + 'Das Fehlen ist deshalb kein Nachweis, dass keine Abrechnungspflicht besteht.</div>'
+        + '</div></div>';
       return;
     }
 
@@ -797,7 +799,14 @@ async function nkLoadObligationsForProperty() {
     html += '</tbody></table>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = '<div class="ds-leerzustand">'
+      + '<span class="ds-leer-symbol" aria-hidden="true">\u26a0\ufe0f</span><div>'
+      + '<div class="ds-leer-titel">\u00a7556-Fristen konnten nicht geladen werden</div>'
+      + '<div class="ds-leer-sub">' + esc(e.message)
+      + ' \u2014 der Pflichtenstand ist unbekannt, nicht unbedenklich.</div>'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + ' onclick="nkLoadObligationsForProperty()">Erneut versuchen</button></div>'
+      + '</div></div>';
   }
 }
 

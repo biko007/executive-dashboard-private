@@ -306,17 +306,22 @@
 .assets-table tbody tr:hover td { background: rgba(255,255,255,.025); }
 .assets-table tbody tr:last-child td { border-bottom: none; }
 
-/* ── Traffic Light Badges ── */
+/* ── Ampel-Abzeichen ── */
+/* P1-6: Vorher ein Kreis mit fester Groesse 24x24 — passend fuer eine einzelne
+   Ziffer. Die Readiness-Matrix zeigte deshalb nur "2" oder "3" und die
+   Erlaeuterung steckte allein im title-Attribut. Jetzt eine mitwachsende
+   Pille, in die der benannte Zustand passt ("2 Blocker", "Bereit"). */
 .nk-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
+  min-width: 24px;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
 }
 .nk-badge-green  { background: rgba(74,222,128,.15); color: var(--green); }
 .nk-badge-yellow { background: rgba(251,191,36,.15); color: var(--yellow); }
