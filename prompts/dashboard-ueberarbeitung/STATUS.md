@@ -26,7 +26,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P1-5 | Kalenderlogik (F) | M | **erledigt** | `8586ed0` · Core `5f65c4b` | Report `~/bikosoc-spec/report-dashboard-p1-5-0735.md` |
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
-| CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `_wird eingetragen_` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
+| CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `aa40c12` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
 | P2-1 | Helles Design | M | offen | — | — |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
@@ -747,7 +747,7 @@ Kalender-Beschreibung), `public/js/zeit.js` (`kalenderBeschreibung`)
 **Live-Auswirkung:** nur Anzeige, nur `public/`. Kein Dienst-Restart, Browser-Reload genügt.
 **Rückweg:** `git revert <commit>` bzw. `git checkout <tag> -- public/`.
 
-**Commit:** `_wird eingetragen_`
+**Commit:** `aa40c12` · kein Dienst-Restart nötig
 
 ---
 
