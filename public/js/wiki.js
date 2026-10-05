@@ -145,7 +145,8 @@ async function loadWiki() {
     // Nur beim ersten Aufruf folgen, danach steuert die Oberfläche selbst.
     params.delete('page');
     const rest = params.toString();
-    history.replaceState({}, '', location.pathname + (rest ? '?' + rest : ''));
+    // Verlaufszustand erhalten (P2-2).
+    history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : ''));
     await wikiOpenPage(deepLink);
     return;
   }

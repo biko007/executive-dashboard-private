@@ -157,9 +157,11 @@ function setDatenstand(eintraege) {
     return;
   }
   el.hidden = false;
+  /* Der Abrufzeitpunkt steht in der Kopfzeile (#lastUpdate) und stand hier
+     ein zweites Mal — schmal kostete das eine ganze Zeile fuer dieselbe
+     Angabe (P2-2). Die Leiste zeigt jetzt nur noch die Datenstaende. */
   el.innerHTML =
-    '<div class="ds-abruf">' + esc(seitenabrufText()) + '</div>'
-    + '<div class="ds-liste">' + liste.map(datenstandBadge).join('') + '</div>'
+    '<div class="ds-liste">' + liste.map(datenstandBadge).join('') + '</div>'
     + '<div class="ds-tz">Alle Zeitangaben in Europe/Berlin.</div>';
 }
 

@@ -851,6 +851,135 @@ Kein Dark Mode, kein Umschalter.
 
 **Commit:** `b892e21` · kein Dienst-Restart nötig
 
+### P2-2 — Navigation und mobile Grundstruktur — 05.10.2026
+
+Umfang: Haltepunkte, Navigation, Seitenraster, Touchziele, Verlaufsbehandlung.
+**Nicht** hier: mobile Kartenform für Tabellen und mitwachsende Diagramme (P2-3),
+Formulare und Dialoge im Detail (P2-4).
+
+**Ausgangsmessung (Chromium, Präfix wie nginx umgeschrieben)**
+
+| Breite | Überläufe vorher | größte Dokumentbreite |
+|---|---|---|
+| 360 px | 13 von 13 Bereichen | **1.260 px** |
+| 390 px | 13 von 13 Bereichen | 1.259 px |
+| 768 px | 13 von 13 Bereichen | 1.259 px |
+| 1440 px | 0 von 13 | 1.440 px |
+
+Das bestätigt die Owner-Beobachtung aus Spec §6 (ca. 1.251 px). Das überstehende Element war
+in **jedem** Fall eine Navigationsschaltfläche — die nicht umbrechende Zeile mit 13 Einträgen.
+
+**Durchgeführt**
+
+1. **Drei Haltepunkte, mobile-first.** Die Grundregeln gelten unter 640 px; ab 640 px
+   (breite Geräte, Tablet hochkant) und ab 1024 px (Desktop) bauen zwei Media-Queries darauf
+   auf. `main` hat mobil 12 px Innenabstand, ab 640 px 16 px, ab 1024 px die gewohnten 24 px.
+   Die vorher einzeln gewachsenen Haltepunkte (680 px für die Terminkarte und die
+   NK-Befundzeile, 1100/680 px für das Kachelraster) sind auf dieses Raster umgestellt —
+   im ganzen Projekt gibt es jetzt nur noch `min-width: 640px` und `min-width: 1024px`.
+2. **Navigation: waagerecht scrollbare Leiste** (Owner-Entscheidung, **kein Hamburger**).
+   `overflow-x: auto` **innerhalb** der Leiste, `scroll-snap-type: x proximity`, Bildlaufleiste
+   ausgeblendet. Damit bleibt das Dokument schmal, und seitliches Wischen über dem Inhalt
+   verschiebt die Seite nicht mehr. Jede Schaltfläche trägt Symbol **und** Text; unter 640 px
+   zeigt sie die Kurzform (nur „Private Equity" → „PE", „Instagram" → „Insta",
+   „SharePoint" → „SP"), der Text entfällt nie. Der aktive Bereich ist am Akzent, am Unterstrich
+   und jetzt zusätzlich an der Schriftstärke erkennbar und wird bei jedem Wechsel per
+   `scrollTo` in die Mitte des sichtbaren Teils geholt. Desktop bleibt einzeilig wie bisher.
+3. **Kopfzeile und Datenstand-Leiste stapeln schmal.** Kopfzeile zweizeilig: Titel oben,
+   darunter Abrufzeitpunkt und „Abmelden". Der Abrufzeitpunkt stand doppelt auf der Seite
+   (Kopfzeile und Datenstand-Leiste) — die Leiste zeigt ihn nicht mehr, die sticky Kopfzeile
+   hat ihn ohnehin immer im Blick.
+4. **Kennzahl-Kacheln mitwachsend.** `.summary-grid` (Health, Trading, Banking, PE),
+   `.entity-grid` (Fuhrpark- und Objektkacheln) und `.insta-grid` auf
+   `repeat(auto-fill, minmax(150px, 1fr))` — bei 390 px ergibt das zwei Spalten statt eines
+   Überlaufs; ab 640 px wachsen die Entitätskacheln wieder auf 260 px Mindestbreite.
+   Die PE-Kennzahlzeile (drei feste Spalten) ist ebenfalls mitwachsend. Auf dem Desktop
+   bleiben die Entitätskacheln wie gewohnt dreispaltig (eigener Haltepunkt ab 1024 px).
+
+   Dabei sind drei Stellen aufgefallen, an denen **Text abgeschnitten** wurde, ohne dass der
+   Überlauftest das meldet — alle behoben:
+   - Die Entitätskachel hat `overflow: hidden`; ihr Datenraster stand auf `auto 1fr` mit nicht
+     umbrechender Beschriftung. In einer 177 px breiten Kachel wurde der Wert aus der Kachel
+     geschoben und abgeschnitten („1.400.00…", „Waermepump…"). Jetzt `minmax(0, auto)
+     minmax(0, 1fr)`, die Beschriftung darf schmal umbrechen.
+   - Die vier Instagram-Kennzahlkacheln hatten `flex: 1; min-width: 0` und schrumpften schmal
+     auf 45 px, statt umzubrechen. Jetzt `flex: 1 1 150px` — zwei Reihen bei 390 px, auf dem
+     Desktop unverändert nebeneinander.
+   - Der Bildbereich der Entitätskachel war fest 240 px hoch, auch bei einer 177 px breiten
+     Kachel; schmal richtet er sich jetzt nach der Breite (4:3), ab 640 px wieder 240 px.
+5. **Browser-Zurück ohne Router.** `showTab()` schreibt `?tab=<bereich>` per
+   `history.pushState`, ein `popstate`-Handler stellt den Bereich wieder her, der erste Aufbau
+   und die Anmeldung **ersetzen** den Eintrag (sonst bräuchte Zurück zwei Schritte, um die
+   Seite zu verlassen). Ein Neuladen bleibt im Bereich. Die vorhandenen `replaceState`-Stellen
+   in Fuhrpark (2) und Wiki (1) erhalten jetzt `history.state`, damit der Bereichszustand beim
+   Zurückblättern nicht verlorengeht. Die Bereichsmarkierung läuft über `data-tab` statt über
+   die Reihenfolge der Schaltflächen.
+6. **Tabellen und Diagramme nur vorbereitet** (Übergang bis P2-3): `.card` hatte
+   `overflow: hidden` und **schnitt** breite Tabellen ab; enthält die Karte unmittelbar eine
+   Tabelle, wird sie jetzt zum waagerechten Scrollbereich. Dazu `img, svg, video, canvas
+   { max-width: 100% }` und Umbruchregeln für lange Wörter und Adressen.
+7. **Unterbereichs-Leisten wie die Hauptnavigation**: Assets-Unterbereiche, Fuhrpark- und
+   Vertragsfilter, Instagram-Unterbereiche scrollen waagerecht statt das Dokument zu
+   verbreitern.
+8. **Touchziele ≥ 44 × 44 px** als mobile Grundeinstellung für **alle** Schaltflächen — auch
+   für die ohne eigene Klasse (Wiki, Instagram, SharePoint) — und ab 640 px zurückgenommen,
+   damit das in P2-1 abgenommene Bild auf breiten Geräten unverändert bleibt. Bewusst **ohne**
+   unsichtbare `::after`-Trefferflächen: bei nebeneinander stehenden Schaltflächen würden sich
+   die Flächen überlappen und der Fingerdruck auf dem Nachbarn landen.
+
+**Unterwegs gefundener Fehler (vorbestehend, mitbehoben)**
+
+Beim Aufruf mit Token in der Adresse schrieb der Startcode die Adresse auf `?tab=<bereich>`
+neu und **verwarf dabei alle übrigen Parameter**. Ein Aufruf
+`?token=…&tab=wiki&page=amazon` landete deshalb in der Wiki-Übersicht statt auf der Seite,
+`assets_subtab` und `fleet_code` ebenso. Jetzt wird nur der Token entfernt. Im Alltag fiel das
+nicht auf, weil die Deeplinks aus der angemeldeten Sitzung ohne Token-Parameter aufgerufen
+werden.
+
+**Geänderte Dateien:** `public/index.html`, `public/css/assets.css`,
+`public/css/datenstand.css`, `public/css/entity-tile.css`, `public/js/datenstand.js`,
+`public/js/fleet-detail.js`, `public/js/fleet-stores.js`, `public/js/wiki.js`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| Dokumentbreite 13 Bereiche × 360/390/768/1440 px | **0 Überläufe von 52** (vorher 39), größte Breite je Stufe exakt die Viewport-Breite |
+| dieselbe Messung mit **abgeschalteter** `overflow-x`-Sicherung | ebenfalls **0 von 52** — die Ursache ist behoben, nicht verdeckt |
+| Plausibilität der Messung (13 Bereiche, 390 px) | Inhalt 72–8.936 Zeichen je Bereich, **keine** fehlende Stil- oder Skriptdatei — die Messung lief am gerenderten Zustand |
+| Touchziele, alle Schaltflächen in 13 Bereichen bei 390 px | **0 Verletzer** unter 44 × 44 px (vorher 18, keiner davon in der Hauptnavigation) |
+| Tastaturfokus, 170 Tabulatorschritte in 7 Bereichen | **0 ohne sichtbaren Ring** |
+| Verlauf Health → Kalender → Fuhrpark → zurück | Kalender; zweimal zurück → Health; zweimal vor → Fuhrpark; Neuladen bleibt Fuhrpark |
+| Deeplinks `?tab=banking`, `?tab=banking-connect`, `?tab=wiki&page=<slug>`, `?tab=assets&assets_subtab=…`, `?fleet_code=<code>` | alle wie erwartet, Verbinden-Ansicht und Wiki-Seite öffnen sich |
+| Unterbereiche einzeln durchgeklickt (4 Assets, 6 Instagram) bei 390 px | je Schritt kein Überlauf; beide Leisten scrollen (528/366 bzw. 593/366 px) |
+| Gegenprobe 1440 px gegen 390 px, 13 Bereiche | **0** Bedienelemente, die nur breit vorhanden sind (294 verglichen) |
+| Abgeschnittener Text in Behältern ohne Scrollmöglichkeit, 13 Bereiche bei 390 px | **0** (vorher 7, alle im Instagram-Kennzahlblock) |
+| Entitätskacheln bei 360/390/768/1440 px | schmal zwei Spalten (162 bzw. 177 px), 768 px zweispaltig, 1440 px dreispaltig wie bisher; 0 abgeschnittene Werte |
+| `node --check` server.mjs, alle `public/js/*.js`, Inline-Skript | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+| Dienste | unverändert — **kein Restart**, nur `public/` betroffen |
+
+**Bildschirmfotos für die Owner-Durchsicht**
+`~/upgrade-artifacts/20261005-p2-2/` — 13 Bereiche bei 390 px und dieselben 13 bei 1440 px
+(Regressionsvergleich), Gerätefaktor 2, ganze Seitenlänge.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Bedienung am echten Gerät — Wischen in der Navigationsleiste, Daumenerreichbarkeit,
+  Verhalten der Zurück-Geste (iOS wischt am Rand, Android nutzt die Systemtaste).
+- **CP2 prüfen:** Diagramme sind schmal weiterhin breiter als der Bildschirm und scrollen
+  innerhalb ihrer Karte. Das ist der vereinbarte Übergang; die mitwachsenden Diagramme
+  und die mobile Kartenform für Tabellen sind **P2-3**.
+- **CP2 prüfen:** Terminformular und übrige Dialoge sind nur grob angepasst (Innenabstand,
+  einspaltige Feldpaare). Das Formularraster ist **P2-4**.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git revert <commit>`.
+
+**Commit:** <hash> · kein Dienst-Restart nötig
+
+---
+
 ---
 
 ## Vorlage für die nächsten Einträge

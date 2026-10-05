@@ -194,7 +194,8 @@ document.addEventListener('alpine:init', () => {
       // Update URL without reload
       const url = new URL(window.location);
       url.searchParams.set('fleet_code', vehicleCode);
-      window.history.replaceState({}, '', url);
+      // Verlaufszustand erhalten, sonst verliert popstate den Bereich (P2-2).
+      window.history.replaceState(window.history.state, '', url);
     },
 
     backToList() {
@@ -204,7 +205,8 @@ document.addEventListener('alpine:init', () => {
       const url = new URL(window.location);
       url.searchParams.delete('fleet_code');
       url.searchParams.delete('fleet_subtab');
-      window.history.replaceState({}, '', url);
+      // Verlaufszustand erhalten, sonst verliert popstate den Bereich (P2-2).
+      window.history.replaceState(window.history.state, '', url);
       this.loadVehicles();
     },
 

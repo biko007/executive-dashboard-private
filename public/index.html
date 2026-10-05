@@ -102,21 +102,59 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 .login-box input:focus { border-color: var(--accent); }
 .login-err { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 18px; }
 
-/* ── App shell ── */
+/* ── App shell ─────────────────────────────────────────────────────────────
+   P2-2: mobile-first. Die Grundregeln gelten fuer schmale Geraete, die beiden
+   Haltepunkte weiter unten (ab 640 px und ab 1024 px) bauen darauf auf.
+
+   html/body bekommen overflow-x: hidden nur als LETZTE Sicherung. Die
+   Ursache — die nicht umbrechende Navigationszeile — ist behoben, nicht
+   verdeckt: die Leiste scrollt jetzt innerhalb ihres eigenen Containers. */
+html, body { overflow-x: hidden; max-width: 100%; }
 #app { display: none; min-height: 100vh; }
-header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
+
+/* Kopfzeile stapelt schmal: Titel ueber Abrufzeitpunkt und Abmelden. */
+header {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 10px 12px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  position: sticky; top: 0; z-index: 10;
+}
 header h1 { font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: .3px; }
-.header-meta { display: flex; align-items: center; gap: 16px; }
+.header-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .header-meta span { color: var(--muted); font-size: 13px; }
 .btn-logout { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-soft); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
 .btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
 
-nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 2px; }
-nav button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-soft); padding: 11px 14px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: color .12s; white-space: nowrap; }
-nav button:hover { color: var(--text); background: var(--row-hover); }
-nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* ── Hauptnavigation ───────────────────────────────────────────────────────
+   Waagerecht scrollbar INNERHALB des eigenen Containers. Dadurch bleibt das
+   Dokument schmal; vorher zog die Zeile es auf rund 1.260 px auf.
+   scroll-snap rastet die Schaltflaechen ein, damit kein Eintrag halb
+   angeschnitten stehen bleibt. */
+nav {
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 0 4px; display: flex; gap: 2px;
+  overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;            /* Leiste selbst nicht anzeigen … */
+}
+nav::-webkit-scrollbar { display: none; }   /* … auch in WebKit nicht */
 
-main { padding: 24px; max-width: 1200px; }
+nav button {
+  background: none; border: none; border-bottom: 2px solid transparent;
+  color: var(--text-soft); cursor: pointer; font-size: 13px; font-family: var(--font);
+  transition: color .12s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px;
+  /* Touchziel: mindestens 44 px hoch und breit (Spec §6). */
+  min-height: 44px; min-width: 44px; padding: 0 12px;
+  scroll-snap-align: start; flex: 0 0 auto;
+}
+nav button:hover { color: var(--text); background: var(--row-hover); }
+nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+/* Schmal die Kurzform, ab 640 px die lange Beschriftung. Der Text entfaellt nie. */
+.nav-lang { display: none; }
+.nav-kurz { display: inline; }
+
+main { padding: 12px; max-width: 1200px; }
 
 /* ── Utilities ── */
 /* Neutrale Schaltflaeche ausdruecklich setzen. Ohne eigene Flaeche zeichnet
@@ -193,7 +231,8 @@ tbody tr:hover td { background: var(--row-hover); }
 /* ── Calendar ── */
 .day-group { margin-bottom: 22px; }
 .day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-.ev-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 14px; align-items: start; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
+/* P2-2: mobile-first einspaltig; die dreispaltige Zeile ab 640 px. */
+.ev-row { display: grid; grid-template-columns: 1fr; gap: 6px; align-items: start; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
 .ev-row.ev-ganztags { border-left: 3px solid var(--accent); }
 .ev-time { color: var(--muted); font-size:13px; padding-top: 1px; }
 .ev-zeit-haupt { color: var(--text); font-weight: 600; white-space: nowrap; }
@@ -210,12 +249,9 @@ tbody tr:hover td { background: var(--row-hover); }
 .cal-ist-zustand { color: var(--text-soft); font-size: 13px; margin-bottom: 14px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; }
 .ganztags-zeile { display: flex; align-items: center; gap: 8px; margin-top: 14px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
 .ganztags-zeile input { width: auto; margin: 0; }
-/* P1-5: nur die Terminkarte. Das allgemeine mobile Raster macht P2-2. */
-@media (max-width: 680px) {
-  .ev-row { grid-template-columns: 1fr; gap: 6px; }
-  .ev-aktionen { justify-content: flex-start; }
-  .ev-zeit-haupt { white-space: normal; }
-}
+/* Schmal stapelt die Terminkarte; die Aktionen stehen dann links. */
+.ev-aktionen { justify-content: flex-start; }
+.ev-zeit-haupt { white-space: normal; }
 
 /* ── Draft body ── */
 .draft-body-row td { padding: 0 14px 12px; }
@@ -234,7 +270,7 @@ tbody tr:hover td { background: var(--row-hover); }
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 @keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
 .modal-overlay { position:fixed; inset:0; background:var(--overlay); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
-.modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:28px; animation:slideUp .2s ease; }
+.modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:18px; animation:slideUp .2s ease; }
 .modal h3 { font-size:17px; margin-bottom:18px; }
 .modal label { display:block; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; margin-top:14px; }
 .modal input, .modal textarea, .modal select { width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:6px; padding:9px 12px; color:var(--text); font-size:14px; font-family:var(--font); }
@@ -294,6 +330,109 @@ tbody tr:hover td { background: var(--row-hover); }
 .detail-img-wrap:hover .img-placeholder { background: var(--accent-weak); }
 .detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: var(--overlay); border-radius: 6px; padding: 4px 8px; }
 .detail-img-wrap input[type=file] { display: none; }
+/* ═══════════════════════════════════════════════════════════════════════════
+   Haltepunkte — Paket P2-2
+
+   Drei Stufen, mobile-first:
+     unter 640 px   schmale Geraete  (Grundregeln oben)
+     ab 640 px      breite Geraete und Tablets hochkant
+     ab 1024 px     Desktop — hier gilt wieder das gewohnte Bild
+
+   Geprueft wird bei 360, 390, 768 und 1440 px (Spec §6).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 640px) {
+  header { flex-direction: row; align-items: center; justify-content: space-between; padding: 12px 16px; gap: 16px; }
+  .header-meta { justify-content: flex-end; flex-wrap: nowrap; }
+  nav { padding: 0 8px; }
+  /* Ab hier ist Platz fuer die ausgeschriebene Beschriftung. */
+  .nav-lang { display: inline; }
+  .nav-kurz { display: none; }
+  main { padding: 16px; }
+  .ds-leiste { padding: 10px 16px 0; }
+  .modal { padding: 28px; }
+  /* Terminzeile: Zeit | Inhalt | Aktionen */
+  .ev-row { grid-template-columns: 130px 1fr auto; gap: 14px; }
+  .ev-aktionen { justify-content: flex-end; }
+  .ev-zeit-haupt { white-space: nowrap; }
+}
+
+@media (min-width: 1024px) {
+  header { padding: 14px 24px; }
+  nav { padding: 0 20px; }
+  main { padding: 24px; }
+  .ds-leiste { padding: 10px 24px 0; }
+}
+
+/* ── Unterbereichs-Leisten verhalten sich wie die Hauptnavigation ──────────
+   Assets-Unterbereiche, Fuhrpark- und Vertragsfilter, Instagram-Unterbereiche:
+   waagerecht scrollbar statt das Dokument zu verbreitern. */
+.assets-subtabs, .filters-row, .insta-subtabs {
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.assets-subtabs::-webkit-scrollbar,
+.filters-row::-webkit-scrollbar,
+.insta-subtabs::-webkit-scrollbar { display: none; }
+.assets-subtabs > *, .insta-subtabs > * { flex: 0 0 auto; scroll-snap-align: start; }
+.assets-subtabs { flex-wrap: nowrap; }
+.insta-subtabs { display: flex; }
+/* Die Filterzeile darf umbrechen, wenn Platz ist — nur nicht ueberlaufen. */
+.filters-row { flex-wrap: wrap; }
+
+/* ── Touchziele ───────────────────────────────────────────────────────────
+   Spec §6 verlangt 44 x 44 px fuer Bedienelemente. Die Regel gilt als
+   mobile Grundeinstellung fuer ALLE Schaltflaechen — auch fuer die ohne
+   eigene Klasse (Wiki, Instagram, SharePoint) — und wird ab 640 px wieder
+   zurueckgenommen, damit das in P2-1 abgenommene Bild auf breiten Geraeten
+   unveraendert bleibt.
+
+   Bewusst ohne unsichtbare ::after-Trefferflaechen: bei nebeneinander
+   stehenden Schaltflaechen wuerden sich die Flaechen ueberlappen und der
+   Fingerdruck landete auf dem Nachbarn. Statt dessen wachsen die
+   Schaltflaechen schmal wirklich auf 44 px. */
+button, summary, a.btn, a.btn-ghost, .subtab-btn, .drawer-close, select, input[type=file] {
+  min-height: 44px;
+}
+button, .btn, .btn-ghost, .btn-logout, .subtab-btn, .drawer-close {
+  min-width: 44px;
+}
+/* Die Hauptnavigation behaelt ihre 44 px auf jeder Breite. */
+nav button { min-height: 44px; min-width: 44px; }
+
+@media (min-width: 640px) {
+  button, summary, a.btn, a.btn-ghost, .subtab-btn, .drawer-close, select, input[type=file] {
+    min-height: 0;
+  }
+  button, .btn, .btn-ghost, .btn-logout, .subtab-btn, .drawer-close { min-width: 0; }
+  nav button { min-height: 44px; min-width: 44px; }
+}
+
+/* ── Uebergangsloesung bis P2-3 ────────────────────────────────────────────
+   Tabellen und Diagramme bekommen hier NUR einen eigenen Scrollbereich,
+   damit sie die Seite nicht verbreitern. Die mobile Kartenform und die
+   mitwachsenden Diagramme sind Paket P2-3.
+
+   .card hatte bisher overflow: hidden — eine breite Tabelle wurde damit
+   ABGESCHNITTEN statt scrollbar. Enthaelt die Karte unmittelbar eine Tabelle,
+   wird sie zum waagerechten Scrollbereich. Unterstuetzt der Browser :has()
+   nicht, bleibt es beim bisherigen Verhalten; eine Verschlechterung entsteht
+   dadurch nicht. */
+.tabelle-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.card { max-width: 100%; }
+.card:has(> table), .card:has(> .assets-table) { overflow-x: auto; overflow-y: visible; }
+.card > table, .card > .assets-table { min-width: max-content; }
+img, svg, video, canvas { max-width: 100%; }
+pre, code { overflow-wrap: anywhere; }
+/* Lange Woerter und Adressen sprengen sonst die Karte. */
+.ev-title, .ev-sub, .wiki-snippet, .sp-pfad, .entity-tile__title { overflow-wrap: anywhere; }
+
+/* ── Kennzahl- und Entitaetskacheln ───────────────────────────────────────
+   Feste Spaltenzahl weicht einem mitwachsenden Raster; bei 390 px ergibt das
+   zwei Spalten statt eines Ueberlaufs. */
+.summary-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.insta-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 </style>
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
@@ -332,20 +471,26 @@ tbody tr:hover td { background: var(--row-hover); }
       <button class="btn-logout" onclick="logout()">Abmelden</button>
     </div>
   </header>
-  <nav>
-    <button onclick="showTab('health')"   class="active">🏥 Health</button>
-    <button onclick="showTab('trips')"           >✈️ Trips</button>
-    <button onclick="showTab('calendar')"        >📅 Kalender</button>
-    <button onclick="showTab('fleet')"           >🚗 Fuhrpark</button>
-    <button onclick="showTab('assets')"          >🏠 Assets</button>
-    <button onclick="showTab('trading')"         >📈 Trading</button>
-    <button onclick="showTab('banking')"         >🏦 Banking</button>
-    <button onclick="showTab('pe')"              >💼 Private Equity</button>
-    <button onclick="showTab('instagram')"       >📷 Instagram</button>
-    <button onclick="showTab('sharepoint')"      >📂 SharePoint</button>
-    <button onclick="showTab('wiki')"            >📚 Wiki</button>
-    <button onclick="showTab('agents')"          >🤖 Agents</button>
-    <button onclick="showTab('status')"         >🔌 Status</button>
+  <!-- P2-2: Die Leiste scrollt schmal INNERHALB ihres Containers. Vorher war
+       sie eine nicht umbrechende Zeile mit 13 Schaltflaechen und zog das
+       gesamte Dokument auf rund 1.260 px auf.
+       Jede Schaltflaeche traegt Symbol UND Text; unter 640 px zeigt die
+       Leiste die Kurzform (.nav-kurz), der Text entfaellt aber nie.
+       Kein Hamburger-Menue (Owner-Entscheidung). -->
+  <nav aria-label="Hauptbereiche">
+    <button onclick="showTab('health')" class="active" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Health</span><span class="nav-kurz">Health</span></button>
+    <button onclick="showTab('trips')"        data-tab="trips"><span aria-hidden="true">✈️</span><span class="nav-lang">Trips</span><span class="nav-kurz">Trips</span></button>
+    <button onclick="showTab('calendar')"     data-tab="calendar"><span aria-hidden="true">📅</span><span class="nav-lang">Kalender</span><span class="nav-kurz">Kalender</span></button>
+    <button onclick="showTab('fleet')"        data-tab="fleet"><span aria-hidden="true">🚗</span><span class="nav-lang">Fuhrpark</span><span class="nav-kurz">Fuhrpark</span></button>
+    <button onclick="showTab('assets')"       data-tab="assets"><span aria-hidden="true">🏠</span><span class="nav-lang">Assets</span><span class="nav-kurz">Assets</span></button>
+    <button onclick="showTab('trading')"      data-tab="trading"><span aria-hidden="true">📈</span><span class="nav-lang">Trading</span><span class="nav-kurz">Trading</span></button>
+    <button onclick="showTab('banking')"      data-tab="banking"><span aria-hidden="true">🏦</span><span class="nav-lang">Banking</span><span class="nav-kurz">Banking</span></button>
+    <button onclick="showTab('pe')"           data-tab="pe"><span aria-hidden="true">💼</span><span class="nav-lang">Private Equity</span><span class="nav-kurz">PE</span></button>
+    <button onclick="showTab('instagram')"    data-tab="instagram"><span aria-hidden="true">📷</span><span class="nav-lang">Instagram</span><span class="nav-kurz">Insta</span></button>
+    <button onclick="showTab('sharepoint')"   data-tab="sharepoint"><span aria-hidden="true">📂</span><span class="nav-lang">SharePoint</span><span class="nav-kurz">SP</span></button>
+    <button onclick="showTab('wiki')"         data-tab="wiki"><span aria-hidden="true">📚</span><span class="nav-lang">Wiki</span><span class="nav-kurz">Wiki</span></button>
+    <button onclick="showTab('agents')"       data-tab="agents"><span aria-hidden="true">🤖</span><span class="nav-lang">Agents</span><span class="nav-kurz">Agents</span></button>
+    <button onclick="showTab('status')"       data-tab="status"><span aria-hidden="true">🔌</span><span class="nav-lang">Status</span><span class="nav-kurz">Status</span></button>
   </nav>
   <div id="datenstandLeiste" class="ds-leiste" hidden></div>
   <main id="content">
@@ -376,14 +521,27 @@ let _docsCache = [];
   if (urlToken) {
     TOKEN = urlToken;
     localStorage.setItem('token', urlToken);
-    history.replaceState({}, '', location.pathname + (urlTab ? '?tab=' + urlTab : ''));
+    /* Den Token aus der Adresse entfernen, aber NUR ihn. Bisher wurde die
+       Adresse auf "?tab=<bereich>" neu geschrieben — damit verlor ein Aufruf
+       wie ?token=…&tab=wiki&page=amazon den Seitenparameter, und das Wiki
+       zeigte die Uebersicht statt der verlinkten Seite (P2-2). */
+    const rest = new URLSearchParams(location.search);
+    rest.delete('token');
+    const abfrage = rest.toString();
+    history.replaceState(history.state, '', location.pathname + (abfrage ? '?' + abfrage : ''));
   }
   TOKEN = localStorage.getItem('token') || '';
 
   function boot() {
     if (TOKEN) {
       showApp();
-      showTab(urlTab || 'health');
+      /* P2-2: Der erste Bereich ERSETZT den Verlaufseintrag, statt einen
+         zweiten anzulegen — sonst braeuchte Zurueck zwei Schritte, um die
+         Seite zu verlassen. Ein Neuladen landet dank ?tab= wieder hier.
+         Deeplink-Parameter bleiben dabei erhalten. */
+      const start = istBekannterTab(urlTab) ? urlTab : 'health';
+      setzeTabAdresse(start, true);
+      showTab(start, { verlauf: false });
     } else {
       document.getElementById('login').style.display = 'flex';
     }
@@ -409,7 +567,8 @@ async function submitToken() {
     localStorage.setItem('token', TOKEN);
     document.getElementById('login').style.display = 'none';
     showApp();
-    showTab('health');
+    setzeTabAdresse('health', true);
+    showTab('health', { verlauf: false });
   } catch {
     document.getElementById('loginErr').textContent = 'Token ungültig oder Server nicht erreichbar.';
     TOKEN = '';
@@ -431,12 +590,77 @@ function showApp() {
 }
 
 /* ── Tab routing ── */
-function showTab(tab) {
+/* ── Verlauf (P2-2) ─────────────────────────────────────────────────────────
+   Vorher kannte die Anwendung keinen Verlauf: Browser-Zurueck verliess das
+   Dashboard, weil jeder Bereichswechsel nur den Inhalt austauschte. Jetzt
+   schreibt showTab() einen Verlaufseintrag (?tab=…), ein popstate-Handler
+   stellt den Bereich wieder her, und ein Neuladen bleibt im Bereich.
+   Kein Router, keine Bibliothek — history.pushState genuegt.
+
+   Die bestehenden replaceState-Aufrufe in Fuhrpark und Wiki bleiben
+   vertraeglich: sie ERSETZEN den aktuellen Eintrag und ergaenzen nur eigene
+   Parameter (fleet_code, page). Damit der Bereich dabei nicht verlorengeht,
+   schreibt showTab() ?tab= in die Adresse, bevor die Bereichsfunktion laeuft. */
+
+/* Reihenfolge der Schaltflaechen in der Navigationsleiste. */
+const DASHBOARD_TABS = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
+
+/* Ohne eigene Schaltflaeche, aber gueltige Ziele: 'drafts' und 'documents'
+   werden aus dem Code heraus angesprungen, 'banking-connect' ist ein
+   Deeplink, den banking-connect.js aus der Adresse liest. */
+const WEITERE_ZIELE = ['drafts', 'documents', 'banking-connect'];
+
+function istBekannterTab(tab) {
+  return DASHBOARD_TABS.includes(tab) || WEITERE_ZIELE.includes(tab);
+}
+
+/* Adresse auf den Bereich setzen.
+   `ersetzen = true`  — kein neuer Verlaufseintrag (erster Aufbau, Anmeldung).
+                        Vorhandene Deeplink-Parameter bleiben stehen, damit
+                        ?tab=assets&assets_subtab=… oder ?fleet_code=… beim
+                        Seitenaufruf noch von den Bereichen gelesen werden.
+   `ersetzen = false` — der Nutzer hat gewechselt. Dann werden die Parameter
+                        des verlassenen Bereichs entfernt, sonst wandert ein
+                        Deeplink in den naechsten Bereich mit. */
+const BEREICHSPARAMETER = ['fleet_code','fleet_subtab','assets_subtab','assets_entity_id','assets_action','page'];
+
+function setzeTabAdresse(tab, ersetzen) {
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', tab);
+  url.searchParams.delete('token');
+  if (!ersetzen) {
+    for (const p of BEREICHSPARAMETER) url.searchParams.delete(p);
+  }
+  const ziel = url.pathname + (url.search || '');
+  if (ersetzen) history.replaceState({ tab }, '', ziel);
+  else history.pushState({ tab }, '', ziel);
+}
+
+/* Browser-Zurueck und -Vorwaerts. { verlauf: false } verhindert, dass der
+   Sprung selbst wieder einen Verlaufseintrag anlegt. */
+window.addEventListener('popstate', (e) => {
+  const ausZustand = e.state && e.state.tab;
+  const ausAdresse = new URLSearchParams(location.search).get('tab');
+  const tab = istBekannterTab(ausZustand) ? ausZustand
+            : istBekannterTab(ausAdresse) ? ausAdresse
+            : 'health';
+  if (tab === currentTab) return;
+  showTab(tab, { verlauf: false });
+});
+
+function showTab(tab, opt) {
   // Handle banking-connect deep link as banking tab
   if (tab === 'banking-connect') tab = 'banking';
+  if (!istBekannterTab(tab)) tab = 'health';
+  const verlauf = !opt || opt.verlauf !== false;
   currentTab = tab;
-  const tabs = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
-  document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
+  if (verlauf) setzeTabAdresse(tab, false);
+  /* Markierung ueber data-tab statt ueber die Reihenfolge der Schaltflaechen:
+     eine umsortierte Leiste markierte sonst den falschen Bereich. */
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  /* Schmal scrollt die Leiste: den aktiven Bereich in den sichtbaren Teil
+     holen, sonst steht er ausserhalb (Spec §6 "aktiver Bereich erkennbar"). */
+  zeigeAktivenTab(tab);
   document.getElementById('lastUpdate').textContent = '';
   leereDatenstand();
   /* CP1-Nachbesserung: Schubfaecher und Dialoge gehoeren zum verlassenen
@@ -446,6 +670,18 @@ function showTab(tab) {
   closeModal();
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
   ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
+}
+
+/* Holt die aktive Schaltflaeche in den sichtbaren Teil der scrollenden
+   Leiste. Auf dem Desktop passt ohnehin alles nebeneinander, dann bewirkt
+   der Aufruf nichts. */
+function zeigeAktivenTab(tab) {
+  const nav = document.querySelector('nav');
+  const btn = nav && nav.querySelector('button[data-tab="' + tab + '"]');
+  if (!nav || !btn) return;
+  if (nav.scrollWidth <= nav.clientWidth + 1) return;
+  const links = btn.offsetLeft - (nav.clientWidth - btn.offsetWidth) / 2;
+  nav.scrollTo({ left: Math.max(0, links), behavior: 'smooth' });
 }
 
 /* ── Fetch helper ── */
@@ -2588,7 +2824,7 @@ async function loadInstagram() {
     </div>
   </div>`;
 
-  let tabs = `<div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
+  let tabs = `<div class="insta-subtabs" style="gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
     ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Drafts')}${tabBtn('raw','📁 Raw Material')}${tabBtn('analytics','Analyse')}${tabBtn('forensic','🔍 Forensic')}
   </div>`;
 
@@ -2638,7 +2874,11 @@ async function loadInstagram() {
         })()}
       </div>` : '';
 
-    const kpi = (label, value, trend, sub, chart) => `<div class="s-card" style="flex:1;min-width:0">
+    /* P2-2: `min-width: 0` liess die vier Kacheln schmal auf 45 px schrumpfen,
+       statt umzubrechen — Beschriftung und Untertitel wurden abgeschnitten.
+       Mit 150 px Mindestbreite brechen sie bei 390 px auf zwei Reihen um und
+       stehen auf dem Desktop weiterhin nebeneinander. */
+    const kpi = (label, value, trend, sub, chart) => `<div class="s-card" style="flex:1 1 150px;min-width:150px">
       <div class="lbl">${label}</div>
       <div style="display:flex;align-items:baseline;gap:8px">
         <span class="val" style="font-size:26px">${value}</span>
@@ -3647,12 +3887,12 @@ async function peShowDetail(id) {
           <button class="btn-ghost" style="color:var(--red)" onclick="peDelete('${esc(inv.id)}')">Löschen</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;font-size:14px">
         <div><span class="fl">Investiert</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.investedAmount)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.investmentDate)}</div></div>
         <div><span class="fl">Aktuelle Bewertung</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.currentValuation)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.valuationDate)} (${esc(inv.valuationMethod)})</div></div>
         <div><span class="fl">IRR</span><div style="font-size:18px;font-weight:700;color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</div></div>
       </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px;margin-top:16px">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;font-size:14px;margin-top:16px">
         <div><span class="fl">Anteile</span> ${Number(inv.shares).toLocaleString('de-DE')} / ${Number(inv.totalShares).toLocaleString('de-DE')}</div>
         <div><span class="fl">Anteil</span> ${inv.ownershipPct}%</div>
         <div><span class="fl">Kontakt</span> ${esc(inv.contactPerson || '–')}</div>

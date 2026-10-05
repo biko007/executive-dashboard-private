@@ -5,15 +5,11 @@
    auf das helle Design (P2-1) diese Datei nicht erneut anfassen muss.
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* Innenabstand mobile-first; die beiden Haltepunkte stehen in index.html
+   neben den uebrigen Abstaenden der Seite (P2-2). */
 .ds-leiste {
   max-width: 1200px;
-  padding: 10px 24px 0;
-}
-
-.ds-abruf {
-  color: var(--muted);
-  font-size: 13px;
-  margin-bottom: 6px;
+  padding: 10px 12px 0;
 }
 
 .ds-liste {
@@ -225,9 +221,14 @@
   color: var(--muted);
 }
 
-@media (max-width: 680px) {
-  .nk-befund-zeile { flex-direction: column; gap: 2px; }
-  .nk-befund-marke { flex: none; }
+/* Schmal stehen Marke und Text untereinander — eine 120 px breite Marke
+   laesst sonst kaum Platz fuer die Erklaerung (P2-2: Haltepunkt 640 px). */
+.nk-befund-zeile { flex-direction: column; gap: 2px; }
+.nk-befund-marke { flex: none; }
+
+@media (min-width: 640px) {
+  .nk-befund-zeile { flex-direction: row; gap: 10px; }
+  .nk-befund-marke { flex: 0 0 120px; }
 }
 
 /* ── Zustandsabzeichen in Tabellen und Kacheln ────────────────────────────── */

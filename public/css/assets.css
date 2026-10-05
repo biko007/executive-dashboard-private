@@ -40,7 +40,11 @@
   overflow-y: auto;
   z-index: 101;
   animation: slideIn .2s ease-out;
-  padding: 24px;
+  /* P2-2: schmal weniger Innenabstand, damit der Inhalt Platz hat. */
+  padding: 16px;
+}
+@media (min-width: 640px) {
+  .drawer { padding: 24px; }
 }
 @keyframes slideIn {
   from { transform: translateX(100%); }
@@ -117,10 +121,15 @@
   color: var(--muted);
   margin-top: 3px;
 }
+/* P2-2: schmal einspaltig. Zwei Datumsfelder nebeneinander sprengten bei
+   360 px den Innenraum des Schubfachs. */
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
+}
+@media (min-width: 640px) {
+  .form-row { grid-template-columns: 1fr 1fr; }
 }
 .form-checkbox {
   display: flex;

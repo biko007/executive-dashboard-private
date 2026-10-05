@@ -56,7 +56,8 @@ document.addEventListener('alpine:init', () => {
       // Update URL
       const url = new URL(window.location);
       url.searchParams.set('fleet_subtab', tab);
-      window.history.replaceState({}, '', url);
+      // Verlaufszustand erhalten (P2-2).
+      window.history.replaceState(window.history.state, '', url);
       this._renderTab();
     },
 
