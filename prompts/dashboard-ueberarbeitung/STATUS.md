@@ -2,12 +2,13 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 04.10.2026, 20:20 UTC
-**Aktuelle Phase:** Phase 1 — P1-1, P1-2, P1-3, P1-4 und P1-6 erledigt.
-**P1-5 (Kalenderlogik, Befund F) ist noch offen** und muss vor CHECKPOINT 1 kommen.
+**Letzte Aktualisierung:** 05.10.2026, 07:35 UTC
+**Aktuelle Phase:** Phase 1 **vollständig umgesetzt** — P1-1 bis P1-6 erledigt.
+**Nächster Schritt: CHECKPOINT 1** (unabhängige Browserprüfung, `04-…` §2).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** P1-1 ist produktiv und in allen drei Repositories gepusht.
-Dashboard-Dienst und Gateway neu gestartet.
+**Änderungsstand Code:** Phase 1 ist produktiv. Dashboard-Dienst und Gateway neu gestartet.
+Der Core-Anteil von P1-5 (`5f65c4b`) ist committet und lokal produktiv, aber **noch nicht
+gepusht** — `index.ts` ist Red-Zone-Pfad und wartet auf `/arm push` durch den Owner.
 **Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
 
 ---
@@ -21,9 +22,9 @@ Dashboard-Dienst und Gateway neu gestartet.
 | P1-2 | Fuhrparkfilter (C) | S | **erledigt** | `30ac07b` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | P1-3 | Mietvertragsfilter und Suche (D) | M | **erledigt** | `f66bfce` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | P1-4 | SharePoint-Datenzuordnung (E) | M | **erledigt** | `94f49ea` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
-| P1-5 | Kalenderlogik (F) | M | **offen** | — | — |
+| P1-5 | Kalenderlogik (F) | M | **erledigt** | `8586ed0` · Core `5f65c4b` | Report `~/bikosoc-spec/report-dashboard-p1-5-0735.md` |
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
-| **CHECKPOINT 1** | unabhängige Browserprüfung | — | offen (wartet auf P1-5) | — | `04-…` §2 |
+| **CHECKPOINT 1** | unabhängige Browserprüfung | — | **bereit** | — | `04-…` §2 |
 | P2-1 | Helles Design | M | offen | — | — |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
@@ -461,12 +462,122 @@ sagt das jetzt ausdrücklich. Zur Klärung von `n24-w6-2024` siehe Befund H / P2
 
 ---
 
+### P1-5 — Kalender: Zeitzone, Ganztagstermine, Enddatum (Befund F) — 05.10.2026
+
+**Richtigstellung zur Auftragsannahme.** Der Termin „Meetup INHALE in Südtriol" ist
+**kein Ganztagstermin**. Graph meldet `isAllDay: false`; es ist ein zeitgebundener Termin
+von 23,5 Stunden. Richtig ist **06.10.2026, 00:00–23:30 Europe/Berlin**. Damit war das
+**Dashboard falsch** („05.10. 22:00–21:30") und das **Briefing inhaltlich richtig**
+(„Di 06.10. 00:00 (23.5h)") — aber nur, weil dieser Server auf `Etc/UTC` läuft. Beide Pfade
+hingen an der Zone der Laufzeitumgebung; beide sind jetzt davon unabhängig.
+
+**Ursache, am Code belegt**
+Graph liefert `start.dateTime = "2026-10-05T22:00:00.0000000"` mit `timeZone: "UTC"` — ein
+naiver String **ohne** Zonensuffix. `new Date(string)` interpretiert ihn in der Zone der
+Laufzeitumgebung: im Browser (Europe/Berlin) um zwei Stunden verschoben und auf dem falschen
+Kalendertag, auf dem Server (Etc/UTC) zufällig richtig.
+
+**Durchgeführt**
+- Neue Datei `public/js/zeit.js` (Dashboard) und neuer Abschnitt „Kalender-Zeitlogik" in
+  `executive-agent/index.ts` (Briefing). Beide werten die mitgelieferte Zone aus, DST-fest
+  über `Intl`. **Kein** `Prefer: outlook.timezone`-Kopf — eine Stelle, nicht zwei.
+- `isAllDay` wird respektiert: Anzeige „ganztägig" ohne Uhrzeit, mit Graph-Semantik des
+  **exklusiven** Endes. Im Briefing war `isAllDay` bisher nicht einmal abgefragt.
+- `end` wird ausgewertet: Mehrtagestermine als Spanne, Dauer genannt, ein Ende vor dem
+  Beginn wird benannt statt stillschweigend repariert.
+- Tagesgruppierung nach dem Berliner Kalendertag; Ganztagstermine im Tag zuerst.
+- Zeitzone sichtbar benannt („Alle Zeiten in Europe/Berlin").
+- Formular: Start- **und** Enddatum plus Ganztags-Option; bei ganztägigen Terminen gilt das
+  Enddatum einschließlich und wird auf den exklusiven Folgetag umgerechnet. Vorher gab es
+  nur **ein** Datumsfeld und das Ende wurde mit dem **Startdatum** zurückgeschrieben.
+- `server.mjs` prüft POST und PATCH: `end <= start` → 400; ganztägig ohne Mitternacht → 400.
+- Abfragefenster beginnt um Mitternacht Europe/Berlin — in **beiden** Pfaden, damit
+  Dashboard und Briefing vergleichbar sind.
+- Online-Meeting als Aktion „Teilnehmen", nur bei `https`. Wird auch erkannt, wenn der Link
+  im Ortsfeld steht (im Bestand eine Google-Meet-Adresse).
+- Terminkarte als Raster, mobil untereinander (680 px), lange Beschreibungen begrenzt.
+  Nur die Terminkarte — das allgemeine mobile Raster macht P2-2.
+
+**Geänderte Dateien**
+
+| Repo | Datei | Art |
+|---|---|---|
+| executive-dashboard | `public/js/zeit.js` | neu |
+| executive-dashboard | `public/index.html` | Kalenderbereich und CSS |
+| executive-dashboard | `server.mjs` | Fenster, Validierung, `isAllDay` |
+| executive-agent | `index.ts` | **Red Zone** — Kalender-Zeitlogik und Briefing-Block |
+| executive-agent | `dist/index.js`, `docs/CHANGELOG.md` | Build-Artefakt, Doku |
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| Graph-Rohantwort gesichert | vier Termine; INHALE `isAllDay: false`, 22:00Z → 21:30Z |
+| INHALE nach dem Fix | **06.10.2026, 00:00–23:30, 23,5 Std.** |
+| Training Bernd 04:45Z / TobaGrown 12:00Z | 06:45–07:45 / 14:00–15:00 |
+| Negative Dauer in der Wochenliste | keine |
+| Ganztags 1 Tag / 3 Tage | „ganztägig, 1 Tag" / Spanne 20.10.–22.10., 3 Tage |
+| Zeitumstellung 25.10.2026 | beide Richtungen korrekt |
+| Formularwerte → Nutzlast → Anzeige | verlustfrei für alle vier Muster |
+| Nutzlast weist ab | Ende vor Beginn, Ende gleich Beginn, Enddatum vor Startdatum, fehlende Pflichtfelder |
+| Serverseitige Abwehr | `end <= start` → 400; ganztägig ohne Mitternacht → 400 |
+| Meeting-Link | `https` verlinkt; `http`, `javascript:`, `data:`, leer abgewiesen |
+| **Gleichheitstest Core ↔ Dashboard** | **12 Termine, 0 Abweichungen** (4 echte + 8 Grenzfälle) |
+| Vergleichstabelle Dashboard ↔ Briefing | 5 Termine, durchgängig identisch (Tabelle im Report) |
+| `node --check` server.mjs, alle JS, Inline-Skript | Exit 0 |
+| Core `npm run build` / `npm test` / `verify:commands` / `verify-schema` | Exit 0 / 645 pass, 0 fail / 118/118 / ohne Drift |
+| Smoke-Test | ALL PASS (31/31) |
+| Dienste | `openclaw-dashboard` und `openclaw-gateway` neu gestartet, beide `active`, `/health` 200 |
+
+**Schreibtest — der einzige der Phase 1**
+
+| Schritt | Ergebnis |
+|---|---|
+| Testtermin „[TEST P1-5 – wird gelöscht]" am 20.10.2026 ganztägig über die Formular-Nutzlast angelegt | HTTP 201; Graph: `isAllDay: true`, 20.10.T00:00 → 21.10.T00:00 Europe/Berlin |
+| Anzeige daraus | „ganztägig", 1 Tag, Spanne 20.10. |
+| über die Formular-Nutzlast auf 20.–21.10. verlängert | HTTP 200; Graph: end 22.10.T00:00 |
+| Anzeige daraus | „ganztägig", **2 Tage**, Spanne 20.10.–21.10. |
+| gelöscht | HTTP 200 |
+| **per Graph bestätigt** | `GET /events/<id>` → **HTTP 404**; Suche im Fenster 18.–25.10. → **0 Treffer** mit „TEST P1-5" |
+| Bestandstermine | nachweislich unverändert (fünf Termine, Rohwerte vorher/nachher gleich) |
+
+Kein bestehender Termin wurde bearbeitet. Keine Einladung, keine Absage, keine Nachricht.
+
+**Noch nicht verifiziert — CP1 prüfen**
+- **CP1 prüfen:** Kalenderliste im Browser — INHALE unter Dienstag, 6. Oktober 2026 mit
+  „00:00–23:30 · 23,5 Std."; Zeitzonenhinweis sichtbar.
+- **CP1 prüfen:** Bearbeitungsformular an einem Bestandstermin **öffnen und mit Abbrechen
+  schließen** — Start- und Enddatum sowie die Ganztags-Option richtig vorbelegt, Istzustand
+  oben korrekt. Nicht speichern.
+- **CP1 prüfen:** Ganztags-Schalter blendet die Zeitfelder aus und wieder ein.
+- **CP1 prüfen:** Schaltfläche „Teilnehmen" öffnet die Teams-Besprechung bzw. den
+  Google-Meet-Raum in einem neuen Tab.
+- **CP1 prüfen:** Terminkarte bei 390 px ohne Überlauf, Titel vollständig lesbar.
+- **Owner-Beobachtung:** der tatsächlich versandte Briefing-Text. Das Briefing schickt eine
+  Telegram-Nachricht; nach Spec §1 wurde dafür **kein** Testversand ausgelöst. Der
+  Kalenderblock wurde stattdessen aus dem Core-Code heraus gegen die echte Graph-Antwort
+  erzeugt und mit der Dashboard-Darstellung verglichen (Report §6). Beim nächsten regulären
+  Briefing ist zu prüfen, dass der Block so aussieht.
+
+**Vorbestehender Nebenbefund — Trip-Segment-Kalendersynchronisation**
+Nur lesend geprüft, wie vom Paket vorgesehen (`server.mjs`, `POST /api/trips/:tripId/segments/:segId/calendar`).
+Sie hat **nicht** denselben Fehler: `new Date(startDt)` wird zwar naiv geparst, aber die
+berechnete Endzeit wird mit derselben Zonenangabe zurückgeschrieben, in der der Start
+angegeben ist — die Verschiebung hebt sich auf, die Dauer stimmt. **Eine Restunsicherheit
+bleibt:** bei Hotelsegmenten (+24 Stunden) über die Zeitumstellung hinweg entspricht die
+Wandzeit-Arithmetik nicht der echten Dauer. Nicht angefasst, hier vermerkt.
+
+**Commit:** `8586ed0` (Dashboard) · `5f65c4b` (Core, Red Zone — Push siehe unten)
+Restart: Dashboard **und** Gateway, beide durchgeführt.
+
+---
+
 ### Offen nach diesem Bündel
 
-- **P1-5 (Kalenderlogik, Befund F)** ist nicht Teil dieses Bündels und weiterhin offen.
-  Es muss vor CHECKPOINT 1 umgesetzt werden, weil die Abnahmetabelle `04-…` §2.5 dazugehört.
-- Das Paket enthält einen **Schreibtest an einem selbst angelegten Testtermin** — der
-  einzige Punkt in Phase 1, der eine echte Mutation berührt.
+- **P1-5 ist seit 05.10.2026 erledigt** (eigener Eintrag oben). Damit ist Phase 1
+  vollständig und CHECKPOINT 1 abnahmefähig.
+- Der Schreibtest aus P1-5 war die einzige echte Mutation der Phase 1; er ist protokolliert
+  und der Testtermin per Graph als gelöscht bestätigt.
 
 ### Vorbestehende Befunde, nicht Teil dieses Bündels
 
