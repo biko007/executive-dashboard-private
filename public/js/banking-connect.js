@@ -248,7 +248,7 @@ function bankingOverviewHtml() {
                                   :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
                                   x-text="formatBalance(acct.currentBalance, acct.currency)">
                             </span>
-                            <button class="btn btn-danger" style="font-size:13px;padding:3px 8px"
+                            <button aria-label="Konto archivieren" class="btn btn-danger" style="font-size:13px;padding:3px 8px"
                                     x-show="!bulkMode"
                                     @click="archiveSingle(acct.id)"
                                     title="Konto archivieren">📦</button>

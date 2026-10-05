@@ -330,7 +330,7 @@ async function assetsOpenLeaseDrawer(leaseId) {
     let html = `
       <div class="drawer-header">
         <h3>Mietvertrag #${lease.id} ${statusBadge}</h3>
-        <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        <button aria-label="Schubfach schließen" title="Schubfach schließen" class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
 
       <div class="drawer-section">

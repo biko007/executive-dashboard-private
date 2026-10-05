@@ -297,6 +297,19 @@ function kalenderNutzlast(werte) {
    uebrig (im Bestand genau so beobachtet). */
 const ZEIT_TRENNZEICHEN = /^[\s_\-=~*]+$/;
 
+/* Zeilen, die nur die Einwahldaten einer Online-Besprechung wiederholen.
+   Der Beitrittslink steht als eigene Schaltflaeche in der Terminzeile; die
+   Adresse und die Kennziffern noch einmal als Fliesstext zu zeigen, fuellt
+   schmal die halbe Karte, ohne dass man damit etwas tun koennte (P2-4). */
+const ZEIT_EINWAHLZEILE = /^(besprechungs-?id|meeting-?id|kenncode|passcode|kennwort|telefonkonferenz-?id|konferenz-?id|pin)\b/i;
+const ZEIT_EINWAHLTEXT = /(teilnehmen sie (ueber|über) (ihren|das)|hier klicken, um an der besprechung teilzunehmen|join the meeting now|an besprechung teilnehmen|weitere informationen|besprechungsoptionen|meeting options|dial[- ]?in|ortsgebundene nummer suchen|local numbers)/i;
+
+/* Enthaelt die Zeile im Wesentlichen nur eine Adresse? */
+function zeitIstAdresszeile(text) {
+  const ohneUrl = text.replace(/https?:\/\/\S+/gi, '').replace(/[<>|()\[\]{}·.,;:–—-]/g, ' ').trim();
+  return /https?:\/\//i.test(text) && ohneUrl.length <= 24;
+}
+
 function kalenderBeschreibung(ev, maxLaenge) {
   const roh = (ev && ev.bodyPreview) || '';
   if (!roh) return '';
@@ -311,9 +324,18 @@ function kalenderBeschreibung(ev, maxLaenge) {
       const letzteZeile = i === zeilen.length - 1;
       if (nurTrenner.length >= 10 || letzteZeile) continue;
     }
+    /* Einwahldaten der Online-Besprechung weglassen (P2-4). */
+    if (ZEIT_EINWAHLZEILE.test(inhalt)) continue;
+    if (ZEIT_EINWAHLTEXT.test(inhalt)) continue;
+    if (zeitIstAdresszeile(inhalt)) continue;
     behalten.push(inhalt);
   }
-  const text = behalten.join(' · ').replace(/\s{2,}/g, ' ').trim();
+  /* Eine Adresse mitten im Fliesstext bleibt als Wort stehen, wuerde aber die
+     Zeile sprengen — sie wird durch einen kurzen Platzhalter ersetzt. */
+  const text = behalten.join(' · ')
+    .replace(/https?:\/\/\S+/gi, '[Link]')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
   const grenze = typeof maxLaenge === 'number' ? maxLaenge : 160;
   return text.length > grenze ? text.slice(0, grenze) + '…' : text;
 }
@@ -338,9 +360,25 @@ function kalenderMeetingUrl(ev) {
   return null;
 }
 
+/* Name des Dienstes aus der Adresse — damit die Schaltflaeche sagt, wohin
+   sie fuehrt, statt nur "Teilnehmen" (P2-4). */
+function kalenderMeetingDienst(url) {
+  try {
+    const host = new URL(String(url)).hostname.toLowerCase();
+    if (host.includes('teams.microsoft') || host.includes('teams.live')) return 'Teams';
+    if (host.includes('meet.google')) return 'Google Meet';
+    if (host.includes('zoom.')) return 'Zoom';
+    if (host.includes('webex.')) return 'Webex';
+    return 'Online';
+  } catch { return 'Online'; }
+}
+
 function kalenderMeetingLink(ev) {
   const url = kalenderMeetingUrl(ev);
   if (!url) return '';
+  const dienst = kalenderMeetingDienst(url);
+  const text = dienst === 'Online' ? 'Online beitreten' : dienst + ' beitreten';
   return '<a class="btn btn-primary ev-teilnehmen" href="' + esc(url) + '"'
-    + ' target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 Teilnehmen</a>';
+    + ' target="_blank" rel="noopener" aria-label="' + esc(text) + '"'
+    + ' onclick="event.stopPropagation()">🔗 ' + esc(text) + '</a>';
 }

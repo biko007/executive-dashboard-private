@@ -189,7 +189,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
     let html = `
       <div class="drawer-header">
         <h3>${esc(prop.name || prop.code || 'Objekt ' + prop.id)}</h3>
-        <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        <button aria-label="Schubfach schließen" title="Schubfach schließen" class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
 
       ${entityImgHtml('property', prop.code, 'detail-img-wrap')}
@@ -339,7 +339,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
         <td>${esc(u.floor || '–')}</td>
         <td>${u.living_area_qm ? u.living_area_qm + ' m²' : '–'}</td>
         <td>${u.archived_at ? '<span class="badge badge-muted">Archiviert</span>' : '<span class="badge badge-green">Aktiv</span>'}</td>
-        <td><button class="btn" style="font-size:13px;padding:3px 8px" onclick="event.stopPropagation();assetsOpenUnitDrawer('${esc(u.code)}', '${esc(prop.code)}')">→</button></td>
+        <td><button aria-label="Einheit öffnen" title="Einheit öffnen" class="btn" style="font-size:13px;padding:3px 8px" onclick="event.stopPropagation();assetsOpenUnitDrawer('${esc(u.code)}', '${esc(prop.code)}')">→</button></td>
       </tr>`;
     }
 
@@ -435,7 +435,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
     let html = `
       <div class="drawer-header">
         <h3>Einheit: ${esc(unit.code || 'ID ' + unit.id)}</h3>
-        <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        <button aria-label="Schubfach schließen" title="Schubfach schließen" class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
 
       <div class="drawer-section">
@@ -629,7 +629,7 @@ async function assetsOpenTenantDrawer(tenantId) {
     openDrawer(`
       <div class="drawer-header">
         <h3>Mieter: ${esc(tenant.name || 'ID ' + tenant.id)}</h3>
-        <button class="drawer-close" onclick="closeDrawer()">✕</button>
+        <button aria-label="Schubfach schließen" title="Schubfach schließen" class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
       <div class="drawer-section">
         <h4>Mieterdaten</h4>

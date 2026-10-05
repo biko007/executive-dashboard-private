@@ -198,7 +198,7 @@ async function wikiOpenRevision(rev) {
     wikiState.mode = 'revision';
     wikiRender();
   } catch (e) {
-    alert('Revision nicht lesbar: ' + e.message);
+    meldung('Revision nicht lesbar: ' + e.message, 'error');
   }
 }
 
@@ -218,7 +218,7 @@ async function wikiSearch() {
     wikiState.searchHits = data.hits || [];
   } catch (e) {
     wikiState.searchHits = [];
-    alert('Suche fehlgeschlagen: ' + e.message);
+    meldung('Suche fehlgeschlagen: ' + e.message, 'error');
   }
   wikiRender();
 }
@@ -241,8 +241,9 @@ async function wikiSave() {
   const bodyMd = document.getElementById('wikiEditBody').value;
   const category = document.getElementById('wikiEditCategory').value;
   const sensitive = document.getElementById('wikiEditSensitive').checked;
+  /* P2-4: Hinweis am Feld statt im Systemfenster. */
   if (!title) {
-    alert('Titel darf nicht leer sein.');
+    feldFehler('wikiEditTitle', 'Der Titel darf nicht leer sein.');
     return;
   }
 
@@ -255,7 +256,7 @@ async function wikiSave() {
     wikiState.pages = data.pages || [];
     await wikiOpenPage(slug);
   } catch (e) {
-    alert('Speichern fehlgeschlagen: ' + e.message);
+    meldung('Speichern fehlgeschlagen: ' + e.message, 'error');
   } finally {
     wikiState.busy = false;
   }
@@ -267,7 +268,7 @@ async function wikiCreate() {
   const bodyMd = document.getElementById('wikiNewBody').value;
   const category = document.getElementById('wikiNewCategory').value;
   if (!title) {
-    alert('Titel darf nicht leer sein.');
+    feldFehler('wikiNewTitle', 'Der Titel darf nicht leer sein.');
     return;
   }
 
@@ -278,7 +279,7 @@ async function wikiCreate() {
     wikiState.pages = data.pages || [];
     await wikiOpenPage(page.slug);
   } catch (e) {
-    alert('Anlegen fehlgeschlagen: ' + e.message);
+    meldung('Anlegen fehlgeschlagen: ' + e.message, 'error');
   } finally {
     wikiState.busy = false;
   }
@@ -293,7 +294,7 @@ async function wikiChangeCategory(select) {
     const data = await apiFetch('/api/wiki/pages');
     wikiState.pages = data.pages || [];
   } catch (e) {
-    alert('Kategorie nicht geändert: ' + e.message);
+    meldung('Kategorie nicht geändert: ' + e.message, 'error');
   }
 }
 
@@ -324,7 +325,7 @@ async function wikiUploadAttachment(input) {
     await wikiOpenPage(slug);
   } catch (e) {
     if (status) status.textContent = '';
-    alert('Upload fehlgeschlagen: ' + e.message);
+    meldung('Upload fehlgeschlagen: ' + e.message, 'error');
   } finally {
     input.value = '';
   }
@@ -512,11 +513,12 @@ function wikiEditHtml() {
       <button onclick="wikiSave()">Speichern (neue Revision)</button>
     </div>
     <div class="wiki-form">
-      <label>Titel<input id="wikiEditTitle" type="text" value="${esc(page.title)}"></label>
-      <label>Kategorie<select id="wikiEditCategory">${wikiCategoryOptions(page.category)}</select></label>
-      <label>Inhalt (Markdown)
-        <textarea id="wikiEditBody" rows="28" spellcheck="false">${esc(page.bodyMd)}</textarea>
-      </label>
+      <label for="wikiEditTitle">Titel</label>
+      <input id="wikiEditTitle" type="text" value="${esc(page.title)}">
+      <label for="wikiEditCategory">Kategorie</label>
+      <select id="wikiEditCategory">${wikiCategoryOptions(page.category)}</select>
+      <label for="wikiEditBody">Inhalt (Markdown)</label>
+      <textarea id="wikiEditBody" rows="28" spellcheck="false">${esc(page.bodyMd)}</textarea>
       <label class="wiki-check">
         <input id="wikiEditSensitive" type="checkbox"${page.sensitive ? ' checked' : ''}>
         Für den Agenten gesperrt (sensibel) — Hans_Dampf erhält diese Seite dann weder
@@ -537,11 +539,12 @@ function wikiNewHtml() {
       <button onclick="wikiCreate()">Anlegen</button>
     </div>
     <div class="wiki-form">
-      <label>Titel<input id="wikiNewTitle" type="text" placeholder="z. B. Heizung Neuhausen"></label>
-      <label>Kategorie<select id="wikiNewCategory">${wikiCategoryOptions('Sonstiges')}</select></label>
-      <label>Inhalt (Markdown)
-        <textarea id="wikiNewBody" rows="24" spellcheck="false"></textarea>
-      </label>
+      <label for="wikiNewTitle">Titel</label>
+      <input id="wikiNewTitle" type="text" placeholder="z. B. Heizung Neuhausen">
+      <label for="wikiNewCategory">Kategorie</label>
+      <select id="wikiNewCategory">${wikiCategoryOptions('Sonstiges')}</select>
+      <label for="wikiNewBody">Inhalt (Markdown)</label>
+      <textarea id="wikiNewBody" rows="24" spellcheck="false"></textarea>
     </div>`;
 }
 

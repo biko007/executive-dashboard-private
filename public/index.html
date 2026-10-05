@@ -240,15 +240,25 @@ tbody tr:hover td { background: var(--row-hover); }
 .ev-body { min-width: 0; }
 .ev-title { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
 .ev-sub { color: var(--muted); font-size:13px; margin-top: 3px; overflow-wrap: anywhere; }
-/* Lange Beschreibungen liefen ueber die Karte hinaus (Spec §4 F). */
-.ev-beschreibung { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+/* Lange Beschreibungen liefen ueber die Karte hinaus (Spec §4 F).
+   P2-4: schmal zwei Zeilen, breit vier; der Rest ist ueber „mehr…"
+   erreichbar, statt hart bei 160 Zeichen abgeschnitten zu werden. */
+.ev-beschreibung-block { margin-top: 3px; }
+.ev-beschreibung { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ev-beschreibung.ev-beschreibung-offen { -webkit-line-clamp: unset; overflow: visible; }
+.ev-mehr {
+  background: none; border: none; padding: 4px 0; margin-top: 2px;
+  color: var(--accent); font-size: 13px; font-family: var(--font);
+  cursor: pointer; text-decoration: underline;
+}
+@media (min-width: 640px) {
+  .ev-beschreibung { -webkit-line-clamp: 4; }
+}
 .ev-warnung { color: var(--yellow); font-size:13px; margin-top: 4px; }
 .ev-aktionen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
 .ev-teilnehmen { padding: 4px 10px; font-size:13px; text-decoration: none; white-space: nowrap; }
 .cal-tz-hinweis { color: var(--muted); font-size:13px; }
 .cal-ist-zustand { color: var(--text-soft); font-size: 13px; margin-bottom: 14px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; }
-.ganztags-zeile { display: flex; align-items: center; gap: 8px; margin-top: 14px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
-.ganztags-zeile input { width: auto; margin: 0; }
 /* Schmal stapelt die Terminkarte; die Aktionen stehen dann links. */
 .ev-aktionen { justify-content: flex-start; }
 .ev-zeit-haupt { white-space: normal; }
@@ -269,14 +279,96 @@ tbody tr:hover td { background: var(--row-hover); }
 /* ── Modal ── */
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 @keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
-.modal-overlay { position:fixed; inset:0; background:var(--overlay); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
-.modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:18px; animation:slideUp .2s ease; }
-.modal h3 { font-size:17px; margin-bottom:18px; }
+/* ── Dialoge (P2-4) ────────────────────────────────────────────────────────
+   Die Hoehe richtet sich nach `dvh` statt `vh`: auf dem Telefon zaehlt `vh`
+   die Adresszeile mit und rechnet die Bildschirmtastatur nicht heraus — der
+   Dialog ragte dann unter die Tastatur und die Aktionszeile war nicht mehr
+   erreichbar. `vh` bleibt als Rueckfallwert fuer aeltere Browser stehen. */
+.modal-overlay { position:fixed; inset:0; background:var(--overlay); z-index:100; display:flex; align-items:center; justify-content:center; padding:12px; animation:fadeIn .15s ease; }
+.modal {
+  position: relative;
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--r);
+  width:560px; max-width:100%;
+  max-height:90vh;
+  max-height:90dvh;
+  display:flex; flex-direction:column;
+  animation:slideUp .2s ease;
+}
+/* Nur der Inhalt scrollt — die Aktionszeile bleibt dadurch sichtbar. */
+.modal-inhalt { overflow-y:auto; overscroll-behavior:contain; padding:18px; }
+.modal h3 { font-size:17px; margin-bottom:18px; padding-right:32px; }
 .modal label { display:block; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; margin-top:14px; }
-.modal input, .modal textarea, .modal select { width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:6px; padding:9px 12px; color:var(--text); font-size:14px; font-family:var(--font); }
+.modal input, .modal textarea, .modal select { width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:6px; padding:10px 12px; color:var(--text); font-size:14px; font-family:var(--font); min-height:44px; }
 .modal input:focus, .modal textarea:focus, .modal select:focus { border-color:var(--accent); }
 .modal textarea { min-height:120px; resize:vertical; }
-.modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; padding-top:16px; border-top:1px solid var(--border); }
+/* Die Aktionszeile klebt am unteren Rand des scrollenden Inhalts. */
+.modal-actions {
+  display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap;
+  margin-top:22px; padding-top:16px; border-top:1px solid var(--border);
+  position:sticky; bottom:-18px; background:var(--surface);
+  padding-bottom:18px; margin-bottom:-18px;
+}
+/* Sichtbare Schliessen-Schaltflaeche in jedem Dialog, zentral eingesetzt. */
+.modal-schliessen {
+  position:absolute; top:6px; right:6px; z-index:1;
+  width:44px; height:44px; min-height:44px; min-width:44px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface); border:1px solid transparent; border-radius:8px;
+  color:var(--muted); font-size:16px; cursor:pointer; font-family:var(--font);
+}
+.modal-schliessen:hover { border-color:var(--border-strong); color:var(--text); background:var(--row-hover); }
+/* Der Hintergrund darf nicht mitscrollen, solange ein Dialog offen ist. */
+body.dialog-offen { overflow:hidden; }
+/* Im Dialog gilt das Touchziel auf JEDER Breite: hier wird getippt und
+   getroffen, auch auf dem Tablet. P2-2 nimmt die Mindesthoehe ab 640 px
+   allgemein zurueck — fuer Dialoge bleibt sie. */
+.modal button, .modal .btn, .modal .btn-ghost, .modal a.btn { min-height:44px; }
+.modal .modal-actions button { padding-left:16px; padding-right:16px; }
+
+/* ── Formularraster (P2-4) ────────────────────────────────────────────────
+   Feldpaare stehen schmal untereinander und erst ab 768 px nebeneinander —
+   zwei Datums- oder Zeitfelder nebeneinander lassen bei 360 px je rund
+   140 px, was fuer die vom Browser gezeichneten Waehler zu wenig ist. */
+.formular-paar { display:grid; grid-template-columns:1fr; gap:12px; }
+@media (min-width: 768px) {
+  .formular-paar { grid-template-columns:1fr 1fr; }
+}
+
+/* Eine Zeile aus Kontrollkaestchen und Beschriftung — nicht untereinander.
+   `.modal label { display:block }` und `.modal input { width:100% }` haben das
+   Kaestchen vorher auf volle Breite gezogen und die Beschriftung darunter
+   geschoben. Die Beschriftung ist ueber `for`/`id` klickbar. */
+.kontrollzeile {
+  display:flex !important; align-items:center; gap:10px;
+  margin-top:14px; margin-bottom:0;
+  text-transform:none; letter-spacing:0; font-size:14px; color:var(--text);
+  min-height:44px; cursor:pointer;
+}
+.kontrollzeile .kontrollzeile-text,
+.modal .kontrollzeile label {
+  display:inline; margin:0; text-transform:none; letter-spacing:0;
+  font-size:14px; color:var(--text); cursor:pointer;
+}
+.kontrollzeile input[type=checkbox] {
+  width:20px !important; min-width:20px; height:20px; min-height:20px;
+  margin:0; flex:0 0 auto; accent-color:var(--accent); cursor:pointer;
+}
+
+/* ── Meldungen im Formular (P2-4) ─────────────────────────────────────────
+   Pruefhinweise und Fehler stehen sichtbar am Feld bzw. im Dialog, nicht in
+   einem Systemfenster (alert), das den Bezug zum Feld verliert. */
+.feld-fehler { color:var(--red); font-size:13px; margin-top:4px; }
+.feld-fehler:empty { display:none; }
+input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-color:var(--red); }
+.dialog-meldung {
+  display:flex; align-items:flex-start; gap:8px;
+  margin-bottom:14px; padding:10px 12px; border-radius:6px;
+  font-size:13px; line-height:1.45;
+  background:var(--red-weak); border:1px solid var(--red); color:var(--text);
+}
+.dialog-meldung:empty { display:none; }
+.dialog-meldung.meldung-erfolg { background:var(--green-weak); border-color:var(--green); }
+.dialog-meldung.meldung-hinweis { background:var(--accent-weak); border-color:var(--accent); }
 .btn-ghost { background:none; border:1px solid var(--border); color:var(--muted); padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:var(--font); }
 .btn-ghost:hover { border-color:var(--text); color:var(--text); }
 .seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
@@ -350,7 +442,10 @@ tbody tr:hover td { background: var(--row-hover); }
   .nav-kurz { display: none; }
   main { padding: 16px; }
   .ds-leiste { padding: 10px 16px 0; }
-  .modal { padding: 28px; }
+  /* Der Innenabstand sitzt am scrollenden Inhalt; die klebende Aktionszeile
+     muss ihn mit denselben Werten ausgleichen. */
+  .modal-inhalt { padding: 28px; }
+  .modal-actions { bottom: -28px; padding-bottom: 28px; margin-bottom: -28px; }
   /* Terminzeile: Zeit | Inhalt | Aktionen */
   .ev-row { grid-template-columns: 130px 1fr auto; gap: 14px; }
   .ev-aktionen { justify-content: flex-end; }
@@ -937,7 +1032,7 @@ async function uploadImage(input, entityType, entityId) {
       if (placeholder) placeholder.style.display = 'none';
     }
   } catch (e) {
-    alert('Bild-Upload fehlgeschlagen: ' + e.message);
+    meldung('Bild-Upload fehlgeschlagen: ' + e.message, 'error');
     if (placeholder) { placeholder.textContent = '📷'; }
   }
   input.value = '';
@@ -957,17 +1052,182 @@ function stamp() {
 }
 
 /* ── Modal helpers ── */
+/* ── Meldungen (P2-4) ───────────────────────────────────────────────────────
+   Bisher liefen Pruefhinweise und Fehler ueber `alert()`. Das Systemfenster
+   nimmt den Bezug zum Feld, verdeckt den Dialog und laesst sich am Telefon
+   schlecht lesen. Stattdessen drei Wege, je nach Ort:
+
+     feldFehler(id, text)  — Hinweis direkt unter dem betroffenen Feld
+     dialogMeldung(text)   — Meldung oben im offenen Dialog
+     meldung(text, art)    — kurze Einblendung, wenn kein Dialog offen ist
+
+   Die Einblendung nutzt denselben Behaelter und dieselben Klassen wie die
+   Alpine-Bereiche (assets-stores.js), damit es nur eine Darstellung gibt. */
+
+function meldungsBehaelter() {
+  let el = document.getElementById('toast-container');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'toast-container';
+    el.className = 'toast-container';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function meldung(text, art) {
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + (art || 'info');
+  el.setAttribute('role', art === 'error' ? 'alert' : 'status');
+  el.textContent = text;
+  meldungsBehaelter().appendChild(el);
+  setTimeout(() => {
+    el.classList.add('toast-out');
+    setTimeout(() => el.remove(), 300);
+  }, art === 'error' ? 6000 : 3500);
+}
+
+/* Meldung oben im Dialog. Ohne offenen Dialog wird eingeblendet statt
+   verschluckt. */
+function dialogMeldung(text, art) {
+  const inhalt = document.querySelector('.modal-overlay .modal-inhalt');
+  if (!inhalt) { meldung(text, art || 'error'); return; }
+  let box = inhalt.querySelector('.dialog-meldung');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'dialog-meldung';
+    box.setAttribute('role', 'alert');
+    const titel = inhalt.querySelector('h3');
+    if (titel && titel.nextSibling) inhalt.insertBefore(box, titel.nextSibling);
+    else inhalt.insertBefore(box, inhalt.firstChild);
+  }
+  box.className = 'dialog-meldung' + (art === 'erfolg' ? ' meldung-erfolg' : art === 'hinweis' ? ' meldung-hinweis' : '');
+  box.textContent = text;
+  box.scrollIntoView({ block: 'nearest' });
+}
+
+/* Hinweis unter einem Feld. `id` ist die Kennung des Eingabefeldes; der
+   Hinweis bekommt die Kennung `<id>-fehler` und haengt per aria-describedby
+   am Feld. Ohne Text wird der Hinweis wieder entfernt. */
+function feldFehler(id, text) {
+  const feld = document.getElementById(id);
+  if (!feld) { if (text) dialogMeldung(text); return; }
+  const fehlerId = id + '-fehler';
+  let hinweis = document.getElementById(fehlerId);
+  if (!text) {
+    feld.classList.remove('feld-ungueltig');
+    feld.removeAttribute('aria-invalid');
+    hinweis?.remove();
+    return;
+  }
+  if (!hinweis) {
+    hinweis = document.createElement('div');
+    hinweis.id = fehlerId;
+    hinweis.className = 'feld-fehler';
+    feld.insertAdjacentElement('afterend', hinweis);
+  }
+  hinweis.textContent = text;
+  feld.classList.add('feld-ungueltig');
+  feld.setAttribute('aria-invalid', 'true');
+  feld.setAttribute('aria-describedby', fehlerId);
+  feld.focus({ preventScroll: false });
+}
+
+/* Alle Hinweise eines Formulars loeschen, bevor erneut geprueft wird. */
+function feldFehlerLeeren(ids) {
+  for (const id of ids) feldFehler(id, '');
+  const box = document.querySelector('.modal-overlay .dialog-meldung');
+  if (box) box.remove();
+}
+
+/* ── Dialoge (P2-4) ─────────────────────────────────────────────────────────
+   Die Dialoge bekommen hier zentral alles, was sie bedienbar macht — damit
+   keine der 30 Aufrufstellen dafuer angefasst werden muss:
+
+   - Rolle und Beschriftung fuer Hilfsmittel (role="dialog", aria-modal,
+     aria-labelledby auf die Ueberschrift),
+   - eine sichtbare Schliessen-Schaltflaeche in der Ecke,
+   - Fokus beim Oeffnen in den Dialog, beim Schliessen zurueck auf das
+     ausloesende Element,
+   - Tabulator bleibt im Dialog,
+   - der Hintergrund scrollt nicht mit,
+   - Escape schliesst.
+
+   Die Hoehe richtet sich nach `dvh` (sichtbarer Bereich), damit der Dialog
+   bei offener Bildschirmtastatur nicht unter sie rutscht; die Aktionszeile
+   klebt am unteren Rand und bleibt dadurch immer erreichbar. */
+
+let _modalAusloeser = null;
+
 function openModal(html) {
   closeModal();
+  /* Merken, von wo der Dialog geoeffnet wurde — dorthin kehrt der Fokus
+     zurueck. document.activeElement ist zu diesem Zeitpunkt noch die
+     ausloesende Schaltflaeche. */
+  _modalAusloeser = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
-  overlay.innerHTML = `<div class="modal">${html}</div>`;
+  overlay.innerHTML = '<div class="modal" role="dialog" aria-modal="true" tabindex="-1">'
+    + '<button type="button" class="modal-schliessen" aria-label="Dialog schließen" onclick="closeModal()">✕</button>'
+    + '<div class="modal-inhalt">' + html + '</div>'
+    + '</div>';
   overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
   document.body.appendChild(overlay);
+
+  const dialog = overlay.querySelector('.modal');
+  /* Die Ueberschrift des Dialogs benennt ihn fuer Hilfsmittel. */
+  const titel = dialog.querySelector('h3');
+  if (titel) {
+    if (!titel.id) titel.id = 'modal-titel-' + Date.now();
+    dialog.setAttribute('aria-labelledby', titel.id);
+  }
+
+  document.body.classList.add('dialog-offen');
+  dialog.addEventListener('keydown', modalTabulator);
+  /* Fokus bevorzugt auf das erste Eingabefeld — dort faengt die Arbeit an.
+     Hat der Dialog keines (reine Bestaetigung), auf das erste Bedienelement,
+     sonst auf den Dialog selbst. */
+  const ziele = modalFokusziele(dialog);
+  const erstesFeld = ziele.find(el => /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName));
+  (erstesFeld || ziele[0] || dialog).focus({ preventScroll: true });
 }
+
 function closeModal() {
-  document.querySelector('.modal-overlay')?.remove();
+  const overlay = document.querySelector('.modal-overlay');
+  if (!overlay) return;
+  overlay.remove();
+  document.body.classList.remove('dialog-offen');
+  /* Fokus zurueck auf die ausloesende Schaltflaeche, sofern sie noch da ist —
+     nach einem Neuaufbau der Liste kann sie verschwunden sein. */
+  if (_modalAusloeser && document.body.contains(_modalAusloeser)) {
+    _modalAusloeser.focus({ preventScroll: true });
+  }
+  _modalAusloeser = null;
 }
+
+/* Bedienbare Elemente im Dialog, in Tabulatorreihenfolge. */
+function modalFokusziele(dialog) {
+  const auswahl = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), '
+    + 'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+  return Array.from(dialog.querySelectorAll(auswahl))
+    .filter(el => el.offsetWidth > 0 || el.offsetHeight > 0 || el === document.activeElement);
+}
+
+/* Tabulator im Dialog halten: am Ende wieder an den Anfang und umgekehrt. */
+function modalTabulator(e) {
+  if (e.key !== 'Tab') return;
+  const dialog = e.currentTarget;
+  const ziele = modalFokusziele(dialog);
+  if (!ziele.length) { e.preventDefault(); dialog.focus(); return; }
+  const erstes = ziele[0], letztes = ziele[ziele.length - 1];
+  if (e.shiftKey && (document.activeElement === erstes || document.activeElement === dialog)) {
+    e.preventDefault(); letztes.focus();
+  } else if (!e.shiftKey && document.activeElement === letztes) {
+    e.preventDefault(); erstes.focus();
+  }
+}
+
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1012,7 +1272,7 @@ async function loadTrips() {
             ${s.confirmation ? `<span style="color:var(--green);font-size:13px">✔ ${esc(s.confirmation)}</span>` : ''}
             ${s.calendarEventId
               ? `<a href="${esc(s.calendarWebLink||'')}" target="_blank" title="Kalendereintrag öffnen" style="text-decoration:none;cursor:pointer">📅</a>`
-              : `<button class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
+              : `<button aria-label="Segment in den Kalender eintragen" class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
             }
           </div>`).join('')}
         </div>` : '';
@@ -1046,7 +1306,7 @@ async function loadTrips() {
               <span>${lIcon}</span>
               ${lShowLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
               <span style="${lShowLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${lLink}</span>
-              <button class="btn btn-danger" style="padding:2px 8px;font-size:13px;margin-left:auto"
+              <button aria-label="Verknüpfung lösen" title="Verknüpfung lösen" class="btn btn-danger" style="padding:2px 8px;font-size:13px;margin-left:auto"
                 onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>
             </div>`;
           }).join('')}
@@ -1061,7 +1321,7 @@ async function loadTrips() {
             <div class="trip-dates">📅 ${esc(t.start_date)} → ${esc(t.end_date)} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
           </div>
           <div style="display:flex;gap:6px">
-            <button class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
+            <button aria-label="Dokument mit der Reise verknüpfen" title="Dokument mit der Reise verknüpfen" class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
             <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Sync</button>
             <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
             <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
@@ -1099,7 +1359,7 @@ async function deleteTrip(id, name) {
     if (!document.querySelector('.trip-card')) {
       document.getElementById('content').innerHTML = '<div class="empty">Keine Reisen.</div>';
     }
-  } catch(e) { alert(`Fehler: ${e.message}`); }
+  } catch(e) { meldung('Reise konnte nicht gelöscht werden: ' + e.message, 'error'); }
 }
 
 /* ── New trip ── */
@@ -1112,7 +1372,7 @@ function newTrip() {
     <input id="mn-name" placeholder="Tokyo Mai 2026">
     <label>Ziel</label>
     <input id="mn-dest" placeholder="Tokyo, Japan">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="formular-paar">
       <div><label>Startdatum</label><input id="mn-start" type="date"></div>
       <div><label>Enddatum</label><input id="mn-end" type="date"></div>
     </div>
@@ -1135,7 +1395,11 @@ async function createTrip() {
   const end_date   = document.getElementById('mn-end').value;
   const climate    = document.getElementById('mn-climate').value.trim();
   const activities = document.getElementById('mn-activities').value.split(',').map(s=>s.trim()).filter(Boolean);
-  if (!id || !name || !start_date || !end_date) return alert('ID, Name, Start- und Enddatum sind Pflichtfelder.');
+  feldFehlerLeeren(['mn-id', 'mn-name', 'mn-start', 'mn-end']);
+  if (!id)         return feldFehler('mn-id', 'Die Kennung ist ein Pflichtfeld.');
+  if (!name)       return feldFehler('mn-name', 'Der Name ist ein Pflichtfeld.');
+  if (!start_date) return feldFehler('mn-start', 'Das Startdatum ist ein Pflichtfeld.');
+  if (!end_date)   return feldFehler('mn-end', 'Das Enddatum ist ein Pflichtfeld.');
   try {
     await apiFetch('/api/trips', {
       method: 'POST',
@@ -1144,13 +1408,13 @@ async function createTrip() {
     });
     closeModal();
     showTab('health');
-  } catch(e) { alert(`Fehler: ${e.message}`); }
+  } catch(e) { dialogMeldung('Segment konnte nicht gespeichert werden: ' + e.message); }
 }
 
 /* ── Trip editing ── */
 function editTrip(id) {
   const t = _tripsCache.find(x => x.id === id);
-  if (!t) return alert('Trip nicht gefunden');
+  if (!t) return meldung('Reise nicht gefunden.', 'error');
   window._editSegments = (t.segments || []).map(s => ({ ...s }));
   const segList = () => {
     if (!window._editSegments.length) {
@@ -1162,7 +1426,7 @@ function editTrip(id) {
         <span>${esc(s.title)}</span>
         <span style="color:var(--muted);font-size:13px">${esc(s.datetime_local)} ${esc(s.timezone)}</span>
         ${s.confirmation ? `<span style="color:var(--green);font-size:13px">✔ ${esc(s.confirmation)}</span>` : ''}
-        <button class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
+        <button aria-label="Segment entfernen" class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
       </div>`).join('');
   };
   openModal(`
@@ -1171,7 +1435,7 @@ function editTrip(id) {
     <input id="m-name" value="${esc(t.name||'')}">
     <label>Ziel</label>
     <input id="m-dest" value="${esc(t.destination||'')}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="formular-paar">
       <div><label>Startdatum</label><input id="m-start" type="date" value="${esc(t.start_date||'')}"></div>
       <div><label>Enddatum</label><input id="m-end" type="date" value="${esc(t.end_date||'')}"></div>
     </div>
@@ -1205,7 +1469,7 @@ async function saveTrip(id) {
     });
     closeModal();
     showTab('health');
-  } catch(e) { alert(`Fehler: ${e.message}`); }
+  } catch(e) { dialogMeldung('Reise konnte nicht gespeichert werden: ' + e.message); }
 }
 
 function addSegmentModal(tripId) {
@@ -1222,14 +1486,15 @@ function addSegmentModal(tripId) {
     </select>
     <label>Titel</label>
     <input id="ms-title" placeholder="z.B. LH1234 FRA→BCN">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="formular-paar">
       <div><label>Datum</label><input id="ms-date" type="date"></div>
       <div><label>Uhrzeit</label><input id="ms-time" type="time"></div>
     </div>
     <label>Zeitzone</label>
     <input id="ms-tz" value="Europe/Berlin" placeholder="Europe/Berlin">
     <div class="modal-actions">
-      <button class="btn-ghost" onclick="editTrip('${esc(tripId)}')">← Zurück</button>
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-ghost" onclick="editTrip('${esc(tripId)}')">← Zurück zur Reise</button>
       <button class="btn btn-primary" onclick="confirmAddSegment('${esc(tripId)}')">Hinzufügen</button>
     </div>
   `);
@@ -1241,7 +1506,8 @@ function confirmAddSegment(tripId) {
   const date  = document.getElementById('ms-date').value;
   const time  = document.getElementById('ms-time').value;
   const tz    = document.getElementById('ms-tz').value.trim() || 'Europe/Berlin';
-  if (!title) return alert('Titel ist erforderlich');
+  feldFehlerLeeren(['ms-title']);
+  if (!title) return feldFehler('ms-title', 'Der Titel ist ein Pflichtfeld.');
   const datetime_local = date && time ? `${date}T${time}` : date || '';
   window._editSegments.push({ type, title, datetime_local, timezone: tz });
   editTrip(tripId);
@@ -1262,17 +1528,18 @@ async function removeSegment(index, tripId) {
 async function syncSegCal(tripId, segId) {
   try {
     const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(segId)}/calendar`, { method: 'POST' });
-    if (result.skipped) { alert('Kalendereintrag existiert bereits.'); }
+    if (result.skipped) { meldung('Kalendereintrag existiert bereits.', 'info'); }
     showTab('health');
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + e.message, 'error'); }
 }
 
 async function syncAllSegCal(tripId) {
   try {
     const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/sync-calendar`, { method: 'POST' });
-    alert(`Kalender-Sync: ✅ ${result.created} erstellt, ⏭ ${result.skipped} vorhanden, ❌ ${result.failed} fehlgeschlagen`);
+    meldung(`Kalender-Abgleich: ${result.created} erstellt, ${result.skipped} vorhanden, ${result.failed} fehlgeschlagen.`,
+            result.failed ? 'error' : 'success');
     showTab('health');
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + e.message, 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1609,9 +1876,9 @@ async function loadDrafts() {
         <td>${esc(d.subject||'–')}${dLinksHtml ? `<div style="font-size:13px;margin-top:2px">${dLinksHtml}</div>` : ''}</td>
         <td style="color:var(--muted);font-size:13px">${esc((d.to||[]).join(', '))}</td>
         <td style="white-space:nowrap" onclick="event.stopPropagation()">
-          <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="linkDocModal('draft','${esc(d.id)}','loadDraftsRefresh')">📎</button>
-          <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="editDraft('${esc(d.id)}')">✏️</button>
-          <button class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
+          <button aria-label="Dokument mit dem Entwurf verknüpfen" title="Dokument mit dem Entwurf verknüpfen" class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="linkDocModal('draft','${esc(d.id)}','loadDraftsRefresh')">📎</button>
+          <button aria-label="Entwurf bearbeiten" title="Entwurf bearbeiten" class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="editDraft('${esc(d.id)}')">✏️</button>
+          <button aria-label="Entwurf löschen" title="Entwurf löschen" class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
         </td>
       </tr>
       <tr id="db-${esc(d.id)}" style="display:none" class="draft-body-row">
@@ -1633,7 +1900,7 @@ function toggleDraft(id) {
 
 function editDraft(id) {
   const d = _draftsCache.find(x => x.id === id);
-  if (!d) return alert('Draft nicht gefunden');
+  if (!d) return meldung('Entwurf nicht gefunden.', 'error');
   openModal(`
     <h3>✏️ Draft bearbeiten</h3>
     <label>An (kommagetrennt)</label>
@@ -1661,7 +1928,7 @@ async function saveDraft(id) {
     });
     closeModal();
     showTab('drafts');
-  } catch(e) { alert(`Fehler: ${e.message}`); }
+  } catch(e) { dialogMeldung('Entwurf konnte nicht gespeichert werden: ' + e.message); }
 }
 
 async function deleteDraft(id, subject) {
@@ -1669,7 +1936,7 @@ async function deleteDraft(id, subject) {
   try {
     await apiFetch(`/api/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
     showTab('drafts');
-  } catch(e) { alert(`Fehler: ${e.message}`); }
+  } catch(e) { meldung('Entwurf konnte nicht gelöscht werden: ' + e.message, 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1727,7 +1994,7 @@ async function loadCalendar() {
             const ln = l.docType === 'sharepoint' && l.spWebUrl
               ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.spName||'')}</a>`
               : esc(l.localName||'');
-            return `${li} ${esc(l.label)}: ${ln} <button class="btn btn-danger" style="padding:1px 5px;font-size:13px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
+            return `${li} ${esc(l.label)}: ${ln} <button aria-label="Verknüpfung lösen" title="Verknüpfung lösen" class="btn btn-danger" style="padding:1px 5px;font-size:13px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
           }).join(' &nbsp; ')}</div>` : '';
 
           return `<div class="ev-row${z.ganztags ? ' ev-ganztags' : ''}">
@@ -1740,7 +2007,7 @@ async function loadCalendar() {
               <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
               ${z.unplausibel ? '<div class="ev-warnung">⚠️ Das hinterlegte Ende liegt vor dem Beginn. Der Termin wird unverändert angezeigt.</div>' : ''}
               ${ortText && !ortIstLink ? `<div class="ev-sub">📍 ${esc(ortText)}</div>` : ''}
-              ${(() => { const b = kalenderBeschreibung(ev, 160); return b ? `<div class="ev-sub ev-beschreibung">${esc(b)}</div>` : ''; })()}
+              ${kalenderBeschreibungHtml(ev)}
               ${evLinksHtml}
             </div>
             <div class="ev-aktionen">
@@ -1755,6 +2022,9 @@ async function loadCalendar() {
     }).join('');
 
     c.innerHTML = toolbar + html;
+    /* Erst nach dem Aufbau laesst sich messen, welche Beschreibung gekuerzt
+       ist und deshalb eine Aufklapp-Schaltflaeche braucht (P2-4). */
+    kalenderBeschreibungenPruefen();
     stamp();
     setDatenstand([{
       quelle: 'Kalender (Microsoft 365)',
@@ -1776,21 +2046,61 @@ async function loadCalendar() {
    Ganztags-Option, sichtbare Zeitzone. Vorher gab es nur EIN Datumsfeld und
    das Ende wurde mit dem Startdatum zurueckgeschrieben — bei dem
    INHALE-Termin haette das "22:00 bis 21:30 am selben Tag" gespeichert. */
+/* Beschreibung in der Terminliste (P2-4).
+   Der Text wird nicht mehr hart nach 160 Zeichen abgeschnitten, sondern auf
+   zwei Zeilen gekuerzt (breit auf vier) und laesst sich aufklappen. Die
+   Einwahldaten der Online-Besprechung sind schon in kalenderBeschreibung()
+   herausgefiltert; der Beitrittslink steht als eigene Schaltflaeche. */
+let _kalenderBeschreibungZaehler = 0;
+
+function kalenderBeschreibungHtml(ev) {
+  const text = kalenderBeschreibung(ev, 1200);
+  if (!text) return '';
+  const id = 'ev-besch-' + (++_kalenderBeschreibungZaehler);
+  return '<div class="ev-beschreibung-block">'
+    + '<div class="ev-sub ev-beschreibung" id="' + id + '">' + esc(text) + '</div>'
+    + '<button type="button" class="ev-mehr" hidden'
+    + ' aria-controls="' + id + '" aria-expanded="false"'
+    + ' onclick="kalenderBeschreibungUmschalten(this)">mehr…</button>'
+    + '</div>';
+}
+
+function kalenderBeschreibungUmschalten(btn) {
+  const block = btn.previousElementSibling;
+  if (!block) return;
+  const offen = block.classList.toggle('ev-beschreibung-offen');
+  btn.textContent = offen ? 'weniger' : 'mehr…';
+  btn.setAttribute('aria-expanded', offen ? 'true' : 'false');
+}
+
+/* Die Schaltflaeche erscheint nur, wenn der Text wirklich gekuerzt ist.
+   Das laesst sich erst nach dem Aufbau messen. */
+function kalenderBeschreibungenPruefen() {
+  for (const el of document.querySelectorAll('.ev-beschreibung')) {
+    const btn = el.nextElementSibling;
+    if (!btn || !btn.classList.contains('ev-mehr')) continue;
+    btn.hidden = el.scrollHeight <= el.clientHeight + 1;
+  }
+}
+
 function kalenderFormularHtml(werte, idPrefix) {
   const p = idPrefix;
+  /* P2-4: Kaestchen und Beschriftung in EINER Zeile, die Beschriftung ueber
+     `for` klickbar. Vorher zog `.modal input { width: 100% }` das Kaestchen
+     auf volle Breite und schob den Text darunter. */
   return `
-    <label class="ganztags-zeile">
+    <div class="kontrollzeile">
       <input type="checkbox" id="${p}-allday" ${werte.ganztags ? 'checked' : ''}
              onchange="kalenderFormularUmschalten('${p}')">
-      <span>Ganztägig</span>
-    </label>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><label>Startdatum</label><input id="${p}-sdate" type="date" value="${esc(werte.startDatum)}"></div>
-      <div><label>Enddatum</label><input id="${p}-edate" type="date" value="${esc(werte.endDatum)}"></div>
+      <label for="${p}-allday" class="kontrollzeile-text">Ganztägig</label>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="${p}-zeiten">
-      <div><label>Startzeit</label><input id="${p}-stime" type="time" value="${esc(werte.startZeit)}"></div>
-      <div><label>Endzeit</label><input id="${p}-etime" type="time" value="${esc(werte.endZeit)}"></div>
+    <div class="formular-paar">
+      <div><label for="${p}-sdate">Startdatum</label><input id="${p}-sdate" type="date" value="${esc(werte.startDatum)}"></div>
+      <div><label for="${p}-edate">Enddatum</label><input id="${p}-edate" type="date" value="${esc(werte.endDatum)}"></div>
+    </div>
+    <div class="formular-paar" id="${p}-zeiten">
+      <div><label for="${p}-stime">Startzeit</label><input id="${p}-stime" type="time" value="${esc(werte.startZeit)}"></div>
+      <div><label for="${p}-etime">Endzeit</label><input id="${p}-etime" type="time" value="${esc(werte.endZeit)}"></div>
     </div>
     <div class="cal-tz-hinweis" style="margin-top:6px">Angaben in Europe/Berlin. Bei ganztägigen Terminen gilt das Enddatum einschließlich.</div>`;
 }
@@ -1798,7 +2108,9 @@ function kalenderFormularHtml(werte, idPrefix) {
 function kalenderFormularUmschalten(p) {
   const an = document.getElementById(p + '-allday')?.checked;
   const zeiten = document.getElementById(p + '-zeiten');
-  if (zeiten) zeiten.style.display = an ? 'none' : 'grid';
+  /* Leerer Wert statt 'grid': die Anzeigeart kommt wieder aus der Stilvorlage
+     (.formular-paar), die je nach Breite ein- oder zweispaltig ist. */
+  if (zeiten) zeiten.style.display = an ? 'none' : '';
 }
 
 function kalenderFormularLesen(p) {
@@ -1834,10 +2146,12 @@ async function createEvent() {
   const subject = document.getElementById('ce-subject').value.trim();
   const loc     = document.getElementById('ce-loc').value.trim();
   const body    = document.getElementById('ce-body').value.trim();
-  if (!subject) return alert('Der Titel ist ein Pflichtfeld.');
+  /* P2-4: Pruefhinweise stehen am Feld, nicht in einem Systemfenster. */
+  feldFehlerLeeren(['ce-subject', 'ce-sdate', 'ce-edate']);
+  if (!subject) return feldFehler('ce-subject', 'Der Titel ist ein Pflichtfeld.');
 
   const nutzlast = kalenderNutzlast(kalenderFormularLesen('ce'));
-  if (nutzlast.fehler) return alert(nutzlast.fehler);
+  if (nutzlast.fehler) return feldFehler('ce-edate', nutzlast.fehler);
 
   const btn = document.getElementById('ce-save');
   btn.disabled = true; btn.textContent = 'Speichern…';
@@ -1857,14 +2171,14 @@ async function createEvent() {
     closeModal();
     showTab('calendar');
   } catch(e) {
-    alert(`Fehler: ${e.message}`);
+    dialogMeldung('Termin konnte nicht angelegt werden: ' + e.message);
     btn.disabled = false; btn.textContent = '📅 Erstellen';
   }
 }
 
 function editEventModal(eventId) {
   const ev = _calCache.find(e => e.id === eventId);
-  if (!ev) return alert('Termin nicht gefunden');
+  if (!ev) return meldung('Termin nicht gefunden.', 'error');
   const werte = kalenderFormularwerte(ev);
   const z = kalenderZeitraum(ev);
   openModal(`
@@ -1889,10 +2203,11 @@ async function saveEvent(eventId) {
   const subject = document.getElementById('ee-subject').value.trim();
   const loc     = document.getElementById('ee-loc').value.trim();
   const body    = document.getElementById('ee-body').value.trim();
-  if (!subject) return alert('Der Titel ist ein Pflichtfeld.');
+  feldFehlerLeeren(['ee-subject', 'ee-sdate', 'ee-edate']);
+  if (!subject) return feldFehler('ee-subject', 'Der Titel ist ein Pflichtfeld.');
 
   const nutzlast = kalenderNutzlast(kalenderFormularLesen('ee'));
-  if (nutzlast.fehler) return alert(nutzlast.fehler);
+  if (nutzlast.fehler) return feldFehler('ee-edate', nutzlast.fehler);
 
   const btn = document.getElementById('ee-save');
   btn.disabled = true; btn.textContent = 'Speichern…';
@@ -1912,7 +2227,7 @@ async function saveEvent(eventId) {
     closeModal();
     showTab('calendar');
   } catch(e) {
-    alert(`Fehler: ${e.message}`);
+    dialogMeldung('Termin konnte nicht gespeichert werden: ' + e.message);
     btn.disabled = false; btn.textContent = '💾 Speichern';
   }
 }
@@ -1922,7 +2237,7 @@ async function deleteEvent(eventId, subject) {
   try {
     await apiFetch(`/api/calendar/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
     showTab('calendar');
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Termin konnte nicht gelöscht werden: ' + e.message, 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1983,7 +2298,7 @@ function renderDocTable(docs, trips) {
       <td style="white-space:nowrap">${fmtDate(d.date)}</td>
       <td style="white-space:nowrap">
         <a href="${esc(dlUrl)}" class="btn btn-primary" style="padding:4px 8px;font-size:13px;text-decoration:none" download>⬇</a>
-        <button class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDoc('${esc(d.path)}','${esc(d.name)}')">🗑</button>
+        <button aria-label="Dokument löschen" title="Dokument löschen" class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDoc('${esc(d.path)}','${esc(d.name)}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -2052,7 +2367,8 @@ function showFileName() {
 
 async function uploadDoc() {
   const fileInput = document.getElementById('upl-file');
-  if (!fileInput.files.length) return alert('Bitte eine Datei auswählen.');
+  feldFehlerLeeren(['upl-file']);
+  if (!fileInput.files.length) return feldFehler('upl-file', 'Bitte eine Datei auswählen.');
   const form = new FormData();
   form.append('file', fileInput.files[0]);
   form.append('kategorie', document.getElementById('upl-cat').value);
@@ -2070,7 +2386,7 @@ async function uploadDoc() {
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
     closeModal();
     showTab('documents');
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + e.message); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 
 async function deleteDoc(docPath, name) {
@@ -2078,7 +2394,7 @@ async function deleteDoc(docPath, name) {
   try {
     await apiFetch(`/api/documents/${encodeURIComponent(docPath)}`, { method: 'DELETE' });
     showTab('documents');
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Dokument konnte nicht gelöscht werden: ' + e.message, 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2535,7 +2851,7 @@ function renderSPSearchHits() {
 }
 
 function spUploadModal() {
-  if (!_spCurrentSiteId || !_spCurrentDriveId) return alert('Bitte zuerst eine Site und Drive auswählen.');
+  if (!_spCurrentSiteId || !_spCurrentDriveId) return meldung('Bitte zuerst eine Site und eine Bibliothek auswählen.', 'error');
   openModal(`
     <h3>📂 SharePoint Upload</h3>
     <label>Datei (max 4 MB)</label>
@@ -2571,9 +2887,10 @@ function spShowFileName() {
 
 async function spUploadFile() {
   const fileInput = document.getElementById('sp-upl-file');
-  if (!fileInput.files.length) return alert('Bitte eine Datei auswählen.');
+  feldFehlerLeeren(['sp-upl-file', 'sp-upl-path']);
+  if (!fileInput.files.length) return feldFehler('sp-upl-file', 'Bitte eine Datei auswählen.');
   const file = fileInput.files[0];
-  if (file.size > 4 * 1024 * 1024) return alert('Datei zu groß (max 4 MB).');
+  if (file.size > 4 * 1024 * 1024) return feldFehler('sp-upl-file', 'Die Datei ist größer als 4 MB. Bitte eine kleinere Datei wählen.');
   const filePath = document.getElementById('sp-upl-path').value.trim() || file.name;
 
   const form = new FormData();
@@ -2593,7 +2910,7 @@ async function spUploadFile() {
     closeModal();
     // Aktuelle Bibliothek neu laden; Name und Umfang bleiben erhalten.
     spOpenDrive();
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + e.message); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2694,7 +3011,7 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
       ${showLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
       <span style="${showLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${nameHtml}</span>
       <span style="color:var(--muted);font-size:13px;margin-left:auto">${l.id}</span>
-      <button class="btn btn-danger" style="padding:2px 8px;font-size:13px"
+      <button aria-label="Verknüpfung lösen" title="Verknüpfung lösen" class="btn btn-danger" style="padding:2px 8px;font-size:13px"
         onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">✕</button>
     </div>`;
   }).join('');
@@ -2714,7 +3031,7 @@ async function unlinkDoc(linkId, entityType, entityId, refreshFn) {
   try {
     await apiFetch(`/api/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
     if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Verknüpfung konnte nicht gelöst werden: ' + e.message, 'error'); }
 }
 
 function linkDocModal(entityType, entityId, refreshFn) {
@@ -2769,7 +3086,7 @@ async function unlinkAndReload(linkId) {
     // Reload current tab
     const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
     if (activeTab) showTab(activeTab);
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { meldung('Aktion fehlgeschlagen: ' + e.message, 'error'); }
 }
 
 function loadTripsRefresh() { showTab('trips'); }
@@ -2791,7 +3108,7 @@ async function selectSpForLink(idx) {
     });
     closeModal();
     if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
-  } catch (e) { alert(`Fehler: ${e.message}`); }
+  } catch (e) { dialogMeldung('Verknüpfung konnte nicht gespeichert werden: ' + e.message); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3158,7 +3475,7 @@ async function loadInstagram() {
           <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftEdit('${safeId}')">✏️ Bearbeiten</button>
           <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftPost('${safeId}')">📤 Freigeben</button>
           <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftManualToggle('${safeId}')">📋 Manuell posten</button>
-          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--red);color:var(--red)" onclick="_instaDraftDelete('${safeId}')">🗑️</button>
+          <button aria-label="Entwurf löschen" title="Entwurf löschen" class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--red);color:var(--red)" onclick="_instaDraftDelete('${safeId}')">🗑️</button>
         </div>
 
         <div id="manual-post-${esc(dr.id)}" style="display:none;margin-top:12px;background:var(--surface-2);border-radius:8px;padding:16px;border:1px solid var(--border)"></div>
@@ -3400,9 +3717,9 @@ async function _instaDraftEdit(id) {
         <label style="font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Hashtags (kommagetrennt)</label>
         <input id="edit-hashtags" type="text" value="${esc(hashtags)}" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:8px 10px;font-size:14px;font-family:var(--font)">
       </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn" onclick="closeModal()" style="font-size:13px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);color:var(--text)">Abbrechen</button>
-        <button class="btn btn-primary" onclick="_instaDraftSaveEdit('${esc(id).replace(/'/g, "\\'")}')" style="font-size:13px;padding:6px 14px">Speichern</button>
+      <div class="modal-actions">
+        <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
+        <button class="btn btn-primary" onclick="_instaDraftSaveEdit('${esc(id).replace(/'/g, "\\'")}')">Speichern</button>
       </div>
     </div>
   `);
@@ -3502,7 +3819,7 @@ async function _instaDraftManualToggle(id) {
       <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">3. Hashtags separat kopieren</div>
       <div style="display:flex;align-items:center;gap:8px">
         <code style="flex:1;background:var(--surface);padding:8px 10px;border-radius:6px;font-size:13px;border:1px solid var(--border);word-break:break-all;color:var(--accent)">${esc(hashtags)}</code>
-        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${esc(hashtags).replace(/'/g, "\\'")}');_toast('Hashtags kopiert')" style="font-size:13px;padding:3px 8px;white-space:nowrap">📋</button>
+        <button aria-label="Hashtags kopieren" title="Hashtags kopieren" class="btn btn-primary" onclick="navigator.clipboard.writeText('${esc(hashtags).replace(/'/g, "\\'")}');_toast('Hashtags kopiert')" style="font-size:13px;padding:3px 8px;white-space:nowrap">📋</button>
       </div>
     </div>`;
   }
@@ -3621,7 +3938,7 @@ function _instaNewSessionModal() {
       <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:4px">Kontext/Name (optional)</label>
       <input id="rawCtx" class="inp" placeholder="z.B. drohne-barcelona" style="width:100%;box-sizing:border-box">
     </div>
-    <div style="display:flex;gap:8px;justify-content:flex-end">
+    <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="_instaCreateRawSession()">Erstellen</button>
     </div>
@@ -3636,7 +3953,7 @@ async function _instaCreateRawSession() {
     _rawDetailSession = null;
     loadInstagram();
   } catch (e) {
-    alert('Fehler: ' + e.message);
+    dialogMeldung('Session konnte nicht angelegt werden: ' + e.message);
   }
 }
 
@@ -3671,7 +3988,7 @@ async function _instaRawDelete(sessionId) {
     _rawDetailSession = null;
     loadInstagram();
   } catch (e) {
-    alert('Fehler: ' + e.message);
+    meldung('Session konnte nicht gelöscht werden: ' + e.message, 'error');
   }
 }
 
@@ -3916,14 +4233,14 @@ async function tradingAddWatch() {
   try {
     await apiFetch('/api/trading/watchlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol, exchange, currency }) });
     loadTrading();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { meldung('Watchlist-Eintrag konnte nicht angelegt werden: ' + e.message, 'error'); }
 }
 
 async function tradingRemoveWatch(symbol) {
   try {
     await apiFetch('/api/trading/watchlist/' + encodeURIComponent(symbol), { method: 'DELETE' });
     loadTrading();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { meldung('Watchlist-Eintrag konnte nicht entfernt werden: ' + e.message, 'error'); }
 }
 
 async function toggleUniverseIndex(name, enabled) {
@@ -3934,7 +4251,7 @@ async function toggleUniverseIndex(name, enabled) {
       body: JSON.stringify({ indices: { [name]: { enabled } } }),
     });
     loadTrading();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { meldung('Index konnte nicht umgeschaltet werden: ' + e.message, 'error'); }
 }
 
 async function triggerUniverseScan() {
@@ -3942,10 +4259,10 @@ async function triggerUniverseScan() {
   if (btn) { btn.disabled = true; btn.textContent = 'Scannt...'; }
   try {
     const result = await apiFetch('/api/trading/universe/scan', { method: 'POST' });
-    if (result) alert(`Scan fertig: ${result.universe} Symbole, ${result.momentum} Momentum, ${result.meanReversion} Mean-Rev`);
+    if (result) meldung(`Scan fertig: ${result.universe} Symbole, ${result.momentum} Momentum, ${result.meanReversion} Mean-Reversion.`, 'success');
     loadTrading();
   } catch (e) {
-    alert('Scan-Fehler: ' + e.message);
+    meldung('Scan fehlgeschlagen: ' + e.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Scan starten'; }
   }
 }
@@ -4109,26 +4426,26 @@ async function peShowDetail(id) {
   }
 }
 
+/* P2-4: die drei PE-Dialoge bauten ihre Ueberlagerung selbst und bekamen
+   deshalb weder Rolle noch Fokusfuehrung, Schliessen-Schaltflaeche oder
+   Tastaturbedienung. Jetzt laufen sie ueber openModal() wie alle anderen. */
 function peNewModal() {
-  const m = document.createElement('div');
-  m.className = 'modal-overlay';
-  m.innerHTML = `<div class="modal">
+  openModal(`
     <h3>Neue Beteiligung</h3>
-    <label>Firma *<input id="pe-company" placeholder="TobaGrown GmbH"></label>
-    <label>Sektor<input id="pe-sector" placeholder="Cannabis / Agriculture"></label>
-    <label>Investierter Betrag (€) *<input id="pe-amount" type="number" step="0.01" placeholder="50000"></label>
-    <label>Anteile *<input id="pe-shares" type="number" placeholder="500"></label>
-    <label>Gesamt-Anteile *<input id="pe-totalshares" type="number" placeholder="10000"></label>
-    <label>Investitionsdatum<input id="pe-date" type="date"></label>
-    <label>Bewertungsmethode<input id="pe-method" placeholder="cost" value="cost"></label>
-    <label>Kontaktperson<input id="pe-contact" placeholder="Max Mustermann"></label>
-    <label>Notizen<textarea id="pe-notes" rows="2" placeholder="Optionale Notizen..."></textarea></label>
-    <div style="display:flex;gap:8px;margin-top:16px">
+    <label for="pe-company">Firma *</label><input id="pe-company" placeholder="TobaGrown GmbH">
+    <label for="pe-sector">Sektor</label><input id="pe-sector" placeholder="Cannabis / Agriculture">
+    <label for="pe-amount">Investierter Betrag (€) *</label><input id="pe-amount" type="number" step="0.01" placeholder="50000">
+    <label for="pe-shares">Anteile *</label><input id="pe-shares" type="number" placeholder="500">
+    <label for="pe-totalshares">Gesamt-Anteile *</label><input id="pe-totalshares" type="number" placeholder="10000">
+    <label for="pe-date">Investitionsdatum</label><input id="pe-date" type="date">
+    <label for="pe-method">Bewertungsmethode</label><input id="pe-method" placeholder="cost" value="cost">
+    <label for="pe-contact">Kontaktperson</label><input id="pe-contact" placeholder="Max Mustermann">
+    <label for="pe-notes">Notizen</label><textarea id="pe-notes" rows="2" placeholder="Optionale Notizen..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="peCreate()">Anlegen</button>
-      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
     </div>
-  </div>`;
-  document.body.appendChild(m);
+  `);
 }
 
 async function peCreate() {
@@ -4141,40 +4458,41 @@ async function peCreate() {
   const valuationMethod = document.getElementById('pe-method').value.trim() || undefined;
   const contactPerson = document.getElementById('pe-contact').value.trim() || undefined;
   const notes = document.getElementById('pe-notes').value.trim() || undefined;
-  if (!company || !amount || !shares || !totalShares) return alert('Firma, Betrag, Anteile und Gesamt-Anteile sind Pflichtfelder.');
+  feldFehlerLeeren(['pe-company', 'pe-amount', 'pe-shares', 'pe-totalshares']);
+  if (!company)     return feldFehler('pe-company', 'Die Firma ist ein Pflichtfeld.');
+  if (!amount)      return feldFehler('pe-amount', 'Der Betrag ist ein Pflichtfeld.');
+  if (!shares)      return feldFehler('pe-shares', 'Die Anteile sind ein Pflichtfeld.');
+  if (!totalShares) return feldFehler('pe-totalshares', 'Die Gesamtanteile sind ein Pflichtfeld.');
   try {
     await apiFetch('/api/pe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ company, sector, investedAmount: amount, shares, totalShares, investmentDate, valuationMethod, contactPerson, notes }) });
-    document.querySelector('.modal-overlay').remove();
+    closeModal();
     loadPrivateEquity();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { dialogMeldung('Beteiligung konnte nicht angelegt werden: ' + e.message); }
 }
 
 function peEditModal(id) {
   const inv = _peCache.find(i => i.id === id);
   if (!inv) return;
-  const m = document.createElement('div');
-  m.className = 'modal-overlay';
-  m.innerHTML = `<div class="modal">
+  openModal(`
     <h3>Beteiligung bearbeiten</h3>
-    <label>Firma<input id="pe-e-company" value="${esc(inv.company)}"></label>
-    <label>Sektor<input id="pe-e-sector" value="${esc(inv.sector)}"></label>
-    <label>Status<select id="pe-e-status">
+    <label for="pe-e-company">Firma</label><input id="pe-e-company" value="${esc(inv.company)}">
+    <label for="pe-e-sector">Sektor</label><input id="pe-e-sector" value="${esc(inv.sector)}">
+    <label for="pe-e-status">Status</label><select id="pe-e-status">
       <option value="active" ${inv.status === 'active' ? 'selected' : ''}>Aktiv</option>
       <option value="exited" ${inv.status === 'exited' ? 'selected' : ''}>Exited</option>
       <option value="written-off" ${inv.status === 'written-off' ? 'selected' : ''}>Written-off</option>
-    </select></label>
-    <label>Investierter Betrag (€)<input id="pe-e-amount" type="number" step="0.01" value="${inv.investedAmount}"></label>
-    <label>Anteile<input id="pe-e-shares" type="number" value="${inv.shares}"></label>
-    <label>Gesamt-Anteile<input id="pe-e-totalshares" type="number" value="${inv.totalShares}"></label>
-    <label>Investitionsdatum<input id="pe-e-date" type="date" value="${inv.investmentDate || ''}"></label>
-    <label>Kontaktperson<input id="pe-e-contact" value="${esc(inv.contactPerson || '')}"></label>
-    <label>Notizen<textarea id="pe-e-notes" rows="2">${esc(inv.notes || '')}</textarea></label>
-    <div style="display:flex;gap:8px;margin-top:16px">
+    </select>
+    <label for="pe-e-amount">Investierter Betrag (€)</label><input id="pe-e-amount" type="number" step="0.01" value="${inv.investedAmount}">
+    <label for="pe-e-shares">Anteile</label><input id="pe-e-shares" type="number" value="${inv.shares}">
+    <label for="pe-e-totalshares">Gesamt-Anteile</label><input id="pe-e-totalshares" type="number" value="${inv.totalShares}">
+    <label for="pe-e-date">Investitionsdatum</label><input id="pe-e-date" type="date" value="${inv.investmentDate || ''}">
+    <label for="pe-e-contact">Kontaktperson</label><input id="pe-e-contact" value="${esc(inv.contactPerson || '')}">
+    <label for="pe-e-notes">Notizen</label><textarea id="pe-e-notes" rows="2">${esc(inv.notes || '')}</textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="peSaveEdit('${esc(inv.id)}')">Speichern</button>
-      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
     </div>
-  </div>`;
-  document.body.appendChild(m);
+  `);
 }
 
 async function peSaveEdit(id) {
@@ -4191,37 +4509,35 @@ async function peSaveEdit(id) {
   };
   try {
     await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    document.querySelector('.modal-overlay').remove();
+    closeModal();
     peShowDetail(id);
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { dialogMeldung('Beteiligung konnte nicht gespeichert werden: ' + e.message); }
 }
 
 function peValuationModal(id) {
-  const m = document.createElement('div');
-  m.className = 'modal-overlay';
-  m.innerHTML = `<div class="modal">
+  openModal(`
     <h3>Neue Bewertung</h3>
-    <label>Betrag (€) *<input id="pe-v-amount" type="number" step="0.01" placeholder="75000"></label>
-    <label>Methode<input id="pe-v-method" placeholder="DCF, Comparable, Revenue Multiple..."></label>
-    <label>Notizen<textarea id="pe-v-notes" rows="2" placeholder="Optionale Notizen..."></textarea></label>
-    <div style="display:flex;gap:8px;margin-top:16px">
+    <label for="pe-v-amount">Betrag (€) *</label><input id="pe-v-amount" type="number" step="0.01" placeholder="75000">
+    <label for="pe-v-method">Methode</label><input id="pe-v-method" placeholder="DCF, Comparable, Revenue Multiple...">
+    <label for="pe-v-notes">Notizen</label><textarea id="pe-v-notes" rows="2" placeholder="Optionale Notizen..."></textarea>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="peSaveValuation('${esc(id)}')">Bewertung speichern</button>
-      <button class="btn-ghost" onclick="this.closest('.modal-overlay').remove()">Abbrechen</button>
     </div>
-  </div>`;
-  document.body.appendChild(m);
+  `);
 }
 
 async function peSaveValuation(id) {
   const amount = Number(document.getElementById('pe-v-amount').value);
   const method = document.getElementById('pe-v-method').value.trim() || undefined;
   const notes = document.getElementById('pe-v-notes').value.trim() || undefined;
-  if (!amount) return alert('Betrag ist ein Pflichtfeld.');
+  feldFehlerLeeren(['pe-v-amount']);
+  if (!amount) return feldFehler('pe-v-amount', 'Der Betrag ist ein Pflichtfeld.');
   try {
     await apiFetch('/api/pe/' + encodeURIComponent(id) + '/valuation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, method, notes }) });
-    document.querySelector('.modal-overlay').remove();
+    closeModal();
     peShowDetail(id);
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { dialogMeldung('Bewertung konnte nicht gespeichert werden: ' + e.message); }
 }
 
 async function peDelete(id) {
@@ -4229,7 +4545,7 @@ async function peDelete(id) {
   try {
     await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'DELETE' });
     loadPrivateEquity();
-  } catch (e) { alert('Fehler: ' + e.message); }
+  } catch (e) { meldung('Beteiligung konnte nicht gelöscht werden: ' + e.message, 'error'); }
 }
 
 /* ── Status Widget ── */

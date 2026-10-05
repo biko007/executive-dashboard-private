@@ -107,18 +107,29 @@
 
 .wiki-upload { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
 
-.wiki-form { display: flex; flex-direction: column; gap: 12px; max-width: 900px; }
-.wiki-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+/* P2-4: Beschriftung und Feld sind jetzt Geschwister (label[for] + Feld)
+   statt ineinander verschachtelt — damit zeigt die Beschriftung auf ihr Feld
+   und Hilfsmittel lesen beides zusammen. Der schmale Abstand zwischen
+   Beschriftung und Feld entsteht ueber `gap` am Formular. */
+.wiki-form { display: flex; flex-direction: column; gap: 4px; max-width: 900px; }
+.wiki-form label { font-size: 13px; color: var(--muted); }
 .wiki-form input, .wiki-form select, .wiki-form textarea {
-  padding: 7px 9px;
-  font-size: 13px;
+  padding: 10px 12px;
+  font-size: 14px;
   color: inherit;
+  min-height: 44px;
+  margin-bottom: 8px;
 }
 .wiki-form textarea {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   line-height: 1.45;
   resize: vertical;
 }
+
+/* Die Freigabe-Markierung behaelt ihre Form: Kaestchen links, langer
+   Erklaertext rechts. */
+.wiki-form .wiki-check { display: flex; align-items: flex-start; gap: 10px; margin: 6px 0 2px; line-height: 1.45; }
+.wiki-form .wiki-check input { min-height: 20px; width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 auto; }
 
 .wiki-raw {
   background: var(--surface-2);

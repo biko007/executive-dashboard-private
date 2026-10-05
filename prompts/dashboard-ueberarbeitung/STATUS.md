@@ -1075,6 +1075,92 @@ werden.
 
 ---
 
+### P2-4 — Formulare und Dialoge mobil und bedienbar — 05.10.2026
+
+**Durchgeführt**
+
+1. **Formularraster.** Feldpaare (`.formular-paar`, `.form-row`) stehen schmal untereinander und
+   erst **ab 768 px** nebeneinander — zwischen 640 und 767 px blieben für ein Datumsfeld sonst
+   rund 140 px, zu wenig für den vom Browser gezeichneten Wähler. Alle Eingabefelder füllen die
+   Breite ihres Blocks und sind mindestens 44 px hoch (Dialoge, Assets-Schubfächer, Wiki).
+   Beschriftungen stehen über dem Feld und zeigen per `for`/`id` darauf: 21 Stellen in den
+   PE-Dialogen und 6 im Wiki waren als `<label>Text<input></label>` verschachtelt und sind jetzt
+   Geschwister.
+2. **Ganztägig-Kästchen.** `.modal label { display: block }` und `.modal input { width: 100% }`
+   zogen das Kästchen auf volle Breite und schoben die Beschriftung darunter. Jetzt eine
+   `.kontrollzeile`: Kästchen (20 px) und Beschriftung in einer Zeile, Zeilenhöhe 44 px, die
+   Beschriftung über `for` klickbar — auf jeder Breite.
+3. **Kalender-Beschreibung.** Die Terminliste zeigte Teams-Adresse und Besprechungs-ID als
+   Fließtext. `kalenderBeschreibung()` filtert jetzt Einwahlzeilen (Besprechungs-ID, Kenncode,
+   Einwahltexte) und Adresszeilen heraus; verbliebene Adressen im Fließtext werden zu „[Link]".
+   Der Beitrittslink heißt nach seinem Dienst („Teams beitreten", „Google Meet beitreten"). Der
+   Text wird nicht mehr hart bei 160 Zeichen abgeschnitten, sondern auf **zwei** Zeilen gekürzt
+   (breit vier) und lässt sich mit „mehr…" aufklappen; die Schaltfläche erscheint nur, wenn
+   wirklich gekürzt ist.
+4. **Dialoge.** `openModal()` setzt zentral — und damit für alle 30 Dialoge ohne Eingriff an den
+   Aufrufstellen: `role="dialog"`, `aria-modal`, `aria-labelledby` auf die Überschrift, eine
+   sichtbare Schließen-Schaltfläche (44 × 44), Fokus beim Öffnen in das erste Eingabefeld, einen
+   Tabulator-Ring innerhalb des Dialogs, Fokusrückgabe auf das auslösende Element beim Schließen
+   und `body.dialog-offen { overflow: hidden }` gegen das Mitscrollen des Hintergrunds.
+   Die Höhe richtet sich nach `dvh` statt `vh` (mit `vh` als Rückfallwert), nur der Inhalt
+   scrollt, und die Aktionszeile klebt am unteren Rand — damit bleibt sie bei offener
+   Bildschirmtastatur erreichbar. Drei PE-Dialoge bauten ihre Überlagerung selbst und hatten
+   weder Rolle noch Fokusführung; sie laufen jetzt über `openModal()`.
+5. **Meldungen statt `alert()`.** Alle **53** `alert()`-Aufrufe sind ersetzt:
+   `feldFehler(id, text)` setzt den Hinweis unter das betroffene Feld (rote Umrandung,
+   `aria-invalid`, `aria-describedby`, Fokus auf das Feld), `dialogMeldung(text)` eine Meldung
+   oben im Dialog, `meldung(text, art)` eine kurze Einblendung außerhalb von Dialogen. Die
+   Einblendung nutzt denselben Behälter und dieselben Klassen wie die Alpine-Bereiche.
+6. **Zugängliche Namen.** 18 Symbol-Schaltflächen ohne Text haben `aria-label` und `title`
+   bekommen (Verknüpfen, Bearbeiten, Löschen, Schubfach schließen, Konto archivieren, …).
+
+**Geänderte Dateien:** `public/index.html`, `public/css/assets.css`, `public/css/wiki.css`,
+`public/js/zeit.js`, `public/js/wiki.js`, `public/js/assets-stammdaten.js`,
+`public/js/assets-vertraege.js`, `public/js/banking-connect.js`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| Dialoge (7 Stück) × 360/390/768/1440 px | **0 Beanstandungen von 28** — Rolle, Benennung, Höhe im Fenster, Hintergrund fest, Fokus im Dialog, Schließen-Schaltfläche, Abbrechen, Aktionszeile sichtbar, Escape schließt, Fokus kehrt zurück |
+| Touchziele **im Dialog**, alle Bedienelemente | **0 Verletzer** unter 44 × 44 px (Kästchen zählt mit seiner 44 px hohen Zeile) |
+| Dialog bei offener Bildschirmtastatur (Fenster 390 × 360 px) | **0 Beanstandungen** bei 6 Dialogen: Dialog 324 px hoch, passt ins Fenster, Inhalt scrollt, Aktionszeile im Dialog, „Speichern" anklickbar |
+| Formulare × 4 Breiten | **0 Beanstandungen**: Felder füllen ihren Block, keines unter 44 px, Beschriftung in allen Fällen oberhalb, Paare einspaltig unter 768 px und zweispaltig ab 768 px |
+| Prüfhinweis statt `alert()` | sichtbar, direkt unter dem Feld, Feld markiert, Dialog bleibt offen — in allen geprüften Formularen |
+| Kalender-Beschreibung bei 390/1440 px | keine Adresse und keine Besprechungs-ID im Text; Beitrittslinks „Teams beitreten" / „Google Meet beitreten"; Kürzung 2 Zeilen schmal / 4 breit; Aufklappen 38 → 94 px, `aria-expanded` wechselt |
+| Manueller Durchlauf Kalenderformular (390 px) | Ganztägig über die **Beschriftung** schaltbar, Zeitfelder blenden aus und wieder ein, Prüfhinweis „Das Enddatum liegt vor dem Startdatum.", Abbrechen schließt, Fokus zurück auf „+ Neuer Termin"; **Terminzahl vorher 5, nachher 5 — nichts gespeichert** |
+| Dokumentbreite 13 Bereiche × 4 Breiten (Regression P2-2/P2-3) | **0 Überläufe von 52** |
+| Touchziele 13 Bereiche bei 390 px (Regression P2-2) | **0 Verletzer** |
+| `grep -c "alert("` über alle Frontend-Dateien | **0** (vorher 53) |
+| `aria-label` über alle Frontend-Dateien | 29 (vorher 11) |
+| `node --check` server.mjs, alle `public/js/*.js`, Inline-Skript | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+| Dienste | unverändert — **kein Restart**, nur `public/` betroffen |
+
+**Bewusste Abweichung, begründet**
+- Das Kontrollkästchen bleibt 20 × 20 px; Trefferfläche ist die 44 px hohe, vollständig
+  klickbare Zeile mit Beschriftung. Ein 44 px großes Kästchen wäre auffällig unförmig, und die
+  Vorgabe aus P2-2 (kleiner darstellen, 44er Trefferfläche) gilt hier sinngemäß.
+- Schaltflächen **in Dialogen** sind auf jeder Breite 44 px hoch, während P2-2 die Mindesthöhe
+  ab 640 px allgemein zurücknimmt. Im Dialog wird getippt und getroffen, auch auf dem Tablet.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Verhalten mit der **echten** Bildschirmtastatur auf dem Gerät. Geprüft ist das
+  Ersatzbild (Fenster auf 360 px Höhe); `dvh` wird vom Browser erst am Gerät voll ausgespielt.
+- **CP2 prüfen:** Die Dialoge der Assets- und Fuhrpark-Module ließen sich nur teilweise ohne
+  Datensatz öffnen; geprüft wurden „Neues Fahrzeug" und die drei PE-Dialoge stellvertretend.
+  Die Dialoggrundlage ist für alle dieselbe (`openModal`).
+- **CP2 prüfen:** Genehmigungsdialoge (Fuhrpark, Assets, Banking) sind Alpine-Overlays und
+  **nicht** Teil der zentralen Dialoggrundlage; sie wurden nicht angefasst und sind unverändert.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git revert <commit>`.
+
+**Commit:** <hash> · kein Dienst-Restart nötig
+
+---
+
 ---
 
 ## Vorlage für die nächsten Einträge
