@@ -365,6 +365,11 @@ function showTab(tab) {
   document.querySelectorAll('nav button').forEach((b, i) => b.classList.toggle('active', tabs[i] === tab));
   document.getElementById('lastUpdate').textContent = '';
   leereDatenstand();
+  /* CP1-Nachbesserung: Schubfaecher und Dialoge gehoeren zum verlassenen
+     Bereich. Das Objekt-Schubfach der Assets blieb beim Bereichswechsel offen
+     und lag dann ueber dem neuen Inhalt. */
+  if (typeof closeDrawer === 'function') closeDrawer();
+  closeModal();
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
   ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
 }
@@ -1237,7 +1242,7 @@ async function loadCalendar() {
               <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
               ${z.unplausibel ? '<div class="ev-warnung">⚠️ Das hinterlegte Ende liegt vor dem Beginn. Der Termin wird unverändert angezeigt.</div>' : ''}
               ${ortText && !ortIstLink ? `<div class="ev-sub">📍 ${esc(ortText)}</div>` : ''}
-              ${ev.bodyPreview ? `<div class="ev-sub ev-beschreibung">${esc(ev.bodyPreview.slice(0,160))}${ev.bodyPreview.length>160?'…':''}</div>` : ''}
+              ${(() => { const b = kalenderBeschreibung(ev, 160); return b ? `<div class="ev-sub ev-beschreibung">${esc(b)}</div>` : ''; })()}
               ${evLinksHtml}
             </div>
             <div class="ev-aktionen">
@@ -1723,10 +1728,12 @@ function spDrive(roh) {
 function spDatei(roh) {
   const pfad = roh.path || '';
   const i = pfad.lastIndexOf('/');
+  const url = roh.web_url || '';
   return {
     id: roh.id != null ? String(roh.id) : '',
     name: roh.name || '',
-    url: roh.web_url || '',
+    url: url,
+    ansichtUrl: spAnsichtUrl(url),
     pfad: pfad,
     ordner: i > 0 ? pfad.slice(0, i) : '',
     geaendertAm: roh.last_modified_at || null,
@@ -1734,6 +1741,47 @@ function spDatei(roh) {
     typ: roh.mime_type || '',
     fehltSeit: roh.missing_since || null,
   };
+}
+
+/* Wandelt eine SharePoint-DATEI-Adresse in die Adresse der Browser-Ansicht um.
+   (CP1-Nachbesserung 05.10.2026)
+
+   Befund: "Öffnen ↗" loeste bei PDF einen Download aus. Grund ist die Form der
+   in `web_url` gespeicherten Adresse. Gemessen an 125 Dateien des Bestands:
+
+     123 Dateien  reine Datei-Adresse ohne Query
+                  .../Freigegebene%20Dokumente/12-I83/....pdf
+       2 Dateien  bereits eine Ansichts-Adresse (Office-Dokumente)
+                  .../_layouts/15/Doc.aspx?sourcedoc={GUID}&action=default
+
+   Die reine Datei-Adresse ist ein Datei-Endpunkt — der Browser laedt herunter.
+   Nachgemessen mit `curl -D -` (unangemeldet, deshalb 403 bzw. 302, aber die
+   Art des Endpunkts ist eindeutig):
+
+     Datei-Adresse            -> HTTP 403, content-type text/plain
+     Datei-Adresse + ?web=1   -> HTTP 403, content-type text/plain  (keine Wirkung)
+     .../_layouts/15/Doc.aspx?sourcedoc=<Pfad>&action=default
+                              -> HTTP 302 nach .../_layouts/15/doc2.aspx?...
+                                 content-type text/html  = Viewer-Seite
+
+   Geprueft fuer pdf, jpg und mp4 — alle drei liefern den Viewer-Redirect.
+
+   Gebaut wird deshalb: <Site-Basis>/_layouts/15/Doc.aspx?sourcedoc=<serverrelativer
+   Pfad>&action=default. Die Site-Basis ist das erste Pfadsegmentpaar
+   (/sites/<name>, /teams/<name> oder /personal/<name>). Passt das Muster nicht
+   oder traegt die Adresse schon eine Query, bleibt sie unveraendert. */
+function spAnsichtUrl(webUrl) {
+  if (!spIstWebAdresse(webUrl)) return '';
+  let u;
+  try { u = new URL(String(webUrl)); } catch { return ''; }
+  // Bereits eine Ansichts-Adresse (Office-Dokumente) — nicht anfassen.
+  if (u.search) return webUrl;
+  const m = /^(\/(?:sites|teams|personal)\/[^/]+)\//.exec(u.pathname);
+  if (!m) return webUrl;
+  /* u.pathname ist bereits prozentkodiert; `sourcedoc` erwartet genau diese
+     Form. Dateinamen mit & # ? kommen im Bestand nicht vor (geprueft) und
+     wuerden hier auch kodiert ankommen. */
+  return u.origin + m[1] + '/_layouts/15/Doc.aspx?sourcedoc=' + u.pathname + '&action=default';
 }
 
 /* Nur echte Web-Adressen werden verlinkt. Alles andere — fehlender Wert oder
@@ -1756,7 +1804,11 @@ function spOeffnenAktion(url) {
       : 'Für dieses Dokument ist im Index keine SharePoint-Adresse gespeichert.';
     return `<span class="sp-aktion-aus" title="${esc(grund)}">Kein Link verfügbar</span>`;
   }
-  return `<a href="${esc(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+  /* Verlinkt die Browser-Ansicht, nicht den Datei-Endpunkt — sonst laedt der
+     Browser die Datei herunter statt sie anzuzeigen (CP1-Nachbesserung). */
+  const ziel = spAnsichtUrl(url) || url;
+  return `<a href="${esc(ziel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+     title="Öffnet die SharePoint-Ansicht im Browser"
      style="color:var(--accent);font-size:12px">Öffnen ↗</a>`;
 }
 

@@ -283,6 +283,41 @@ function kalenderNutzlast(werte) {
   };
 }
 
+/* ── Beschreibungsvorschau ────────────────────────────────────────────────── */
+
+/* Outlook setzt in den Mail-Body von Besprechungseinladungen eine Trennlinie
+   aus Unterstrichen. Graph liefert sie in `bodyPreview` mit, weshalb in der
+   Terminkarte "________________________________" stand (CP1-Nachbesserung
+   05.10.2026). Gefiltert wird NUR die Anzeige — die Daten bleiben unberuehrt.
+
+   Entfernt werden Zeilen, deren Inhalt ausschliesslich aus Trennzeichen
+   besteht (_ - = ~ *), und zwar bei mindestens zehn Zeichen. Zusaetzlich die
+   LETZTE Zeile, wenn sie nur aus solchen Zeichen besteht: Graph kuerzt
+   `bodyPreview`, dadurch bleibt vom zweiten Trennstrich oft ein einzelnes "_"
+   uebrig (im Bestand genau so beobachtet). */
+const ZEIT_TRENNZEICHEN = /^[\s_\-=~*]+$/;
+
+function kalenderBeschreibung(ev, maxLaenge) {
+  const roh = (ev && ev.bodyPreview) || '';
+  if (!roh) return '';
+  const zeilen = roh.split(/\r?\n/);
+  const behalten = [];
+  for (let i = 0; i < zeilen.length; i++) {
+    const zeile = zeilen[i];
+    const inhalt = zeile.trim();
+    if (!inhalt) continue;
+    if (ZEIT_TRENNZEICHEN.test(inhalt)) {
+      const nurTrenner = inhalt.replace(/\s/g, '');
+      const letzteZeile = i === zeilen.length - 1;
+      if (nurTrenner.length >= 10 || letzteZeile) continue;
+    }
+    behalten.push(inhalt);
+  }
+  const text = behalten.join(' · ').replace(/\s{2,}/g, ' ').trim();
+  const grenze = typeof maxLaenge === 'number' ? maxLaenge : 160;
+  return text.length > grenze ? text.slice(0, grenze) + '…' : text;
+}
+
 /* ── Meeting-Link ─────────────────────────────────────────────────────────── */
 
 /* Nur echte https-Adressen werden als Aktion angeboten. javascript:, data:

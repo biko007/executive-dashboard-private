@@ -2,9 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 05.10.2026, 07:35 UTC
-**Aktuelle Phase:** Phase 1 **vollständig umgesetzt** — P1-1 bis P1-6 erledigt.
-**Nächster Schritt: CHECKPOINT 1** (unabhängige Browserprüfung, `04-…` §2).
+**Letzte Aktualisierung:** 05.10.2026, 10:05 UTC
+**Aktuelle Phase:** Phase 1 umgesetzt, **CHECKPOINT 1 durch Owner-Selbstprüfung bestanden**
+(05.10.2026, 09:30–09:50). Vier Nachbesserungen aus der Prüfung sind erledigt.
+**Nächster Schritt: Freigabe für Phase 2** (helles Design, Mobil, Tagesübersicht).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
@@ -24,7 +25,8 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P1-4 | SharePoint-Datenzuordnung (E) | M | **erledigt** | `94f49ea` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | P1-5 | Kalenderlogik (F) | M | **erledigt** | `8586ed0` · Core `5f65c4b` | Report `~/bikosoc-spec/report-dashboard-p1-5-0735.md` |
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
-| **CHECKPOINT 1** | unabhängige Browserprüfung | — | **bereit** | — | `04-…` §2 |
+| **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
+| CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `_wird eingetragen_` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
 | P2-1 | Helles Design | M | offen | — | — |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
@@ -601,6 +603,151 @@ Restart: Dashboard **und** Gateway, beide durchgeführt.
 - `/api/sharepoint/download` in `server.mjs` wird vom Frontend nicht mehr aufgerufen
   (die Route erwartet eine Graph-Preauth-Adresse, die der Core nicht liefert). Die Route
   bleibt bestehen; Entfernen wäre außerhalb des Pakets.
+
+### CHECKPOINT 1 — Browserprüfung durch den Owner — 05.10.2026, 09:30–09:50 UTC
+
+**Ergebnis: bestanden.** Die Befunde **A bis G** sind in der Oberfläche als behoben bestätigt.
+Die Darstellung bei 390 px entspricht dem erwarteten Zwischenstand — das mobile Raster ist
+ausdrücklich Gegenstand von **Phase 2** (P2-2 bis P2-4) und war in Phase 1 kein Ziel.
+
+Vier Nachbesserungen aus der Prüfung, alle am 05.10.2026 erledigt:
+
+| Nr. | Befund | Behandlung |
+|---|---|---|
+| 1 | SharePoint „Öffnen ↗" löste bei einer PDF einen **Download** aus statt die Anzeige im Browser | behoben — Link-Builder erzeugt jetzt die Ansichts-Adresse |
+| 2 | Objekt-Schubfach (Assets, z. B. D4) blieb beim Wechsel des Hauptbereichs **offen** | behoben — `showTab()` schließt Schubfach und Dialog |
+| 3 | Kalender zeigte die Outlook-Trennlinie `________________` aus dem Mail-Body | behoben — Trennlinien werden in der Vorschau gefiltert |
+| 4 | Umlaut-Umschrift („Vertraegen", „NK-Readiness Uebersicht") | **nur dokumentiert** — gehört zu P2-8, dort für alle Bereiche in einem Zug |
+
+---
+
+### CP1-N — Nachbesserung aus CHECKPOINT 1 — 05.10.2026
+
+#### (1) SharePoint: Ansichts-Adresse statt Datei-Adresse
+
+**Diagnose.** Gemessen an 125 Dateien des Bestands trägt `web_url` zwei Formen:
+
+| Form | Anzahl | Beispiel |
+|---|---|---|
+| reine **Datei-Adresse** ohne Query | 123 | `…/Freigegebene%20Dokumente/12-I83/….pdf` |
+| bereits eine **Ansichts-Adresse** (Office-Dokumente) | 2 | `…/_layouts/15/Doc.aspx?sourcedoc={GUID}&action=default` |
+
+Kein `?download=1`, kein `_layouts/download.aspx`. Die reine Datei-Adresse ist ein
+**Datei-Endpunkt** — deshalb lädt der Browser herunter. Pfadpräfixe: 124× `/sites/…`,
+1× `/personal/…`; keine Datei mit `&`, `#` oder `?` im Pfad.
+
+**Welche Form öffnet die Ansicht?** Nachgemessen mit `curl` (unangemeldet, daher 403 bzw.
+302 — die **Art des Endpunkts** ist aber eindeutig):
+
+| Adresse | HTTP | Content-Type | Redirect |
+|---|---|---|---|
+| Datei-Adresse | 403 | `text/plain` | — |
+| Datei-Adresse + `?web=1` | 403 | `text/plain` | — (**keine Wirkung**) |
+| `…/_layouts/15/onedrive.aspx?id=…` | 403 | `text/plain` | — |
+| **`…/_layouts/15/Doc.aspx?sourcedoc=<Pfad>&action=default`** | **302** | **`text/html`** | **`…/_layouts/15/doc2.aspx?…`** |
+
+Zusätzlich über Graph geprüft: `POST /drives/{id}/items/{id}/preview` liefert eine
+Einbettungsadresse unter `…/_layouts/15/embed.aspx` mit Einmal-Token — als dauerhafter Link
+in der Oberfläche nicht brauchbar, bestätigt aber die Viewer-Fläche des Mandanten.
+
+**Fix** in `spDatei()` / neue Funktion `spAnsichtUrl()` / `spOeffnenAktion()` — **nur im
+Dashboard**, kein Core-Schema angefasst. Aus der Datei-Adresse wird
+`<Site-Basis>/_layouts/15/Doc.aspx?sourcedoc=<serverrelativer Pfad>&action=default`.
+Site-Basis ist das erste Pfadsegmentpaar (`/sites/…`, `/teams/…`, `/personal/…`).
+Trägt die Adresse schon eine Query oder passt das Muster nicht, bleibt sie unverändert.
+
+**Verifikation der erzeugten Links** (fünf Dateitypen):
+
+| Typ | vorher (Datei-Adresse) | jetzt (Ansichts-Adresse) |
+|---|---|---|
+| pdf | 403 `text/plain` | **302 → `doc2.aspx`, `text/html`** |
+| jpg | 403 `text/plain` | **302 → `doc2.aspx`, `text/html`** |
+| mp4 | 403 `text/plain` | **302 → `doc2.aspx`, `text/html`** |
+| doc | 302 → `doc2.aspx` | 302 → `doc2.aspx` (**unverändert**, war schon Viewer) |
+| docx | 302 → `doc2.aspx` | 302 → `doc2.aspx` (**unverändert**) |
+
+`Content-Disposition: attachment` kommt in keiner Antwort vor. Die Schaltfläche heißt
+weiterhin **„Öffnen ↗"** — das ist jetzt zutreffend, weil der Link nachweisbar auf eine
+Viewer-Seite führt. Eine Umbenennung in „Herunterladen ↓" war damit nicht nötig.
+
+**CP1 prüfen (Restunsicherheit):** die endgültige Browserdarstellung ist nur **angemeldet**
+prüfbar. Unangemeldet antwortet SharePoint mit 403 bzw. 302, ohne
+`Content-Disposition` zu zeigen. Belegt ist der Wechsel der Endpunktart von Datei auf
+Viewer-Seite — dass die PDF dann in der Vorschau erscheint, bitte beim nächsten Klick
+bestätigen.
+
+#### (2) Objekt-Schubfach beim Bereichswechsel schließen
+
+`showTab()` leerte Kopfzeile, Datenstand-Leiste und Inhalt, nicht aber die über
+`document.body` eingehängten Überlagerungen. Das Objekt-Schubfach der Assets
+(`#drawer-overlay`, erzeugt in `assets-stores.js:534`) blieb deshalb offen und lag über dem
+neuen Bereich. `showTab()` ruft jetzt `closeDrawer()` und `closeModal()`; der Aufruf von
+`closeDrawer` ist mit `typeof`-Prüfung abgesichert, weil die Funktion aus einer
+`defer`-Datei stammt.
+
+#### (3) Kalender: Outlook-Trennlinie in der Vorschau filtern
+
+Graph liefert in `bodyPreview` den Mail-Body der Einladung mit. Im Bestand beginnt der
+Teams-Termin mit 80 Unterstrichen; weil Graph die Vorschau kürzt, bleibt vom zweiten
+Trennstrich ein einzelnes `_` am Ende übrig — beides war in der Terminkarte zu sehen.
+
+Neue Funktion `kalenderBeschreibung(ev, maxLaenge)` in `public/js/zeit.js`. Entfernt werden
+Zeilen, die ausschließlich aus Trennzeichen bestehen (`_ - = ~ *`), ab zehn Zeichen,
+zusätzlich die **letzte** Zeile, wenn sie nur aus solchen Zeichen besteht. **Nur die
+Anzeige** — die Daten bleiben unberührt.
+
+| Eingabe | Ausgabe |
+|---|---|
+| 80 Unterstriche, dann Inhalt (echter Termin) | `Microsoft Teams-Besprechung · Teilnehmen: … · Besprechungs-ID: …` |
+| nur eine Trennlinie | `""` |
+| 9 Unterstriche mitten im Text | **bleibt** (`Zeile A · _________ · Zeile B`) |
+| 10 Unterstriche mitten im Text | entfernt (`Zeile A · Zeile B`) |
+| einzelnes `_` am Ende | entfernt (`Zeile A`) |
+| Bindestrich-Linie (10×) | entfernt |
+| leer / nur Leerzeilen | `""` |
+
+**Beobachtung, keine Änderung:** die Vorschau enthält bei Teams-Einladungen weiterhin
+Besprechungs-ID und Passcode, weil Graph sie in `bodyPreview` liefert. Das war vorher
+genauso; es sind die eigenen Termindaten des Owners auf dem eigenen, tokengeschützten
+Dashboard. Falls das nicht in der Kartenvorschau stehen soll, wäre das eine eigene
+Entscheidung — nicht Teil dieser Nachbesserung.
+
+#### (4) Umlaut-Umschrift — nur dokumentiert
+
+„Vertraegen" (Trefferzeile Mietverträge), „NK-Readiness Uebersicht", „Zukuenftig",
+„Zaehler", „zuruecksetzen" und weitere Stellen in `assets-*.js` und `fleet-*.js` verwenden
+die ASCII-Umschrift des jeweiligen Dateiumfelds. **Bekannt und bewusst nicht geändert** —
+die Umstellung auf echte Umlaute macht **P2-8** für alle Bereiche in einem Zug; eine
+Teilmigration jetzt hätte die Dateien inkonsistent gemacht. In den neuen Dateien
+(`zeit.js`, `datenstand.js`, `nk-befunde.js`) stehen durchgängig echte Umlaute.
+
+**Geänderte Dateien:** `public/index.html` (SharePoint-Linkbauer, `showTab`,
+Kalender-Beschreibung), `public/js/zeit.js` (`kalenderBeschreibung`)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `node --check` server.mjs, alle `public/js/*.js`, Inline-Skript | Exit 0 |
+| Linkbauer über sieben Adressformen | Datei-Adresse → Ansichts-Adresse; schon-Viewer, fremdes Muster → unverändert; `javascript:` und leer → kein Link |
+| `curl` auf die erzeugten Links, fünf Dateitypen | pdf/jpg/mp4 von 403 `text/plain` auf **302 → Viewer, `text/html`**; doc/docx unverändert |
+| `Content-Disposition: attachment` | in keiner Antwort |
+| `showTab()` schließt Schubfach und Dialog | im Code belegt |
+| Beschreibungsfilter, sieben Grenzfälle | alle wie erwartet |
+| Smoke-Test | ALL PASS (31/31) |
+| Auslieferung `/js/zeit.js`, `/index.html` | HTTP 200 |
+| Dienste | unverändert `active` — **kein Restart**, nur `public/` betroffen |
+
+**Noch nicht verifiziert — beim nächsten Klick bestätigen**
+- **CP1 prüfen:** eine PDF öffnet sich in SharePoint in der Vorschau statt als Download
+  (angemeldet; serverseitig ist nur der Wechsel der Endpunktart belegt).
+- **CP1 prüfen:** Objekt-Schubfach ist nach einem Bereichswechsel geschlossen.
+- **CP1 prüfen:** Terminkarte des Teams-Termins ohne Unterstrich-Linie.
+
+**Live-Auswirkung:** nur Anzeige, nur `public/`. Kein Dienst-Restart, Browser-Reload genügt.
+**Rückweg:** `git revert <commit>` bzw. `git checkout <tag> -- public/`.
+
+**Commit:** `_wird eingetragen_`
 
 ---
 
