@@ -232,15 +232,18 @@ function bankingOverviewHtml() {
                   <template x-if="accountsForInst(inst.id).length > 0">
                     <div style="margin-top:8px">
                       <template x-for="acct in accountsForInst(inst.id)" :key="acct.id">
-                        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px">
-                          <span style="display:flex;align-items:center;gap:10px">
+                        <!-- P2-3: eigene Klasse, damit die Zeile schmal stapeln kann.
+                             IBAN, Saldo und Aktion nebeneinander ergeben bei 360 px
+                             drei gequetschte Spalten. -->
+                        <div class="bank-konto-zeile">
+                          <span class="bank-konto-iban">
                             <input type="checkbox" x-show="bulkMode"
                                    :checked="isSelected(acct.id)"
                                    @change="toggleSelection(acct.id)"
                                    style="width:18px;height:18px;cursor:pointer">
                             <span x-text="formatIban(acct.iban)"></span>
                           </span>
-                          <span style="display:flex;align-items:center;gap:8px">
+                          <span class="bank-konto-wert">
                             <span x-show="acct.currentBalance != null"
                                   :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
                                   x-text="formatBalance(acct.currentBalance, acct.currency)">

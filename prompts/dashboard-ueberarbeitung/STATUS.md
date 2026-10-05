@@ -980,6 +980,101 @@ werden.
 
 ---
 
+### P2-3 — Tabellen, Karten und Diagramme responsiv — 05.10.2026
+
+**Durchgeführt**
+
+1. **Diagramme kommen aus dem Container.** Die drei Health-Diagramme standen in einem
+   Scrollbereich mit `min-width: 600px`, die Zeichenbreite kam aus `svg.clientWidth || 600`.
+   Schmal begann der Scrollbereich links — der **jüngste** Wert am rechten Rand war ohne
+   Scrollen nicht zu sehen. Jetzt liefert `diagrammBreite()` die tatsächliche Containerbreite,
+   ein ResizeObserver zeichnet bei Breitenänderung neu (gebündelt über
+   `requestAnimationFrame`), und beim Bereichswechsel werden die Diagramme abgemeldet.
+   Innenabstände und Beschriftungsdichte richten sich nach der Breite: unter 640 px gilt ein
+   Mindestabstand von 58 px je Datumsangabe statt 44 px. Die Beschriftungen werden **vom Ende
+   her** gesetzt, damit das jüngste Datum immer dabei ist. Höhe schmal 200 px, breit 220 px.
+2. **Zwei Darstellungen für Tabellen, eine Regel.** Neue Datei `public/js/responsiv.js`:
+   ≤ 5 Spalten → Kartenform, sonst eigener Scrollbereich; `data-tabelle="karten|scroll"`
+   überstimmt die Regel. Die Entscheidung fällt zur Laufzeit am gerenderten Zustand — damit
+   greift sie auch dort, wo die Spaltenzahl erst aus den Daten entsteht (Readiness-Matrix:
+   eine Spalte je Jahr). Ein MutationObserver auf `#content` fasst beide Rendering-Wege
+   (klassische `innerHTML`-Blöcke und Alpine) zusammen, sodass keine der rund 40 Aufrufstellen
+   angefasst werden musste.
+   - **Kartenform:** die Zeile wird zur Karte, jeder Spaltenkopf zur Beschriftung über seinem
+     Wert, die benennende erste Spalte zur Kartenüberschrift über die volle Breite, die
+     übrigen Felder paarweise daneben. **Keine Spalte entfällt.**
+   - **Scrollbereich:** Klasse am Elternelement statt eines neuen Wrappers (ein zusätzlicher
+     Knoten würde in Alpine-Bereichen zwischen Alpine und seine Elemente geraten), Schatten an
+     beiden Rändern über `background-attachment: local/scroll` und der Satz
+     „⇢ seitlich scrollbar" — letzterer nur, wenn der Bereich tatsächlich überläuft.
+3. **Owner-Ausnahmen gesetzt:** Mietverträge (7 Spalten) und Trading-Positionen (7 Spalten)
+   bekommen trotz Spaltenzahl die Kartenform (`data-tabelle="karten"`). Beides sind
+   Übersichten, keine Rechentabellen.
+4. **Bankkonten** sind keine Tabelle, sondern Flex-Zeilen. Sie stapeln jetzt schmal:
+   IBAN oben, Saldo und Archivieren darunter (`.bank-konto-zeile`).
+5. **Kennzahl-Beschriftungen** mit Kurzform für schmale Geräte (`kpiLabel()`, dasselbe Muster
+   wie die Hauptnavigation): „Gewicht-Trend 30 T" → „Trend Gewicht", „Schlaf (letzte Nacht)" →
+   „Schlaf", „❤️ Ruheherzfrequenz" → „❤️ Ruhepuls". Keine harten Umbrüche mehr, kein
+   abgeschnittener Kachelinhalt, auf dem Desktop unverändert.
+6. **Kalender:** der Hinweis auf Europe/Berlin stand **dreimal** auf der Seite — Werkzeugzeile,
+   Datenstand-Leiste und Datenstand-Hinweis. Die Werkzeugzeile behält ihn,
+   `setDatenstand(…, { zeitzone: false })` und ein gekürzter Hinweis räumen die beiden anderen ab.
+7. **Instagram:** die Reichweitenkurve zeichnete den Punkt des jüngsten Werts genau auf die
+   Kante der viewBox — er war zur Hälfte abgeschnitten; jetzt drei Einheiten Rand. Im
+   Forensic-Balkendiagramm wird schmal nur jede zweite Datumsangabe gesetzt (der jüngste
+   Balken immer), sonst überlappen die gedrehten Texte.
+8. **Fuhrpark-/Objektkacheln** (Punkt 5 des Auftrags): Nachmessung bei 360/390/768/1440 px
+   ergab **0 abgeschnittene Werte**; das in P2-2 gesetzte Verhältnis 4:3 bleibt unangetastet.
+
+**Geänderte Dateien:** `public/js/responsiv.js` (neu), `public/index.html`,
+`public/js/assets-vertraege.js`, `public/js/banking-connect.js`, `public/js/datenstand.js`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| Dokumentbreite 13 Bereiche × 360/390/768/1440 px | **0 Überläufe von 52**, auch mit abgeschalteter `overflow-x`-Sicherung |
+| Diagramme bei 360/390/768/1440 px (12 Messungen) | **0 Beanstandungen**: viewBox = SVG-Breite, kein Scrollbereich, letzter Datenpunkt innen, jüngstes Datum („10-05") immer beschriftet, kein Text außerhalb, Höhe ≤ 220 px |
+| Achsenbeschriftungen je Breite | 4 bei 360/390 px, 13 bei 768 px, 13–22 bei 1440 px (vorher fest 8) |
+| Tabellen bei 390 px, alle sichtbaren | Mietverträge **17 Karten × 7 Felder = 119**, SharePoint-Dateien 100 × 4 = 400, Trading-Positionen 1 × 7, Trading-Signale 10 × 4, Status 6 × 3, SharePoint-Sites 4 × 3, Readiness 6 × 4 — **0 Zellen ohne Beschriftung**, **0 Tabellen ohne Karte oder Scrollbereich** |
+| Fuhrpark-Unterbereiche (Versicherung 7 Sp., TÜV 6 Sp.) | Scrollbereich mit sichtbarem Hinweis |
+| Entscheidungsregel an 7 eingesetzten Tabellenformen | **0 Abweichungen** (6/7/8 Spalten → Scroll mit Hinweis; 3/4 Spalten → Karte mit vollständigen Beschriftungen) |
+| Abgeschnittener Text ohne scrollbaren Behälter, 13 Bereiche bei 390 px | **0** |
+| Touchziele, alle Schaltflächen in 13 Bereichen bei 390 px | **0 Verletzer** unter 44 × 44 px |
+| Kachelhöhe SharePoint-Dateiliste bei 390 px | 238 px je Eintrag im ersten Entwurf → **195 px** nach Überschrift und Paarraster |
+| `node --check` server.mjs, alle `public/js/*.js`, Inline-Skript | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+| Dienste | unverändert — **kein Restart**, nur `public/` betroffen |
+
+**Bewusste Abweichung, begründet**
+- Die Kartenform steht in einer `max-width: 639.98px`-Abfrage statt mobile-first mit Rücknahme.
+  Sie kehrt die Anzeigeart der Tabellenelemente um (`table` → `block`/`grid`); eine Rücknahme
+  müsste jede Eigenschaft einzeln zurücksetzen und würde dabei die Spaltenstile aus
+  `assets.css` überschreiben. So bleibt das abgenommene Bild auf breiten Geräten
+  nachweislich unberührt.
+- Der Scroll-Schatten wirkt auf **allen** Breiten, nicht nur schmal. Er erscheint nur, wenn
+  wirklich gescrollt werden kann, und ist dort eine Information, keine Dekoration.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Die NK-Tabellen (Statements, Runs, Zählerstände) ließen sich mit dem
+  aktuellen Datenbestand nicht auf den Schirm holen — ohne finalisierten Lauf rendert der
+  Bereich keine Tabelle. Die Entscheidungsregel ist für genau diese Spaltenzahlen gesondert
+  geprüft (6, 7 und 8 Spalten → Scrollbereich mit Hinweis), die Darstellung mit echten Daten
+  bleibt offen.
+- **CP2 prüfen:** Die SharePoint-Dateiliste ist in Kartenform bei 100 Einträgen rund 19.000 px
+  hoch (als Tabelle 7.000 px). Nichts fehlt und nichts ist abgeschnitten, aber eine Begrenzung
+  oder Seitenblätterung für lange Listen wäre eine eigene Verbesserung — **nicht** Teil von P2-3.
+- **CP2 prüfen:** Lesbarkeit der Kartenform am Gerät, besonders die Paarspalten bei langen
+  Werten.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git revert <commit>`.
+
+**Commit:** <hash> · kein Dienst-Restart nötig
+
+---
+
 ---
 
 ## Vorlage für die nächsten Einträge

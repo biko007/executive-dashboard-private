@@ -146,8 +146,12 @@ function seitenabrufText() {
 }
 
 /* Füllt die Datenstand-Leiste zwischen Navigation und Inhalt.
-   Ohne Einträge bleibt die Leiste ausgeblendet. */
-function setDatenstand(eintraege) {
+   Ohne Einträge bleibt die Leiste ausgeblendet.
+
+   `opt.zeitzone === false` lässt den Zeitzonenhinweis weg. Der Kalender hat
+   ihn in seiner eigenen Werkzeugzeile stehen; zweimal derselbe Satz auf einer
+   Seite ist Rauschen (P2-3). */
+function setDatenstand(eintraege, opt) {
   const el = document.getElementById('datenstandLeiste');
   if (!el) return;
   const liste = (eintraege || []).filter(Boolean);
@@ -160,9 +164,10 @@ function setDatenstand(eintraege) {
   /* Der Abrufzeitpunkt steht in der Kopfzeile (#lastUpdate) und stand hier
      ein zweites Mal — schmal kostete das eine ganze Zeile fuer dieselbe
      Angabe (P2-2). Die Leiste zeigt jetzt nur noch die Datenstaende. */
+  const zeitzoneZeigen = !opt || opt.zeitzone !== false;
   el.innerHTML =
     '<div class="ds-liste">' + liste.map(datenstandBadge).join('') + '</div>'
-    + '<div class="ds-tz">Alle Zeitangaben in Europe/Berlin.</div>';
+    + (zeitzoneZeigen ? '<div class="ds-tz">Alle Zeitangaben in Europe/Berlin.</div>' : '');
 }
 
 function leereDatenstand() {

@@ -104,7 +104,10 @@ document.addEventListener('alpine:init', () => {
       const leases = this._filteredLeases();
       if (!leases.length) return this._leerzustandLeases();
 
-      let html = `<div class="card"><table class="assets-table">
+      /* data-tabelle="karten": Owner-Entscheidung P2-3 — die Mietvertragsliste
+         wird schmal zur Karte, obwohl sie mit sieben Spalten ueber der
+         Faustregel liegt. Sie ist eine Uebersicht, keine Rechentabelle. */
+      let html = `<div class="card"><table class="assets-table" data-tabelle="karten">
         <thead><tr><th>Objekt/Einheit</th><th>Mieter</th><th>Typ</th><th>Status</th><th>Beginn</th><th>Ende</th><th>Auszug</th></tr></thead>
         <tbody>`;
       for (const l of leases) {

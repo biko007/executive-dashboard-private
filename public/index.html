@@ -409,17 +409,56 @@ nav button { min-height: 44px; min-width: 44px; }
   nav button { min-height: 44px; min-width: 44px; }
 }
 
-/* ── Uebergangsloesung bis P2-3 ────────────────────────────────────────────
-   Tabellen und Diagramme bekommen hier NUR einen eigenen Scrollbereich,
-   damit sie die Seite nicht verbreitern. Die mobile Kartenform und die
-   mitwachsenden Diagramme sind Paket P2-3.
+/* ── Bankkonten (P2-3) ────────────────────────────────────────────────────
+   Schmal stapeln IBAN und Saldo/Aktion untereinander — nebeneinander blieben
+   bei 360 px fuer die IBAN kaum 150 px. Ab 640 px wieder eine Zeile. */
+.bank-konto-zeile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.bank-konto-iban { display: flex; align-items: center; gap: 10px; overflow-wrap: anywhere; }
+.bank-konto-wert { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+@media (min-width: 640px) {
+  .bank-konto-zeile { flex-direction: row; justify-content: space-between; align-items: center; padding: 6px 0; }
+  .bank-konto-wert { justify-content: flex-end; }
+}
+
+/* ── Kennzahl-Beschriftungen (P2-3) ───────────────────────────────────────
+   Schmal die Kurzform, ab 640 px die ausgeschriebene Beschriftung. Der Text
+   entfaellt nie, er wird nur kuerzer — wie in der Hauptnavigation. */
+.lbl-lang { display: none; }
+.lbl-kurz { display: inline; }
+@media (min-width: 640px) {
+  .lbl-lang { display: inline; }
+  .lbl-kurz { display: none; }
+}
+/* Der Kachelinhalt darf nie abgeschnitten werden. */
+.s-card { min-width: 0; overflow-wrap: anywhere; }
+.s-card .lbl { overflow-wrap: anywhere; }
+
+/* ── Diagramme (P2-3) ──────────────────────────────────────────────────────
+   Der Rahmen gibt die Zeichenbreite vor; das SVG fuellt ihn vollstaendig aus.
+   Vorher stand `min-width: 600px` am SVG in einem Scrollbereich — schmal war
+   der juengste Wert am rechten Rand damit nicht zu sehen. */
+.diagramm-rahmen { position: relative; width: 100%; }
+.diagramm-rahmen svg { display: block; width: 100%; height: 220px; }
+@media (max-width: 639.98px) {
+  /* Schmal flacher, damit Kennzahlen und Diagramm zusammen auf den Schirm
+     passen (Vorgabe: hoechstens 220 px). */
+  .diagramm-rahmen svg { height: 200px; }
+}
+
+/* ── Tabellen: Scrollbereich und Kartenform (P2-3) ─────────────────────────
+   Schmal gibt es nur zwei zulaessige Darstellungen: Kartenform oder ein
+   erkennbarer eigener Scrollbereich. Welche Tabelle welche bekommt,
+   entscheidet public/js/responsiv.js nach der Spaltenzahl.
 
    .card hatte bisher overflow: hidden — eine breite Tabelle wurde damit
-   ABGESCHNITTEN statt scrollbar. Enthaelt die Karte unmittelbar eine Tabelle,
-   wird sie zum waagerechten Scrollbereich. Unterstuetzt der Browser :has()
-   nicht, bleibt es beim bisherigen Verhalten; eine Verschlechterung entsteht
-   dadurch nicht. */
-.tabelle-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+   ABGESCHNITTEN statt scrollbar. */
 .card { max-width: 100%; }
 .card:has(> table), .card:has(> .assets-table) { overflow-x: auto; overflow-y: visible; }
 .card > table, .card > .assets-table { min-width: max-content; }
@@ -427,6 +466,131 @@ img, svg, video, canvas { max-width: 100%; }
 pre, code { overflow-wrap: anywhere; }
 /* Lange Woerter und Adressen sprengen sonst die Karte. */
 .ev-title, .ev-sub, .wiki-snippet, .sp-pfad, .entity-tile__title { overflow-wrap: anywhere; }
+
+/* Der Scrollbereich zeigt an BEIDEN Raendern einen Schatten, solange dort
+   noch Inhalt folgt — der klassische Scroll-Schatten aus zwei Verlaufspaaren:
+   die weissen Flaechen haengen am Inhalt (background-attachment: local), die
+   Schatten am Rahmen (scroll). Dadurch verschwindet der Schatten genau dann,
+   wenn das Ende erreicht ist. Ohne zusaetzliches Element und ohne Skript. */
+.tabelle-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background-image:
+    linear-gradient(to right,  var(--surface), transparent),
+    linear-gradient(to left,   var(--surface), transparent),
+    linear-gradient(to right,  var(--overlay), transparent),
+    linear-gradient(to left,   var(--overlay), transparent);
+  background-position: left center, right center, left center, right center;
+  background-repeat: no-repeat;
+  background-size: 26px 100%, 26px 100%, 10px 100%, 10px 100%;
+  background-attachment: local, local, scroll, scroll;
+}
+/* Textueller Hinweis, solange der Bereich wirklich scrollt. Reine Darstellung
+   ueber ::before am Elternelement der Tabelle — kein eigener Knoten, der mit
+   Alpine kollidieren koennte. */
+/* Die Klasse `scrollt` setzt responsiv.js nur, wenn der Inhalt tatsaechlich
+   breiter ist als der sichtbare Bereich — ein Hinweis auf eine Tabelle, die
+   ohnehin passt, waere irrefuehrend. */
+.tabelle-scroll.scrollt::before {
+  content: '⇢ seitlich scrollbar';
+  display: block;
+  position: sticky;
+  left: 0;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 2px 0 6px;
+}
+@media (min-width: 1024px) {
+  /* Breit genuegt der Schatten; der Satz waere dort nur Rauschen. */
+  .tabelle-scroll.scrollt::before { display: none; }
+}
+
+/* ── Kartenform fuer schmale Geraete ──────────────────────────────────────
+   Bewusst als max-width-Abfrage: die Kartenform kehrt die Anzeigeart der
+   Tabellenelemente um (table → block). Eine Rueckname ab 640 px muesste jede
+   einzelne Eigenschaft exakt zuruecksetzen und wuerde die Spaltenstile aus
+   assets.css ueberschreiben. So bleibt das in P2-1/P2-2 abgenommene Bild auf
+   breiten Geraeten nachweislich unberuehrt. */
+@media (max-width: 639.98px) {
+  .tabelle-karten,
+  .tabelle-karten tbody,
+  .tabelle-karten tr,
+  .tabelle-karten td { display: block; width: auto; }
+
+  /* Die Spaltenkoepfe wandern als Beschriftung in die Zellen. */
+  .tabelle-karten thead { display: none; }
+
+  .tabelle-karten { border-collapse: separate; border-spacing: 0; }
+
+  /* Die Zeile wird zur Karte und traegt ein zweispaltiges Raster: die
+     benennende erste Spalte als Ueberschrift ueber die volle Breite, die
+     uebrigen Felder paarweise daneben. Beschriftung ueber dem Wert statt
+     davor — sonst bleibt fuer laengere Werte kaum Platz, und die Karte wird
+     unnoetig hoch (SharePoint-Dateiliste: 238 px je Eintrag im ersten
+     Entwurf, so rund 140 px). */
+  .tabelle-karten tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+  }
+  .tabelle-karten tbody tr:last-child { margin-bottom: 0; }
+  /* Zeilenhervorhebung gilt in der Kartenform der ganzen Karte. */
+  .tabelle-karten tbody tr:hover { background: var(--row-hover); }
+  .tabelle-karten tbody tr:hover td { background: transparent; }
+
+  .tabelle-karten td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border-bottom: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .tabelle-karten td::before {
+    content: attr(data-label);
+    display: block;
+    color: var(--muted);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    overflow-wrap: anywhere;
+  }
+  /* Zellen ohne Spaltenkopf (Aktionsspalten, verbundene Zellen) nehmen die
+     volle Breite der Karte ein. */
+  .tabelle-karten td[data-ohne-label] { grid-column: 1 / -1; }
+  .tabelle-karten td[data-ohne-label]::before { content: none; }
+
+  /* Die erste Spalte ist in allen betroffenen Tabellen die benennende
+     (Objekt/Einheit, Dateiname, Dienst, Symbol). Sie wird zur Ueberschrift
+     der Karte: volle Breite und hervorgehoben. Ihre Beschriftung bleibt
+     stehen — die Vorgabe lautet, dass JEDER Spaltenkopf zur Beschriftung
+     wird und keine Spalte entfaellt. */
+  .tabelle-karten tbody td:first-child {
+    grid-column: 1 / -1;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  /* In der Kartenform gibt es keine Spalten mehr, also auch keine Gruende
+     fuer feste Breiten oder nicht umbrechende Zellen. */
+  .tabelle-karten td[style*="width"],
+  .tabelle-karten td[style*="white-space"] { width: auto !important; white-space: normal !important; }
+
+  /* Eine Karte ist bereits die Zeile — die Umrandung der Karte darum herum
+     wuerde doppelt wirken. */
+  .card:has(> .tabelle-karten) { border: none; background: none; box-shadow: none; padding: 0; }
+  /* P2-2 gibt Tabellen in Karten `min-width: max-content`, damit breite
+     Tabellen scrollen statt abgeschnitten zu werden. In der Kartenform gibt
+     es keine Spalten mehr — die Regel wuerde den Block auf die Breite des
+     laengsten Textes aufziehen. */
+  .card > .tabelle-karten,
+  .tabelle-karten { min-width: 0; }
+}
 
 /* ── Kennzahl- und Entitaetskacheln ───────────────────────────────────────
    Feste Spaltenzahl weicht einem mitwachsenden Raster; bei 390 px ergibt das
@@ -436,6 +600,7 @@ pre, code { overflow-wrap: anywhere; }
 </style>
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
+<script defer src="/dashboard/js/responsiv.js"></script>
 <script defer src="/dashboard/js/assets-stores.js"></script>
 <script defer src="/dashboard/js/assets-stammdaten.js"></script>
 <script defer src="/dashboard/js/assets-vertraege.js"></script>
@@ -663,6 +828,8 @@ function showTab(tab, opt) {
   zeigeAktivenTab(tab);
   document.getElementById('lastUpdate').textContent = '';
   leereDatenstand();
+  /* Diagramme des verlassenen Bereichs abmelden (P2-3). */
+  diagrammeLeeren();
   /* CP1-Nachbesserung: Schubfaecher und Dialoge gehoeren zum verlassenen
      Bereich. Das Objekt-Schubfach der Assets blieb beim Bereichswechsel offen
      und lag dann ueber dem neuen Inhalt. */
@@ -694,6 +861,13 @@ async function apiFetch(url, opts = {}) {
 }
 
 /* ── Helpers ── */
+/* P2-3: Kennzahl-Beschriftung mit Kurzform fuer schmale Geraete. Lange
+   Beschriftungen wie "Gewicht-Trend 30 T" brachen in der 177 px breiten
+   Kachel hart um; die Kurzform vermeidet das, ohne auf dem Desktop etwas
+   wegzulassen. Dasselbe Muster wie in der Hauptnavigation (P2-2). */
+const kpiLabel = (lang, kurz) =>
+  '<span class="lbl-lang">' + lang + '</span><span class="lbl-kurz">' + (kurz || lang) + '</span>';
+
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const fmtDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(iso)) : '–';
 const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso)) : '–';
@@ -1151,19 +1325,19 @@ async function loadHealth() {
     if (wt) {
       const col = wt.change <= 0 ? 'var(--green)' : 'var(--red)';
       const arrow = wt.direction === 'up' ? '📈' : wt.direction === 'down' ? '📉' : '➡️';
-      trendHtml = `<div class="s-card"><div class="lbl">Gewicht-Trend 30 T</div><div class="val" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${wt.change} kg</div><div class="sub">Ø ${wt.avg} kg (${wt.dataPoints} Messungen)</div></div>`;
+      trendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht-Trend 30 T', 'Trend Gewicht')}</div><div class="val" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${wt.change} kg</div><div class="sub">Ø ${wt.avg} kg (${wt.dataPoints} Messungen)</div></div>`;
     }
 
     const st = trends.sleep;
     let sleepTrendHtml = '';
     if (st) {
-      sleepTrendHtml = `<div class="s-card"><div class="lbl">Schlaf-Trend 30 T</div><div class="val" style="font-size:22px">Ø ${st.avgDuration}h</div><div class="sub">${st.minDuration}–${st.maxDuration}h${st.avgQuality ? ' | Score '+st.avgQuality+'%' : ''}</div></div>`;
+      sleepTrendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf-Trend 30 T', 'Trend Schlaf')}</div><div class="val" style="font-size:22px">Ø ${st.avgDuration}h</div><div class="sub">${st.minDuration}–${st.maxDuration}h${st.avgQuality ? ' | Score '+st.avgQuality+'%' : ''}</div></div>`;
     }
 
     const hr = trends.heartrate;
     let hrHtml = '';
     if (hr) {
-      hrHtml = `<div class="s-card"><div class="lbl">❤️ Ruheherzfrequenz</div><div class="val">${hr.current} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${hr.avg} bpm (30 T, ${hr.dataPoints} Messungen)</div></div>`;
+      hrHtml = `<div class="s-card"><div class="lbl">${kpiLabel('❤️ Ruheherzfrequenz', '❤️ Ruhepuls')}</div><div class="val">${hr.current} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${hr.avg} bpm (30 T, ${hr.dataPoints} Messungen)</div></div>`;
     }
 
     // HRV summary card
@@ -1185,14 +1359,14 @@ async function loadHealth() {
     }
 
     const summaryGrid = `<div class="summary-grid">
-      ${lastW ? `<div class="s-card"><div class="lbl">Gewicht (aktuell)</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
+      ${lastW ? `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht (aktuell)', 'Gewicht')}</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
-      ${lastSleep ? `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : `<div class="s-card"><div class="lbl">Schlaf (letzte Nacht)</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
       ${sleepTrendHtml}
       ${hrHtml}
       ${hrvHtml}
       ${readinessHtml}
-      ${lastStep ? `<div class="s-card"><div class="lbl">Schritte (zuletzt)</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
+      ${lastStep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schritte (zuletzt)', 'Schritte')}</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
     </div>`;
 
     // ── Weight Chart (SVG line, 90 days) ──
@@ -1200,8 +1374,8 @@ async function loadHealth() {
     if (weightData.length >= 2) {
       weightChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
         <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">⚖️ Gewichtsverlauf (90 Tage)</div>
-        <div style="position:relative;width:100%;overflow-x:auto">
-          <svg id="weightChart" width="100%" height="220" style="min-width:600px"></svg>
+        <div class="diagramm-rahmen">
+          <svg id="weightChart" width="100%" height="220"></svg>
         </div>
       </div>`;
     }
@@ -1211,8 +1385,8 @@ async function loadHealth() {
     if (sleepData.length >= 2) {
       sleepChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
         <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">😴 Schlaf (30 Tage)</div>
-        <div style="position:relative;width:100%;overflow-x:auto">
-          <svg id="sleepChart" width="100%" height="220" style="min-width:600px"></svg>
+        <div class="diagramm-rahmen">
+          <svg id="sleepChart" width="100%" height="220"></svg>
         </div>
       </div>`;
     }
@@ -1222,18 +1396,20 @@ async function loadHealth() {
     if (hrvData.length >= 2) {
       hrvChartHtml = `<div class="card card-pad" style="margin-bottom:16px">
         <div style="font-weight:600;margin-bottom:12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">💓 HRV (30 Tage)</div>
-        <div style="position:relative;width:100%;overflow-x:auto">
-          <svg id="hrvChart" width="100%" height="220" style="min-width:600px"></svg>
+        <div class="diagramm-rahmen">
+          <svg id="hrvChart" width="100%" height="220"></svg>
         </div>
       </div>`;
     }
 
     c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml + hrvChartHtml;
 
-    // ── Render Charts ──
-    if (weightData.length >= 2) renderWeightChart(weightData);
-    if (sleepData.length >= 2) renderSleepChart(sleepData);
-    if (hrvData.length >= 2) renderHrvChart(hrvData);
+    /* P2-3: anmelden statt nur einmal zeichnen — diagrammZeichnen() haengt
+       einen ResizeObserver an den Container, damit die Diagramme bei einer
+       Breitenaenderung (Drehung, Fenstergroesse) neu gezeichnet werden. */
+    if (weightData.length >= 2) diagrammZeichnen('weightChart', () => renderWeightChart(weightData));
+    if (sleepData.length >= 2) diagrammZeichnen('sleepChart', () => renderSleepChart(sleepData));
+    if (hrvData.length >= 2) diagrammZeichnen('hrvChart', () => renderHrvChart(hrvData));
 
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
@@ -1242,8 +1418,11 @@ async function loadHealth() {
 function renderWeightChart(data) {
   const svg = document.getElementById('weightChart');
   if (!svg) return;
-  const W = svg.clientWidth || 600, H = 200;
-  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  /* P2-3: Breite aus dem Container statt fester 600 px. Vorher lag das
+     Diagramm in einem Scrollbereich, der links begann — die juengsten Werte
+     am rechten Rand waren ohne Scrollen nicht sichtbar (Spec §6). */
+  const W = diagrammBreite(svg), H = 200;
+  const pad = diagrammRand(W);
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const vals = data.map(d => d.value);
   const vMin = Math.floor(Math.min(...vals) - 0.5);
@@ -1261,12 +1440,12 @@ function renderWeightChart(data) {
     svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="11" text-anchor="end">${v.toFixed(1)}</text>`;
   }
 
-  // X-axis labels (every ~7th point)
-  const step = Math.max(1, Math.floor(data.length / 8));
-  for (let i = 0; i < data.length; i += step) {
+  /* Beschriftung nach verfuegbarem Platz, vom juengsten Wert aus gezaehlt —
+     damit das aktuelle Datum immer beschriftet ist. */
+  for (const i of achsenIndizes(data.length, cw)) {
     const x = xScale(i);
-    const d = data[i].date.slice(5); // MM-DD
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${d}</text>`;
+    const anker = i === 0 ? 'start' : i === data.length - 1 ? 'end' : 'middle';
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="${anker}">${data[i].date.slice(5)}</text>`;
   }
 
   // Line
@@ -1297,8 +1476,11 @@ function renderWeightChart(data) {
 function renderSleepChart(data) {
   const svg = document.getElementById('sleepChart');
   if (!svg) return;
-  const W = svg.clientWidth || 600, H = 200;
-  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  /* P2-3: Breite aus dem Container statt fester 600 px. Vorher lag das
+     Diagramm in einem Scrollbereich, der links begann — die juengsten Werte
+     am rechten Rand waren ohne Scrollen nicht sichtbar (Spec §6). */
+  const W = diagrammBreite(svg), H = 200;
+  const pad = diagrammRand(W);
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const maxH = Math.ceil(Math.max(...data.map(d => d.duration)) + 0.5);
   const barW = Math.max(4, Math.min(20, cw / data.length - 2));
@@ -1323,17 +1505,20 @@ function renderSleepChart(data) {
     svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.9" rx="2"><title>${d.date}: ${d.duration}h${d.quality ? ' (Score: '+d.quality+'%)' : ''}</title></rect>`;
   });
 
-  // X-axis labels
-  const step = Math.max(1, Math.floor(data.length / 8));
-  for (let i = 0; i < data.length; i += step) {
+  /* Beschriftung nach verfuegbarem Platz, der juengste Wert immer dabei. */
+  for (const i of achsenIndizes(data.length, cw)) {
     const x = xScale(i);
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+    const anker = i === 0 ? 'start' : i === data.length - 1 ? 'end' : 'middle';
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="${anker}">${data[i].date.slice(5)}</text>`;
   }
 
   // 6h reference line
   const y6 = yScale(6);
   svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.8"/>`;
-  svgContent += `<text x="${W-pad.r+2}" y="${y6+3}" fill="var(--red)" font-size="11" opacity="1">6h</text>`;
+  /* Die Beschriftung sass rechts NEBEN dem Zeichenbereich und wurde schmal
+     abgeschnitten. Jetzt steht sie innen am rechten Rand — links waere sie
+     direkt neben der gleichnamigen Achsenbeschriftung gelandet. */
+  svgContent += `<text x="${W - pad.r - 2}" y="${y6 - 4}" fill="var(--red)" font-size="11" text-anchor="end">6h</text>`;
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = svgContent;
@@ -1342,8 +1527,11 @@ function renderSleepChart(data) {
 function renderHrvChart(data) {
   const svg = document.getElementById('hrvChart');
   if (!svg) return;
-  const W = svg.clientWidth || 600, H = 200;
-  const pad = { t: 10, r: 15, b: 30, l: 50 };
+  /* P2-3: Breite aus dem Container statt fester 600 px. Vorher lag das
+     Diagramm in einem Scrollbereich, der links begann — die juengsten Werte
+     am rechten Rand waren ohne Scrollen nicht sichtbar (Spec §6). */
+  const W = diagrammBreite(svg), H = 200;
+  const pad = diagrammRand(W);
   const cw = W - pad.l - pad.r, ch = H - pad.t - pad.b;
   const vals = data.map(d => d.value);
   const vMin = Math.floor(Math.min(...vals) - 5);
@@ -1362,11 +1550,11 @@ function renderHrvChart(data) {
     svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="11" text-anchor="end">${Math.round(v)}</text>`;
   }
 
-  // X-axis labels
-  const step = Math.max(1, Math.floor(data.length / 8));
-  for (let i = 0; i < data.length; i += step) {
+  /* Beschriftung nach verfuegbarem Platz, der juengste Wert immer dabei. */
+  for (const i of achsenIndizes(data.length, cw)) {
     const x = xScale(i);
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+    const anker = i === 0 ? 'start' : i === data.length - 1 ? 'end' : 'middle';
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="${anker}">${data[i].date.slice(5)}</text>`;
   }
 
   // Line
@@ -1573,12 +1761,14 @@ async function loadCalendar() {
       live: true,
       stand: new Date().toISOString(),
       abgleich: new Date().toISOString(),
-      hinweis: events.length + (events.length === 1 ? ' Termin' : ' Termine') + ' in den nächsten 7 Tagen · Zeiten in Europe/Berlin.',
-    }]);
+      /* Der Zeitzonenhinweis steht in der Werkzeugzeile darueber — hier
+         und in der Leiste waere er der zweite und dritte Abdruck (P2-3). */
+      hinweis: events.length + (events.length === 1 ? ' Termin' : ' Termine') + ' in den nächsten 7 Tagen.',
+    }], { zeitzone: false });
   } catch(e) {
     c.innerHTML = `<div class="empty">Kalender konnte nicht geladen werden: ${esc(e.message)}</div>`;
     setDatenstand([{ quelle: 'Kalender (Microsoft 365)', zustand: 'getrennt', stand: null, abgleich: null,
-      hinweis: 'Abruf fehlgeschlagen — es fehlen Termine, die Liste ist nicht leer.' }]);
+      hinweis: 'Abruf fehlgeschlagen — es fehlen Termine, die Liste ist nicht leer.' }], { zeitzone: false });
   }
 }
 
@@ -2747,13 +2937,20 @@ function _instaStatusBadge(s) {
 function _instaMiniSvg(data, color, h) {
   const vals = data.map(d => d.v);
   const min = Math.min(...vals) * 0.995, max = Math.max(...vals) * 1.005, w = 200;
-  const pts = vals.map((v, i) => ({ x: (i / (vals.length - 1)) * w, y: h - ((v - min) / (max - min)) * h }));
+  /* P2-3: links und rechts drei Einheiten Rand lassen — der Punkt auf dem
+     juengsten Wert sass genau auf der Kante und wurde zur Haelfte
+     abgeschnitten. */
+  const rand = 3;
+  const pts = vals.map((v, i) => ({
+    x: rand + (i / (vals.length - 1)) * (w - 2 * rand),
+    y: rand + (h - 2 * rand) - ((v - min) / (max - min)) * (h - 2 * rand),
+  }));
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const last = pts[pts.length - 1];
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">
     <!-- Flaeche unter der Linie: Deckkraft als Attribut, nicht als
          Hex-Alpha am Farbwert — mit var(--…) waere "${color}15" ungueltig. -->
-    <path d="${line} L${w},${h} L0,${h} Z" fill="${color}" fill-opacity="0.12"/>
+    <path d="${line} L${w - rand},${h} L${rand},${h} Z" fill="${color}" fill-opacity="0.12"/>
     <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3" fill="${color}"/>
   </svg>`;
@@ -3037,12 +3234,16 @@ async function _instaLoadForensic() {
       const threshStr = String(forensic.window.spike_threshold || '');
       const threshMatch = threshStr.match(/>\s*(\d+)/);
       const threshold = threshMatch ? Number(threshMatch[1]) : (median * 3);
-      const bars = fd.map(item => {
+      const schmal = window.innerWidth < 640;
+      const bars = fd.map((item, idx) => {
         const val = Number(item.value) || 0;
         const h = Math.max(Math.round((val / maxVal) * 140), 2);
         const isSpike = val > threshold;
         const color = isSpike ? 'var(--red)' : 'var(--accent)';
-        const dateLabel = item.date ? item.date.slice(5) : '';
+        /* P2-3: schmal nur jede zweite Datumsbeschriftung — sonst ueberlappen
+           die gedrehten Texte. Der juengste Balken ist immer beschriftet. */
+        const zeigeDatum = !schmal || idx % 2 === 1 || idx === fd.length - 1;
+        const dateLabel = item.date && zeigeDatum ? item.date.slice(5) : '';
         return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
           <span style="font-size:13px;color:${isSpike ? 'var(--red)' : 'var(--muted)'};font-weight:${isSpike ? '700' : '400'}">${val > 0 ? '+' + val : val}</span>
           <div style="width:80%;height:${h}px;background:${color};border-radius:3px 3px 0 0;opacity:${isSpike ? 1 : 0.7}"></div>
@@ -3597,7 +3798,7 @@ async function loadTrading() {
         <td style="text-align:right;color:${pnlColor(p.unrealizedPnl)}">${pnlPrefix(p.unrealizedPnl)}${fmtUsd(p.unrealizedPnl)}</td>
       </tr>`).join('');
       posHtml = `<h3 style="margin:20px 0 10px">Positionen</h3>
-      <div style="overflow-x:auto"><table class="data-table" style="width:100%">
+      <div style="overflow-x:auto"><table class="data-table" style="width:100%" data-tabelle="karten">
         <thead><tr><th>Symbol</th><th>Exchange</th><th style="text-align:right">Menge</th><th style="text-align:right">Avg Kurs</th><th style="text-align:right">Marktpreis</th><th style="text-align:right">Marktwert</th><th style="text-align:right">P&amp;L</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
