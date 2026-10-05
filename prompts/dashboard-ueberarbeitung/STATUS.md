@@ -976,7 +976,7 @@ werden.
 - Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
 - Rückweg: `git revert <commit>`.
 
-**Commit:** <hash> · kein Dienst-Restart nötig
+**Commit:** `fed644f` · kein Dienst-Restart nötig
 
 ---
 
