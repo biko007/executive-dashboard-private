@@ -2,7 +2,7 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 05.10.2026, 15:00 UTC
+**Letzte Aktualisierung:** 05.10.2026, 12:55 UTC
 **Aktuelle Phase:** **Phase 2 begonnen** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
 Hetzner-Snapshot liegt vor. **P2-1 (helles Design) ist erledigt.**
 **Nächster Schritt: P2-2** (Navigation und mobile Grundstruktur).
@@ -27,7 +27,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
 | CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `aa40c12` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
-| P2-1 | Helles Design | M | **erledigt** | `b892e21` | Report `~/bikosoc-spec/report-dashboard-p2-1-1500.md` |
+| P2-1 | Helles Design | M | **erledigt** | `b892e21` | Report `~/bikosoc-spec/report-dashboard-p2-1-1255.md` |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
