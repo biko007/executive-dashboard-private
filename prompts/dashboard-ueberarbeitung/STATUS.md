@@ -1071,7 +1071,7 @@ werden.
 - Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
 - Rückweg: `git revert <commit>`.
 
-**Commit:** <hash> · kein Dienst-Restart nötig
+**Commit:** `3260c50` · kein Dienst-Restart nötig
 
 ---
 
