@@ -6,9 +6,9 @@ Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächlic
 **Aktuelle Phase:** Phase 1 **vollständig umgesetzt** — P1-1 bis P1-6 erledigt.
 **Nächster Schritt: CHECKPOINT 1** (unabhängige Browserprüfung, `04-…` §2).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** Phase 1 ist produktiv. Dashboard-Dienst und Gateway neu gestartet.
-Der Core-Anteil von P1-5 (`5f65c4b`) ist committet und lokal produktiv, aber **noch nicht
-gepusht** — `index.ts` ist Red-Zone-Pfad und wartet auf `/arm push` durch den Owner.
+**Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
+Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
+erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbraucht.
 **Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
 
 ---
@@ -567,8 +567,16 @@ angegeben ist — die Verschiebung hebt sich auf, die Dauer stimmt. **Eine Restu
 bleibt:** bei Hotelsegmenten (+24 Stunden) über die Zeitumstellung hinweg entspricht die
 Wandzeit-Arithmetik nicht der echten Dauer. Nicht angefasst, hier vermerkt.
 
-**Commit:** `8586ed0` (Dashboard) · `5f65c4b` (Core, Red Zone — Push siehe unten)
+**Commits und Push**
+
+| Repo | Commit | Push |
+|---|---|---|
+| executive-dashboard | `8586ed0` fix(calendar) · `e5fdcea` docs(STATUS) | ✅ `origin/master` |
+| executive-agent | `5f65c4b` fix(briefing) | ✅ `origin/master` (05.10.2026 07:30 UTC, Armed-Flag verbraucht) |
+| openclaw-workspace | `a16abb1`, `816015b` chore(pointer) | ✅ `origin/main` |
+
 Restart: Dashboard **und** Gateway, beide durchgeführt.
+**Keine Owner-Aktion zum Push offen** — beide Workspace-Pointer stehen auf dem gepushten Stand.
 
 ---
 
