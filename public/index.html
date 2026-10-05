@@ -119,11 +119,29 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 /* ── Calendar ── */
 .day-group { margin-bottom: 22px; }
 .day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-.ev-row { display: flex; gap: 14px; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
-.ev-time { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 110px; padding-top: 1px; }
+.ev-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 14px; align-items: start; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
+.ev-row.ev-ganztags { border-left: 3px solid var(--accent); }
+.ev-time { color: var(--muted); font-size: 12px; padding-top: 1px; }
+.ev-zeit-haupt { color: var(--text); font-weight: 600; white-space: nowrap; }
+.ev-zeit-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
 .ev-body { min-width: 0; }
-.ev-title { font-size: 14px; font-weight: 500; }
-.ev-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.ev-title { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.ev-sub { color: var(--muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
+/* Lange Beschreibungen liefen ueber die Karte hinaus (Spec §4 F). */
+.ev-beschreibung { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ev-warnung { color: var(--yellow); font-size: 12px; margin-top: 4px; }
+.ev-aktionen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.ev-teilnehmen { padding: 4px 10px; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.cal-tz-hinweis { color: var(--muted); font-size: 12px; }
+.cal-ist-zustand { color: var(--muted); font-size: 12px; margin-bottom: 14px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.ganztags-zeile { display: flex; align-items: center; gap: 8px; margin-top: 14px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
+.ganztags-zeile input { width: auto; margin: 0; }
+/* P1-5: nur die Terminkarte. Das allgemeine mobile Raster macht P2-2. */
+@media (max-width: 680px) {
+  .ev-row { grid-template-columns: 1fr; gap: 6px; }
+  .ev-aktionen { justify-content: flex-start; }
+  .ev-zeit-haupt { white-space: normal; }
+}
 
 /* ── Draft body ── */
 .draft-body-row td { padding: 0 14px 12px; }
@@ -203,6 +221,7 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
 .detail-img-wrap input[type=file] { display: none; }
 </style>
+<script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
 <script defer src="/dashboard/js/assets-stores.js"></script>
 <script defer src="/dashboard/js/assets-stammdaten.js"></script>
@@ -1155,8 +1174,11 @@ async function deleteDraft(id, subject) {
 ═══════════════════════════════════════════════════════════════════════════ */
 let _calCache = [];
 
-function calDatePart(iso) { return (iso || '').slice(0, 10); }
-function calTimePart(iso) { return (iso || '').slice(11, 16); }
+/* ── Kalender (P1-5) ──────────────────────────────────────────────────────────
+   Die frueheren Helfer calDatePart()/calTimePart() haben den Graph-Zeitstempel
+   per String-Ausschnitt zerlegt und damit die mitgelieferte Zone ignoriert.
+   Die gesamte Zeitlogik liegt jetzt in public/js/zeit.js — dieselbe Logik
+   nutzt das Telegram-Briefing im executive-agent. */
 
 async function loadCalendar() {
   const c = document.getElementById('content');
@@ -1164,51 +1186,65 @@ async function loadCalendar() {
     const [events, calLinks] = await Promise.all([apiFetch('/api/calendar'), apiFetch('/api/links').catch(() => [])]);
     _calCache = events;
 
-    const tz = 'Europe/Berlin';
-    const dayKey   = iso => new Intl.DateTimeFormat('en-CA',{timeZone:tz,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(iso));
-    const dayLabel = iso => new Intl.DateTimeFormat('de-DE',{timeZone:tz,weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(iso));
-
-    const toolbar = '<div style="margin-bottom:16px"><button class="btn btn-primary" onclick="newEventModal()">+ Neuer Termin</button></div>';
+    const toolbar = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+      + '<button class="btn btn-primary" onclick="newEventModal()">+ Neuer Termin</button>'
+      + '<span class="cal-tz-hinweis">Alle Zeiten in Europe/Berlin</span>'
+      + '</div>';
 
     if (!events.length) { c.innerHTML = toolbar + '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
 
+    /* Gruppierung nach dem Berliner Kalendertag des Beginns — bei
+       Ganztagsterminen nach dem woertlichen Datum aus der Graph-Antwort. */
     const groups = {};
     for (const ev of events) {
-      const k = dayKey(ev.start?.dateTime || ev.start?.date || new Date().toISOString());
-      (groups[k] = groups[k] || []).push(ev);
+      const z = kalenderZeitraum(ev);
+      const k = z.tagesSchluessel || 'unbekannt';
+      (groups[k] = groups[k] || []).push({ ev, z });
     }
 
     const html = Object.keys(groups).sort().map(k => {
-      const evs = groups[k].sort((a,b) => (a.start.dateTime||'').localeCompare(b.start.dateTime||''));
+      const eintraege = groups[k].sort((a, b) => {
+        // Ganztagstermine zuerst, danach nach Beginn
+        if (a.z.ganztags !== b.z.ganztags) return a.z.ganztags ? -1 : 1;
+        const sa = graphZeitpunkt(a.ev.start), sb = graphZeitpunkt(b.ev.start);
+        return (sa ? sa.getTime() : 0) - (sb ? sb.getTime() : 0);
+      });
       return `<div class="day-group">
-        <div class="day-lbl">📅 ${dayLabel(evs[0].start.dateTime||k)}</div>
-        ${evs.map(ev => {
-          const allDay = ev.isAllDay;
-          const time   = allDay ? 'Ganztag' : `${fmtTime(ev.start.dateTime)} – ${fmtTime(ev.end.dateTime)}`;
-          const loc    = ev.location?.displayName ? `📍 ${esc(ev.location.displayName)}` : '';
-          const teams  = ev.onlineMeeting?.joinUrl ? '🔗 Online-Meeting' : '';
-          const sub    = [loc, teams].filter(Boolean).join(' &nbsp;|&nbsp; ');
-          const evId   = ev.id || '';
+        <div class="day-lbl">📅 ${esc(k === 'unbekannt' ? 'Datum unbekannt' : zeitTagLang(k))}</div>
+        ${eintraege.map(({ ev, z }) => {
+          const evId = ev.id || '';
+          const ortText = ev.location?.displayName || '';
+          const meetingUrl = kalenderMeetingUrl(ev);
+          /* Steht im Ortsfeld nur die Meeting-Adresse, waere sie doppelt —
+             dann zeigt die Karte nur die Aktion "Teilnehmen". */
+          const ortIstLink = !!meetingUrl && ortText.trim() === meetingUrl;
           const evLinks = (calLinks || []).filter(l => l.entityType === 'calendar' && l.entityId === evId);
           const evLinksHtml = evLinks.length ? `<div class="ev-sub" style="margin-top:4px">${evLinks.map(l => {
             const li = l.docType === 'sharepoint' ? '☁️' : '📁';
             const ln = l.docType === 'sharepoint' && l.spWebUrl
-              ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent)">${esc(l.spName||'')}</a>`
+              ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.spName||'')}</a>`
               : esc(l.localName||'');
             return `${li} ${esc(l.label)}: ${ln} <button class="btn btn-danger" style="padding:1px 5px;font-size:10px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
           }).join(' &nbsp; ')}</div>` : '';
-          return `<div class="ev-row">
-            <div class="ev-time">${time}</div>
-            <div class="ev-body" style="flex:1">
+
+          return `<div class="ev-row${z.ganztags ? ' ev-ganztags' : ''}">
+            <div class="ev-time">
+              <div class="ev-zeit-haupt">${esc(z.zeitText)}</div>
+              ${z.dauerText ? `<div class="ev-zeit-sub">${esc(z.dauerText)}</div>` : ''}
+              ${z.mehrtaegig ? `<div class="ev-zeit-sub">${esc(z.spanneText)}</div>` : ''}
+            </div>
+            <div class="ev-body">
               <div class="ev-title">${esc(ev.subject||'(kein Titel)')}</div>
-              ${sub ? `<div class="ev-sub">${sub}</div>` : ''}
-              ${ev.bodyPreview ? `<div class="ev-sub" style="margin-top:2px">${esc(ev.bodyPreview.slice(0,120))}${ev.bodyPreview.length>120?'…':''}</div>` : ''}
+              ${z.unplausibel ? '<div class="ev-warnung">⚠️ Das hinterlegte Ende liegt vor dem Beginn. Der Termin wird unverändert angezeigt.</div>' : ''}
+              ${ortText && !ortIstLink ? `<div class="ev-sub">📍 ${esc(ortText)}</div>` : ''}
+              ${ev.bodyPreview ? `<div class="ev-sub ev-beschreibung">${esc(ev.bodyPreview.slice(0,160))}${ev.bodyPreview.length>160?'…':''}</div>` : ''}
               ${evLinksHtml}
             </div>
-            <div style="display:flex;gap:6px;align-items:center;white-space:nowrap">
-              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="linkDocModal('calendar','${esc(evId)}','loadCalendarRefresh')">📎</button>
-              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editEventModal('${esc(evId)}')">✏️</button>
-              <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
+            <div class="ev-aktionen">
+              ${kalenderMeetingLink(ev)}
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" aria-label="Dokument verknüpfen" title="Dokument verknüpfen" onclick="linkDocModal('calendar','${esc(evId)}','loadCalendarRefresh')">📎</button>
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" aria-label="Termin bearbeiten" title="Termin bearbeiten" onclick="editEventModal('${esc(evId)}')">✏️</button>
+              <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" aria-label="Termin löschen" title="Termin löschen" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
             </div>
           </div>`;
         }).join('')}
@@ -1217,21 +1253,66 @@ async function loadCalendar() {
 
     c.innerHTML = toolbar + html;
     stamp();
-  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+    setDatenstand([{
+      quelle: 'Kalender (Microsoft 365)',
+      live: true,
+      stand: new Date().toISOString(),
+      abgleich: new Date().toISOString(),
+      hinweis: events.length + (events.length === 1 ? ' Termin' : ' Termine') + ' in den nächsten 7 Tagen · Zeiten in Europe/Berlin.',
+    }]);
+  } catch(e) {
+    c.innerHTML = `<div class="empty">Kalender konnte nicht geladen werden: ${esc(e.message)}</div>`;
+    setDatenstand([{ quelle: 'Kalender (Microsoft 365)', zustand: 'getrennt', stand: null, abgleich: null,
+      hinweis: 'Abruf fehlgeschlagen — es fehlen Termine, die Liste ist nicht leer.' }]);
+  }
+}
+
+/* Gemeinsames Formular fuer Anlegen und Bearbeiten: Start- UND Enddatum,
+   Ganztags-Option, sichtbare Zeitzone. Vorher gab es nur EIN Datumsfeld und
+   das Ende wurde mit dem Startdatum zurueckgeschrieben — bei dem
+   INHALE-Termin haette das "22:00 bis 21:30 am selben Tag" gespeichert. */
+function kalenderFormularHtml(werte, idPrefix) {
+  const p = idPrefix;
+  return `
+    <label class="ganztags-zeile">
+      <input type="checkbox" id="${p}-allday" ${werte.ganztags ? 'checked' : ''}
+             onchange="kalenderFormularUmschalten('${p}')">
+      <span>Ganztägig</span>
+    </label>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div><label>Startdatum</label><input id="${p}-sdate" type="date" value="${esc(werte.startDatum)}"></div>
+      <div><label>Enddatum</label><input id="${p}-edate" type="date" value="${esc(werte.endDatum)}"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="${p}-zeiten">
+      <div><label>Startzeit</label><input id="${p}-stime" type="time" value="${esc(werte.startZeit)}"></div>
+      <div><label>Endzeit</label><input id="${p}-etime" type="time" value="${esc(werte.endZeit)}"></div>
+    </div>
+    <div class="cal-tz-hinweis" style="margin-top:6px">Angaben in Europe/Berlin. Bei ganztägigen Terminen gilt das Enddatum einschließlich.</div>`;
+}
+
+function kalenderFormularUmschalten(p) {
+  const an = document.getElementById(p + '-allday')?.checked;
+  const zeiten = document.getElementById(p + '-zeiten');
+  if (zeiten) zeiten.style.display = an ? 'none' : 'grid';
+}
+
+function kalenderFormularLesen(p) {
+  return {
+    ganztags: !!document.getElementById(p + '-allday')?.checked,
+    startDatum: document.getElementById(p + '-sdate')?.value || '',
+    endDatum: document.getElementById(p + '-edate')?.value || '',
+    startZeit: document.getElementById(p + '-stime')?.value || '',
+    endZeit: document.getElementById(p + '-etime')?.value || '',
+  };
 }
 
 function newEventModal() {
-  const today = new Date().toISOString().slice(0, 10);
+  const heute = zeitTagInZone(new Date(), ZEIT_ZONE);
   openModal(`
     <h3>+ Neuer Termin</h3>
     <label>Titel</label>
     <input id="ce-subject" placeholder="Besprechung, Arzttermin, …">
-    <label>Datum</label>
-    <input id="ce-date" type="date" value="${today}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><label>Start</label><input id="ce-start" type="time" value="09:00"></div>
-      <div><label>Ende</label><input id="ce-end" type="time" value="10:00"></div>
-    </div>
+    ${kalenderFormularHtml({ ganztags: false, startDatum: heute, endDatum: heute, startZeit: '09:00', endZeit: '10:00' }, 'ce')}
     <label>Ort (optional)</label>
     <input id="ce-loc" placeholder="z.B. Büro, Zoom">
     <label>Beschreibung (optional)</label>
@@ -1241,16 +1322,18 @@ function newEventModal() {
       <button class="btn btn-primary" id="ce-save" onclick="createEvent()">📅 Erstellen</button>
     </div>
   `);
+  kalenderFormularUmschalten('ce');
 }
 
 async function createEvent() {
   const subject = document.getElementById('ce-subject').value.trim();
-  const date    = document.getElementById('ce-date').value;
-  const tStart  = document.getElementById('ce-start').value;
-  const tEnd    = document.getElementById('ce-end').value;
   const loc     = document.getElementById('ce-loc').value.trim();
   const body    = document.getElementById('ce-body').value.trim();
-  if (!subject || !date || !tStart || !tEnd) return alert('Titel, Datum, Start- und Endzeit sind Pflichtfelder.');
+  if (!subject) return alert('Der Titel ist ein Pflichtfeld.');
+
+  const nutzlast = kalenderNutzlast(kalenderFormularLesen('ce'));
+  if (nutzlast.fehler) return alert(nutzlast.fehler);
+
   const btn = document.getElementById('ce-save');
   btn.disabled = true; btn.textContent = 'Speichern…';
   try {
@@ -1259,32 +1342,32 @@ async function createEvent() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject,
-        start: `${date}T${tStart}:00`,
-        end:   `${date}T${tEnd}:00`,
-        location: loc || undefined,
-        body: body || undefined,
+        start: nutzlast.start,
+        end: nutzlast.end,
+        isAllDay: nutzlast.isAllDay,
+        location: loc,
+        body: body,
       }),
     });
     closeModal();
     showTab('calendar');
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '📅 Erstellen'; }
+  } catch(e) {
+    alert(`Fehler: ${e.message}`);
+    btn.disabled = false; btn.textContent = '📅 Erstellen';
+  }
 }
 
 function editEventModal(eventId) {
   const ev = _calCache.find(e => e.id === eventId);
   if (!ev) return alert('Termin nicht gefunden');
-  const startDT = ev.start?.dateTime || '';
-  const endDT   = ev.end?.dateTime   || '';
+  const werte = kalenderFormularwerte(ev);
+  const z = kalenderZeitraum(ev);
   openModal(`
     <h3>✏️ Termin bearbeiten</h3>
+    <div class="cal-ist-zustand">Gespeichert: ${esc(z.ganztags ? 'ganztägig, ' + z.spanneText : z.spanneText + ' ' + z.zeitText)}${z.dauerText ? ' · ' + esc(z.dauerText) : ''}</div>
     <label>Titel</label>
     <input id="ee-subject" value="${esc(ev.subject||'')}">
-    <label>Datum</label>
-    <input id="ee-date" type="date" value="${esc(calDatePart(startDT))}">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div><label>Start</label><input id="ee-start" type="time" value="${esc(calTimePart(startDT))}"></div>
-      <div><label>Ende</label><input id="ee-end" type="time" value="${esc(calTimePart(endDT))}"></div>
-    </div>
+    ${kalenderFormularHtml(werte, 'ee')}
     <label>Ort</label>
     <input id="ee-loc" value="${esc(ev.location?.displayName||'')}">
     <label>Beschreibung</label>
@@ -1294,16 +1377,18 @@ function editEventModal(eventId) {
       <button class="btn btn-primary" id="ee-save" onclick="saveEvent('${esc(eventId)}')">💾 Speichern</button>
     </div>
   `);
+  kalenderFormularUmschalten('ee');
 }
 
 async function saveEvent(eventId) {
   const subject = document.getElementById('ee-subject').value.trim();
-  const date    = document.getElementById('ee-date').value;
-  const tStart  = document.getElementById('ee-start').value;
-  const tEnd    = document.getElementById('ee-end').value;
   const loc     = document.getElementById('ee-loc').value.trim();
   const body    = document.getElementById('ee-body').value.trim();
-  if (!subject || !date || !tStart || !tEnd) return alert('Titel, Datum, Start- und Endzeit sind Pflichtfelder.');
+  if (!subject) return alert('Der Titel ist ein Pflichtfeld.');
+
+  const nutzlast = kalenderNutzlast(kalenderFormularLesen('ee'));
+  if (nutzlast.fehler) return alert(nutzlast.fehler);
+
   const btn = document.getElementById('ee-save');
   btn.disabled = true; btn.textContent = 'Speichern…';
   try {
@@ -1312,15 +1397,19 @@ async function saveEvent(eventId) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         subject,
-        start: `${date}T${tStart}:00`,
-        end:   `${date}T${tEnd}:00`,
+        start: nutzlast.start,
+        end: nutzlast.end,
+        isAllDay: nutzlast.isAllDay,
         location: loc,
         body: body,
       }),
     });
     closeModal();
     showTab('calendar');
-  } catch (e) { alert(`Fehler: ${e.message}`); btn.disabled = false; btn.textContent = '💾 Speichern'; }
+  } catch(e) {
+    alert(`Fehler: ${e.message}`);
+    btn.disabled = false; btn.textContent = '💾 Speichern';
+  }
 }
 
 async function deleteEvent(eventId, subject) {

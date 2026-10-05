@@ -1284,14 +1284,93 @@ app.delete('/api/drafts/:id', auth, (req, res) => {
 });
 
 // ── API: Calendar (M365 Graph) ────────────────────────────────────────────────
+//
+// P1-5: Das Abfragefenster beginnt jetzt um Mitternacht Europe/Berlin und
+// nicht mehr "jetzt". Zwei Gruende: Termine, die heute schon begonnen haben,
+// fehlten sonst in der Liste, und das Telegram-Briefing im executive-agent
+// verwendet dasselbe Fenster — nur so sind Dashboard und Briefing
+// vergleichbar.
+//
+// Die Zeitstempel in der Antwort kommen von Graph in UTC mit einem naiven
+// String ohne Zonensuffix. Die Auswertung macht AUSSCHLIESSLICH der
+// Frontend-Baustein public/js/zeit.js (bzw. die gleichlautende Logik im
+// Core). Hier wird bewusst KEIN "Prefer: outlook.timezone"-Kopf gesetzt —
+// eine Stelle, nicht zwei.
+
+const KALENDER_ZONE = 'Europe/Berlin';
+
+/* Verschiebung einer Zone gegenueber UTC zum gegebenen Zeitpunkt (DST-fest). */
+function zonenOffsetMs(utcMs, zone) {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  const teile = {};
+  for (const t of dtf.formatToParts(new Date(utcMs))) teile[t.type] = t.value;
+  const alsUtc = Date.UTC(
+    Number(teile.year), Number(teile.month) - 1, Number(teile.day),
+    Number(teile.hour) % 24, Number(teile.minute), Number(teile.second),
+  );
+  return alsUtc - utcMs;
+}
+
+/* Naiven Zeitstempel in der angegebenen Zone interpretieren. */
+function naivInZone(naiv, zone) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/.exec(String(naiv || ''));
+  if (!m) return null;
+  const alsWaereUtc = Date.UTC(
+    Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+    Number(m[4]), Number(m[5]), Number(m[6] || 0),
+  );
+  let t = alsWaereUtc - zonenOffsetMs(alsWaereUtc, zone);
+  t = alsWaereUtc - zonenOffsetMs(t, zone);
+  return new Date(t);
+}
+
+/* Mitternacht des heutigen Berliner Kalendertags, als echter Zeitpunkt. */
+function berlinerTagesbeginn(jetzt) {
+  const tag = new Intl.DateTimeFormat('en-CA', {
+    timeZone: KALENDER_ZONE, year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(jetzt);
+  return naivInZone(tag + 'T00:00:00', KALENDER_ZONE);
+}
+
+/* Prueft und normalisiert die Schreibnutzlast fuer Graph.
+   Gibt { fehler } zurueck oder { start, end, isAllDay }.
+
+   Vorher schickte das Dashboard `end` mit dem START-Datum zurueck — beim
+   INHALE-Termin waere "22:00 bis 21:30 am selben Tag" gespeichert worden.
+   Diese Pruefung ist die zweite Verteidigungslinie hinter der im Frontend. */
+function kalenderNutzlastPruefen(body) {
+  const start = typeof body.start === 'string' ? body.start.trim() : '';
+  const end = typeof body.end === 'string' ? body.end.trim() : '';
+  const isAllDay = body.isAllDay === true;
+  if (!start || !end) return { fehler: 'start and end are required' };
+
+  const s = naivInZone(start, KALENDER_ZONE);
+  const e = naivInZone(end, KALENDER_ZONE);
+  if (!s || !e) return { fehler: 'start/end must be naive local timestamps (YYYY-MM-DDTHH:MM:SS)' };
+  if (e.getTime() <= s.getTime()) return { fehler: 'end must be after start' };
+
+  if (isAllDay) {
+    // Graph verlangt bei Ganztagsterminen Mitternacht auf beiden Seiten und
+    // ein exklusives Ende (ein Tag am 20.10. endet am 21.10.T00:00).
+    const mitternacht = /T00:00(:00)?$/;
+    if (!mitternacht.test(start) || !mitternacht.test(end)) {
+      return { fehler: 'all-day events require midnight start and end (exclusive end date)' };
+    }
+  }
+  return { start, end, isAllDay };
+}
 
 app.get('/api/calendar', auth, async (req, res) => {
   if (!M365_TENANT_ID || !M365_CLIENT_ID || !M365_CLIENT_SECRET || !M365_USER) {
     return res.status(503).json({ error: 'M365 credentials not configured' });
   }
   try {
-    const start = new Date();
-    const end   = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const start = berlinerTagesbeginn(new Date()) || new Date();
+    const end   = new Date(start.getTime() + 8 * 24 * 60 * 60 * 1000);
     let url =
       `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}` +
       `/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}` +
@@ -1319,18 +1398,19 @@ app.post('/api/calendar', auth, async (req, res) => {
     return res.status(503).json({ error: 'M365 credentials not configured' });
   }
   try {
-    const { subject, start, end, location, body, isAllDay } = req.body;
-    if (!subject || !start || !end) {
-      return res.status(400).json({ error: 'subject, start and end are required' });
-    }
+    const { subject, location, body } = req.body;
+    if (!subject) return res.status(400).json({ error: 'subject is required' });
+    const geprueft = kalenderNutzlastPruefen(req.body);
+    if (geprueft.fehler) return res.status(400).json({ error: geprueft.fehler });
+
     const payload = {
       subject,
-      start: { dateTime: start, timeZone: 'Europe/Berlin' },
-      end:   { dateTime: end,   timeZone: 'Europe/Berlin' },
+      start: { dateTime: geprueft.start, timeZone: KALENDER_ZONE },
+      end:   { dateTime: geprueft.end,   timeZone: KALENDER_ZONE },
+      isAllDay: geprueft.isAllDay,
     };
     if (location) payload.location = { displayName: location };
     if (body)     payload.body = { contentType: 'Text', content: body };
-    if (isAllDay) payload.isAllDay = true;
     const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events`;
     const event = await graphRequest('POST', url, payload);
     res.status(201).json(event);
@@ -1346,14 +1426,21 @@ app.patch('/api/calendar/:eventId', auth, async (req, res) => {
   }
   try {
     const eventId = req.params.eventId;
-    const { subject, start, end, location, body, isAllDay } = req.body;
+    const { subject, start, end, location, body } = req.body;
     const payload = {};
     if (subject !== undefined)  payload.subject = subject;
-    if (start !== undefined)    payload.start = { dateTime: start, timeZone: 'Europe/Berlin' };
-    if (end !== undefined)      payload.end   = { dateTime: end,   timeZone: 'Europe/Berlin' };
     if (location !== undefined) payload.location = { displayName: location };
     if (body !== undefined)     payload.body = { contentType: 'Text', content: body };
-    if (isAllDay !== undefined) payload.isAllDay = isAllDay;
+
+    /* Zeitangaben nur gemeinsam aendern — ein einzeln gesetztes Ende koennte
+       vor dem gespeicherten Beginn liegen und waere nicht pruefbar. */
+    if (start !== undefined || end !== undefined) {
+      const geprueft = kalenderNutzlastPruefen(req.body);
+      if (geprueft.fehler) return res.status(400).json({ error: geprueft.fehler });
+      payload.start = { dateTime: geprueft.start, timeZone: KALENDER_ZONE };
+      payload.end   = { dateTime: geprueft.end,   timeZone: KALENDER_ZONE };
+      payload.isAllDay = geprueft.isAllDay;
+    }
     const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(M365_USER)}/events/${encodeURIComponent(eventId)}`;
     const event = await graphRequest('PATCH', url, payload);
     res.json(event);
