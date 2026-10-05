@@ -27,7 +27,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
 | CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `aa40c12` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
-| P2-1 | Helles Design | M | **erledigt** | `_wird eingetragen_` | Report `~/bikosoc-spec/report-dashboard-p2-1-1500.md` |
+| P2-1 | Helles Design | M | **erledigt** | `b892e21` | Report `~/bikosoc-spec/report-dashboard-p2-1-1500.md` |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
@@ -849,7 +849,7 @@ Kein Dark Mode, kein Umschalter.
 - Die Ganztags-Schaltfläche im Terminformular sitzt über statt neben ihrer Beschriftung —
   Formularraster, gehört zu P2-4.
 
-**Commit:** `_wird eingetragen_` · kein Dienst-Restart nötig
+**Commit:** `b892e21` · kein Dienst-Restart nötig
 
 ---
 
