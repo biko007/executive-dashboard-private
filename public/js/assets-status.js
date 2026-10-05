@@ -120,7 +120,7 @@ document.addEventListener('alpine:init', () => {
       for (const p of this.properties) {
         html += `<tr><td><strong>${esc(p.name || p.code || 'ID ' + p.id)}</strong></td>`;
         for (const y of years) {
-          html += `<td style="text-align:center" id="nk-${p.code}-${y}"><span class="spinner" style="font-size:11px;padding:0">...</span></td>`;
+          html += `<td style="text-align:center" id="nk-${p.code}-${y}"><span class="spinner" style="font-size:13px;padding:0">...</span></td>`;
         }
         html += '</tr>';
       }
@@ -237,7 +237,7 @@ async function showNkFindings(propertyId, year) {
       + '<div class="ds-leer-titel">Befunde konnten nicht geladen werden</div>'
       + '<div class="ds-leer-sub">' + esc(e.message)
       + ' \u2014 der Bereitschaftszustand ist unbekannt, nicht in Ordnung.</div>'
-      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="showNkFindings(\'' + esc(propertyId) + '\', ' + Number(year) + ')">Erneut versuchen</button></div>'
       + '</div></div></div>';
   }
@@ -290,8 +290,8 @@ async function loadAuditLog(append) {
         <td style="white-space:nowrap">${fmtDT(e.created_at)}</td>
         <td><span class="badge badge-blue">${esc(e.action || '')}</span></td>
         <td>${esc(e.entity_type || '')}:${e.entity_id || ''}</td>
-        <td style="color:var(--muted);font-size:12px">${esc(e.actor || '')}</td>
-        <td style="font-size:12px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(JSON.stringify(e.changes || e.masked_changes || ''))}</td>
+        <td style="color:var(--muted);font-size:13px">${esc(e.actor || '')}</td>
+        <td style="font-size:13px;color:var(--muted);max-width:200px;overflow:hidden;text-overflow:ellipsis">${esc(JSON.stringify(e.changes || e.masked_changes || ''))}</td>
       </tr>`;
     }
 

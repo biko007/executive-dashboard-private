@@ -56,7 +56,7 @@ function renderChangeoverWizard() {
       }).join('')}
     </div>
 
-    ${wiz.error ? `<div class="alert alert-error" style="margin-bottom:16px">${esc(wiz.error)}${wiz.errorStep ? ` <button class="btn" style="font-size:12px;margin-left:8px" onclick="Alpine.store('wizard').goToStep(${wiz.errorStep});renderChangeoverWizard()">Zurueck zu Schritt ${wiz.errorStep}</button>` : ''}</div>` : ''}
+    ${wiz.error ? `<div class="alert alert-error" style="margin-bottom:16px">${esc(wiz.error)}${wiz.errorStep ? ` <button class="btn" style="font-size:13px;margin-left:8px" onclick="Alpine.store('wizard').goToStep(${wiz.errorStep});renderChangeoverWizard()">Zurueck zu Schritt ${wiz.errorStep}</button>` : ''}</div>` : ''}
 
     <div class="wizard-body card card-pad">
   `;
@@ -162,7 +162,7 @@ async function loadWizardEndMeters() {
         <td>${esc(m.medium || '')}</td>
         <td><input class="form-input wz-end-val" type="number" step="0.001" data-meter-id="${m.id}" value="${existing.value || ''}" style="width:120px"></td>
         <td><label class="form-checkbox"><input type="checkbox" class="wz-end-est" data-meter-id="${m.id}" ${existing.is_estimated ? 'checked' : ''}></label></td>
-        <td><input class="form-input wz-end-reason" data-meter-id="${m.id}" value="${esc(existing.estimation_reason || '')}" style="width:120px;font-size:12px" placeholder="Schaetzgrund"></td>
+        <td><input class="form-input wz-end-reason" data-meter-id="${m.id}" value="${esc(existing.estimation_reason || '')}" style="width:120px;font-size:13px" placeholder="Schaetzgrund"></td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -204,9 +204,9 @@ function renderWizardStep3() {
       <div>
         <strong>${esc(t.name || '')}</strong>
         ${t.is_primary_contact ? ' <span class="badge badge-green">Hauptkontakt</span>' : ''}
-        <br><span style="color:var(--muted);font-size:12px">${esc(t.role || 'tenant')} · ${esc(t.email || '')}</span>
+        <br><span style="color:var(--muted);font-size:13px">${esc(t.role || 'tenant')} · ${esc(t.email || '')}</span>
       </div>
-      <button class="btn btn-danger" style="font-size:11px" onclick="wizardRemoveTenant(${i})">Entfernen</button>
+      <button class="btn btn-danger" style="font-size:13px" onclick="wizardRemoveTenant(${i})">Entfernen</button>
     </div>`;
   }
 

@@ -285,7 +285,7 @@ function nkBefundAktion(b, propertyCode, f) {
   if (!ziel) return '';
   const leaseId = f && f.details && f.details.lease_id ? Number(f.details.lease_id) : null;
   const arg = b.ziel === 'vertrag' && leaseId ? leaseId : 0;
-  return '<button class="btn btn-primary" style="font-size:12px"'
+  return '<button class="btn btn-primary" style="font-size:13px"'
     + ' onclick="nkBeheben(\'' + esc(b.ziel) + '\', \'' + esc(propertyCode) + '\', ' + arg + ')">'
     + esc(ziel.label) + '</button>';
 }

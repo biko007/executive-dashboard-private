@@ -154,10 +154,10 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + skm + '</td>';
         html += '<td>' + cost + '</td>';
         html += '<td>' + esc(s.workshop || '') + '</td>';
-        html += '<td style="color:var(--muted);font-size:12px">' + esc(s.notes || '') + '</td>';
+        html += '<td style="color:var(--muted);font-size:13px">' + esc(s.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteServiceRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteServiceRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -194,7 +194,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + (p.annual_premium != null ? Number(p.annual_premium).toLocaleString('de-DE') + ' &euro;' : (p.annualCost != null ? Number(p.annualCost).toLocaleString('de-DE') + ' &euro;' : '&ndash;')) + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteInsurancePolicy(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteInsurancePolicy(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -238,10 +238,10 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + result + '</td>';
         html += '<td>' + fmtDate(r.next_due_date || r.nextDueDate) + '</td>';
         html += '<td>' + mkm + '</td>';
-        html += '<td style="color:var(--muted);font-size:12px">' + esc(r.notes || '') + '</td>';
+        html += '<td style="color:var(--muted);font-size:13px">' + esc(r.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteTuevRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTuevRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -281,10 +281,10 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + (r.tax_year || r.taxYear || '&ndash;') + '</td>';
         html += '<td>' + (r.amount != null ? Number(r.amount).toLocaleString('de-DE') + ' &euro;' : '&ndash;') + '</td>';
         html += '<td>' + fmtDate(r.paid_at || r.paidAt) + '</td>';
-        html += '<td style="color:var(--muted);font-size:12px">' + esc(r.notes || '') + '</td>';
+        html += '<td style="color:var(--muted);font-size:13px">' + esc(r.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteTaxRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTaxRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -320,7 +320,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + fmtDate(d.created_at || d.createdAt) + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteDocument(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteDocument(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -350,7 +350,7 @@ document.addEventListener('alpine:init', () => {
       html += '<table class="assets-table"><thead><tr><th>Typ</th><th>Marke / Modell</th><th>Profiltiefe</th><th>Montiert</th><th>Demontiert</th><th>Notiz</th><th></th></tr></thead><tbody>';
       for (const t of sets) {
         const isActive = !t.removedAt && !t.removed_at;
-        const rowStyle = isActive ? ' style="background:rgba(59,130,246,0.08)"' : '';
+        const rowStyle = isActive ? ' style="background:var(--accent-weak)"' : '';
         const tireType = t.tire_type || t.tireType || '';
         const typeLabel = typeLabels[tireType] || esc(tireType) || '&ndash;';
         const brand = t.brand || '';
@@ -366,10 +366,10 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + depth + '</td>';
         html += '<td>' + installed + '</td>';
         html += '<td>' + removed + '</td>';
-        html += '<td style="color:var(--muted);font-size:12px">' + esc(t.notes || '') + '</td>';
+        html += '<td style="color:var(--muted);font-size:13px">' + esc(t.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:11px;padding:3px 8px" onclick="fleetDeleteTireSet(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTireSet(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }

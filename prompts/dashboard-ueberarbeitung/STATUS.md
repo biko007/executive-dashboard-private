@@ -2,10 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 05.10.2026, 10:05 UTC
-**Aktuelle Phase:** Phase 1 umgesetzt, **CHECKPOINT 1 durch Owner-Selbstprüfung bestanden**
-(05.10.2026, 09:30–09:50). Vier Nachbesserungen aus der Prüfung sind erledigt.
-**Nächster Schritt: Freigabe für Phase 2** (helles Design, Mobil, Tagesübersicht).
+**Letzte Aktualisierung:** 05.10.2026, 15:00 UTC
+**Aktuelle Phase:** **Phase 2 begonnen** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
+Hetzner-Snapshot liegt vor. **P2-1 (helles Design) ist erledigt.**
+**Nächster Schritt: P2-2** (Navigation und mobile Grundstruktur).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
@@ -27,7 +27,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P1-6 | Nebenkosten-Meldungen (G) | M | **erledigt** | `4ff083e` | Report `~/bikosoc-spec/report-dashboard-p1-buendel-2020.md` |
 | **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
 | CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `aa40c12` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
-| P2-1 | Helles Design | M | offen | — | — |
+| P2-1 | Helles Design | M | **erledigt** | `_wird eingetragen_` | Report `~/bikosoc-spec/report-dashboard-p2-1-1500.md` |
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
@@ -748,6 +748,108 @@ Kalender-Beschreibung), `public/js/zeit.js` (`kalenderBeschreibung`)
 **Rückweg:** `git revert <commit>` bzw. `git checkout <tag> -- public/`.
 
 **Commit:** `aa40c12` · kein Dienst-Restart nötig
+
+### CHECKPOINT 1 — extern freigegeben — 05.10.2026
+
+Die unabhängige Prüfung ist abgeschlossen, die Freigabe für Phase 2 liegt vor.
+Der **Hetzner-Snapshot** als Owner-Aufgabe vor Phase 2 ist erstellt (Masterplan §6).
+
+**Owner-Entscheidung Nr. 9 (Nachtrag, Masterplan §5):** Das Nebenkosten-Modul einschließlich
+der Schweregradlogik in `src/modules/nk/precheck.ts` wird **separat weiterentwickelt** und
+**blockiert Phase 2 nicht**. Der bisher für Checkpoint 1 vorgemerkte Owner-Prüfpunkt zur
+fachlichen Richtigkeit der 21 Regeln entfällt damit aus dem Checkpoint-Ablauf.
+
+---
+
+### P2-1 — Helles Design: Farb- und Typografiebasis — 05.10.2026
+
+Umfang ausschließlich Farbe, Typografie und Oberflächen. **Kein Layout** — Raster,
+Navigation, Tabellenumbruch und Dialogaufbau bleiben P2-2 bis P2-4 vorbehalten.
+
+**Durchgeführt**
+
+1. **Helle Palette.** Der `:root`-Block in `public/index.html` trägt jetzt ein helles Schema:
+   Seitenhintergrund `#f5f6f8`, Inhaltsflächen weiß, Text `#1a1d23`, Trennlinien `#e2e5ea`,
+   zurückhaltende Schatten, **ein** Akzent — derselbe Blauton wie vorher, auf
+   Hell-Kontrast gebracht (`#4f9cf9` → `#1668c7`). Zusätzlich `color-scheme: light`, damit
+   auch vom Browser gezeichnete Teile (Datums- und Zeitwähler, Bildlaufleisten) hell bleiben.
+2. **Alle Rohfarben auf Rollen umgestellt.** 115 token-fremde Werte (34 Hex, 81 `rgba()`)
+   in sechs Dateien ersetzt; neue Rollen ergänzt statt Einzelwerte zu verstreuen:
+   `--surface-2`, `--border-soft`, `--border-strong`, `--text-soft`, `--accent-weak`,
+   `--accent-dark`, `--on-accent`, `--green/-weak`, `--yellow/-weak`, `--red/-weak`,
+   `--orange/-weak`, `--violet`, `--row-hover`, `--overlay`, `--shadow`, `--shadow-lift`.
+   Vollständige Ersetzungsliste im Report §3.
+3. **Diagramme.** Gitterlinien von `--surface-2` (auf Weiß unsichtbar) auf `--border`;
+   HRV-Linie `--violet`, Readiness-Sparkline `--orange`; Schlafbalken grün/amber/rot aus den
+   Statusrollen, Deckkraft von 0,75 auf 0,9 angehoben, weil Transparenz auf Weiß auswäscht;
+   Achsenbeschriftung 10 px → 11 px. `_instaMiniSvg()` hängte eine Hex-Alpha an den Farbwert
+   (`${color}15`) — mit `var(--…)` ungültig, jetzt `fill-opacity`.
+4. **Alle Bereiche mit umgestellt**, auch die Alpine-Bereiche (Fuhrpark, Assets, Banking),
+   Dialoge, Schubfächer, Formulare, Tabellen, Abzeichen und Schaltflächen. Formularfelder
+   stehen jetzt weiß mit sichtbarem Rahmen (`--border-strong`, ≥ 3:1) statt auf der
+   Seitenfläche. Die neutrale Schaltfläche hat eine eigene Fläche statt der
+   Browser-Standardfarbe.
+5. **Schriftgrößen.** 183 Stellen von 9–12 px auf 13 px angehoben, 9 bewusst belassen
+   (Abzeichen und Spaltenköpfe — Beschriftung, kein Fließtext). Fließtext bleibt 14 px.
+6. **Fokus-Ringe.** Die acht `outline: none` ohne Ersatz sind entfernt; ein globaler
+   `:focus-visible`-Ring in der Akzentfarbe ersetzt sie. `:focus-visible` statt `:focus`,
+   damit ein Mausklick keinen Ring hinterlässt.
+
+Kein Dark Mode, kein Umschalter.
+
+**Geänderte Dateien:** `public/index.html`, `public/css/assets.css`,
+`public/css/entity-tile.css`, `public/css/wiki.css`, `public/css/datenstand.css`,
+`public/js/assets-nebenkosten.js`, `public/js/assets-stammdaten.js`,
+`public/js/assets-status.js`, `public/js/assets-vertraege.js`, `public/js/assets-wizard.js`,
+`public/js/banking-connect.js`, `public/js/fleet-detail.js`, `public/js/nk-befunde.js`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| Kontrast der Token-Paare (WCAG 2.1, eigenes Skript) | **35 Paare, 0 Unterschreitungen** |
+| **Kontrast im gerenderten DOM**, 13 Bereiche, berechnete Farben | **0 Unterschreitungen** — jeder Textknoten gegen seine tatsächliche Fläche, Ziel 4.5:1 bzw. 3:1 bei großer Schrift |
+| Dunkle Restflächen, 13 Bereiche + 4 Assets-Unterbereiche + Anmeldung | **0** |
+| Dunkle Restflächen in Dialogen, Schubfächern, Instagram-Unterbereichen, Wiki-Seite, SharePoint-Dateiliste, NK-Pre-Check (13 weitere Ansichten) | **0** |
+| Bildschirmfotos (Chromium 1440 px), mittlere Helligkeit | 0,83–0,97 „hell"; die drei Dialogaufnahmen 0,66–0,71, weil die Überlagerung die Seite dahinter abdunkelt — der Dialog selbst ist weiß |
+| Rohfarben außerhalb des Token-Blocks | **2 Treffer, beides keine Farben**: `rgba()` im erklärenden Kommentar und `&#228;` (HTML-Entität für „ä") in „Verträge & Kosten" |
+| `npm run build` | Exit 0 |
+| `node --check` alle `public/js/*.js` und Inline-Skript | Exit 0 |
+| Smoke-Test | ALL PASS (31/31) |
+| Dienste | unverändert `active` — **kein Restart**, nur `public/` betroffen |
+
+**Unterwegs behobene Folgefehler der Umstellung**
+- `.wiki-badge-file` und `.wiki-badge-warn` waren nach der ersten Zuordnung Volltonflächen
+  mit geerbter dunkler Schrift — jetzt Tönung als Fläche, Volltonfarbe als Schrift.
+- `--shadow-lift` ist ein vollständiger `box-shadow`-Wert; zwei Stellen hatten ihn als
+  Farbe hinter `0 4px 12px` gesetzt und wären ungültig gewesen.
+- Fortschrittsbalken mit `opacity: .7` auf Weiß ausgewaschen → Vollton.
+
+**Bewusste Abweichung, begründet**
+- Ein echtes Gelb erreicht auf Weiß physikalisch keine 4.5:1. Die Statusrolle `--yellow` ist
+  deshalb ein dunkles Amber (`#8a6100`, 5.5:1) für Schrift und Symbole; `--yellow-weak` ist
+  die helle Tönung für Flächen. Warnungen tragen ohnehin Symbol **und** Text.
+- Der Instagram-Markenverlauf (drei Hex-Werte) ist durch eine neutrale Fläche ersetzt —
+  Spec §2 verlangt „keine dekorativen Elemente"; die Identität trägt das Symbol.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Darstellung auf dem echten Gerät und bei 360/390/768 px. Die Prüfung lief
+  bei 1440 px; das mobile Raster ist Gegenstand von P2-2 bis P2-4.
+- **CP2 prüfen:** Tastaturdurchlauf — der Fokus-Ring ist gesetzt, seine Sichtbarkeit auf
+  jeder Fläche ist am Gerät zu bestätigen.
+- **CP2 prüfen:** Farbwahrnehmung im Alltag (Bildschirm, Umgebungslicht) — die Messung sagt
+  nur, dass die Schwellen eingehalten sind.
+
+**Vorbestehende Befunde, nicht Teil von P2-1** (beim Prüflauf aufgefallen)
+- `404 /api/images/fleet-FZG-MB/8.jpg` — der Fahrzeugcode `FZG-MB/8` enthält einen
+  Schrägstrich und zerlegt den Bildpfad. Datenseitiger Befund, nicht Farbe.
+- `403 /api/instagram/media-proxy` — der Host `scontent-hel3-1.cdninstagram.com` ist vom
+  Proxy erlaubt; die 403 kommt vom Instagram-CDN selbst, weil die signierten Adressen im
+  146 Tage alten Medien-Zwischenspeicher abgelaufen sind. Passt zum bekannten Datenalter.
+- Die Ganztags-Schaltfläche im Terminformular sitzt über statt neben ihrer Beschriftung —
+  Formularraster, gehört zu P2-4.
+
+**Commit:** `_wird eingetragen_` · kein Dienst-Restart nötig
 
 ---
 

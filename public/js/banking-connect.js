@@ -150,7 +150,7 @@ function bankingConnectFormHtml() {
           <!-- connected -->
           <template x-if="connectResult.status === 'connected'">
             <div>
-              <div class="alert" style="background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.25);color:var(--green);margin-bottom:12px">
+              <div class="alert" style="background:var(--green-weak);border-color:var(--green);color:var(--green);margin-bottom:12px">
                 Verbindung erfolgreich!
                 <span x-show="connectResult.accountCount">
                   <span x-text="connectResult.accountCount"></span> Konto(en) gefunden.
@@ -245,7 +245,7 @@ function bankingOverviewHtml() {
                                   :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
                                   x-text="formatBalance(acct.currentBalance, acct.currency)">
                             </span>
-                            <button class="btn btn-danger" style="font-size:11px;padding:3px 8px"
+                            <button class="btn btn-danger" style="font-size:13px;padding:3px 8px"
                                     x-show="!bulkMode"
                                     @click="archiveSingle(acct.id)"
                                     title="Konto archivieren">📦</button>
@@ -274,10 +274,10 @@ function bankingOverviewHtml() {
               <div class="modal" style="max-width:540px">
                 <h3 style="margin-bottom:12px"
                     x-text="modalTitle()"></h3>
-                <div style="margin-bottom:16px;padding:10px;background:rgba(248,113,113,.08);border:1px solid rgba(248,113,113,.2);border-radius:6px;font-size:13px;color:var(--red)">
+                <div style="margin-bottom:16px;padding:10px;background:var(--red-weak);border:1px solid var(--red);border-radius:6px;font-size:13px;color:var(--red)">
                   Transaktionen und Umsaetze bleiben erhalten. Archivierte Konten koennen nicht reaktiviert werden.
                 </div>
-                <div style="font-size:12px;color:var(--muted);margin-bottom:12px"
+                <div style="font-size:13px;color:var(--muted);margin-bottom:12px"
                      x-show="hasBulkTimer()">
                   Gueltig: <span x-text="bulkTimerText"></span>
                 </div>

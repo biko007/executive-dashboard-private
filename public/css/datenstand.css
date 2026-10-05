@@ -12,7 +12,7 @@
 
 .ds-abruf {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   margin-bottom: 6px;
 }
 
@@ -24,7 +24,7 @@
 
 .ds-tz {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 6px;
 }
 
@@ -56,12 +56,12 @@
 
 .ds-quelle { font-size: 13px; font-weight: 600; }
 
-.ds-zustand { font-size: 12px; }
+.ds-zustand { font-size: 13px; }
 
 .ds-felder,
 .ds-hinweis {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   margin-top: 2px;
 }
 
@@ -103,14 +103,14 @@
   margin-bottom: 3px;
 }
 
-.ds-leer-sub { font-size: 12px; }
+.ds-leer-sub { font-size: 13px; }
 
 /* ── Trefferzeile ueber Listen und Tabellen (P1-2, P1-3) ──────────────────── */
 
 /* Macht sichtbar, wie viele Eintraege der aktive Filter uebrig laesst. */
 .treffer-zeile {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   margin: 2px 0 10px;
 }
 
@@ -122,7 +122,7 @@
    Seite neu — genau das erzeugte den zweiten Dashboard-Tab. */
 .sp-aktion-aus {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-style: italic;
   cursor: not-allowed;
 }
@@ -130,20 +130,20 @@
 /* Ordnerpfad unter dem Dateinamen — macht gleichnamige Dateien unterscheidbar. */
 .sp-pfad {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 3px;
   word-break: break-word;
 }
 
 .sp-fehlt {
   color: var(--yellow);
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 3px;
 }
 
 .sp-hinweis {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
 }
@@ -178,7 +178,7 @@
 
 .nk-befund-code {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-family: monospace;
 }
 
@@ -195,7 +195,7 @@
 .nk-befund-marke {
   flex: 0 0 120px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   text-transform: uppercase;
   letter-spacing: .4px;
   padding-top: 2px;
@@ -203,7 +203,7 @@
 
 .nk-befund-quelle {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-family: monospace;
   margin-top: 6px;
   word-break: break-word;
@@ -215,13 +215,13 @@
    sichtbar und nicht nur im Hover. */
 .nk-matrix-sub {
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 4px;
   line-height: 1.35;
 }
 
 .nk-badge-grau {
-  background: rgba(255, 255, 255, .06);
+  background: var(--surface-2);
   color: var(--muted);
 }
 

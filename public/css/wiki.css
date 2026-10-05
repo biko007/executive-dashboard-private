@@ -13,15 +13,15 @@
   padding: 7px 10px;
 }
 
-.wiki-hint { color: var(--muted); font-size: 12px; margin-bottom: 10px; }
-.wiki-muted { color: var(--muted); font-size: 12px; }
+.wiki-hint { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+.wiki-muted { color: var(--muted); font-size: 13px; }
 
 .wiki-cat { margin-bottom: 18px; }
 .wiki-cat h3 { margin: 0 0 6px; font-size: 14px; }
 .wiki-list { list-style: none; margin: 0; padding: 0; }
 .wiki-list li {
   padding: 5px 0;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  border-bottom: 1px solid var(--border);
   display: flex;
   gap: 8px;
   align-items: baseline;
@@ -30,29 +30,31 @@
 
 .wiki-badge {
   display: inline-block;
-  font-size: 10px;
+  font-size: 11px;
   padding: 1px 6px;
   border-radius: 8px;
-  background: rgba(128, 128, 128, 0.18);
+  background: var(--border);
   color: var(--muted);
   margin-left: 4px;
 }
-.wiki-badge-file { background: rgba(70, 130, 180, 0.25); }
-.wiki-badge-warn { background: rgba(200, 120, 0, 0.30); color: inherit; }
+/* Toenung als Flaeche, Volltonfarbe als Schrift — ein Volltonhintergrund mit
+   geerbter dunkler Schrift waere auf Hell nicht lesbar (P2-1). */
+.wiki-badge-file { background: var(--accent-weak); color: var(--accent); }
+.wiki-badge-warn { background: var(--orange-weak); color: var(--orange); }
 
 .wiki-hit {
   padding: 8px 0;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  border-bottom: 1px solid var(--border);
 }
-.wiki-snippet { color: var(--muted); font-size: 12px; margin-top: 3px; }
+.wiki-snippet { color: var(--muted); font-size: 13px; margin-top: 3px; }
 
 .wiki-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .wiki-title { margin: 0 0 4px; }
-.wiki-meta { color: var(--muted); font-size: 12px; margin-bottom: 14px; }
+.wiki-meta { color: var(--muted); font-size: 13px; margin-bottom: 14px; }
 
 .wiki-warn {
-  border: 1px solid rgba(200, 120, 0, 0.55);
-  background: rgba(200, 120, 0, 0.12);
+  border: 1px solid var(--orange);
+  background: var(--orange-weak);
   padding: 9px 12px;
   border-radius: 6px;
   margin-bottom: 14px;
@@ -65,22 +67,22 @@
 .wiki-body h3 { font-size: 15px; margin: 14px 0 6px; }
 .wiki-body table { margin: 10px 0; }
 .wiki-body th, .wiki-body td {
-  border: 1px solid rgba(128, 128, 128, 0.28);
+  border: 1px solid var(--border);
   padding: 4px 8px;
   text-align: left;
 }
 .wiki-body pre {
-  background: rgba(128, 128, 128, 0.12);
+  background: var(--surface-2);
   padding: 9px 11px;
   border-radius: 5px;
   overflow-x: auto;
 }
-.wiki-body code { background: rgba(128, 128, 128, 0.15); padding: 1px 4px; border-radius: 3px; }
+.wiki-body code { background: var(--border-soft); padding: 1px 4px; border-radius: 3px; }
 .wiki-body img { max-width: 100%; height: auto; }
 .wiki-body blockquote {
   margin: 10px 0;
   padding-left: 11px;
-  border-left: 3px solid rgba(128, 128, 128, 0.35);
+  border-left: 3px solid var(--border-strong);
   color: var(--muted);
 }
 
@@ -93,20 +95,20 @@
   height: 90px;
   object-fit: cover;
   border-radius: 4px;
-  border: 1px solid rgba(128, 128, 128, 0.28);
+  border: 1px solid var(--border);
 }
 
 .wiki-attach { width: 100%; font-size: 13px; }
-.wiki-attach th { text-align: left; color: var(--muted); font-weight: 500; font-size: 11px; }
+.wiki-attach th { text-align: left; color: var(--muted); font-weight: 500; font-size: 13px; }
 .wiki-attach td, .wiki-attach th {
   padding: 4px 6px;
-  border-bottom: 1px solid rgba(128, 128, 128, 0.18);
+  border-bottom: 1px solid var(--border);
 }
 
 .wiki-upload { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
 
 .wiki-form { display: flex; flex-direction: column; gap: 12px; max-width: 900px; }
-.wiki-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+.wiki-form label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
 .wiki-form input, .wiki-form select, .wiki-form textarea {
   padding: 7px 9px;
   font-size: 13px;
@@ -119,7 +121,7 @@
 }
 
 .wiki-raw {
-  background: rgba(128, 128, 128, 0.12);
+  background: var(--surface-2);
   padding: 11px;
   border-radius: 5px;
   white-space: pre-wrap;

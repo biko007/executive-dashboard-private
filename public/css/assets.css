@@ -25,7 +25,7 @@
 .drawer-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,.5);
+  background: var(--overlay);
   z-index: 100;
   animation: fadeIn .15s ease-out;
 }
@@ -92,7 +92,7 @@
 .form-group { margin-bottom: 14px; }
 .form-label {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   text-transform: uppercase;
@@ -101,20 +101,19 @@
 }
 .form-input, .form-select {
   width: 100%;
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 8px 12px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--font);
-  outline: none;
   transition: border-color .12s;
 }
 .form-input:focus, .form-select:focus { border-color: var(--accent); }
-.form-input:disabled, .form-select:disabled { opacity: .5; cursor: not-allowed; }
+.form-input:disabled, .form-select:disabled { background: var(--surface-2); color: var(--muted); cursor: not-allowed; }
 .form-hint {
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 3px;
 }
@@ -147,18 +146,18 @@
   gap: 8px;
 }
 .alert-error {
-  background: rgba(248,113,113,.1);
-  border: 1px solid rgba(248,113,113,.25);
+  background: var(--red-weak);
+  border: 1px solid var(--red);
   color: var(--red);
 }
 .alert-warning {
-  background: rgba(251,191,36,.1);
-  border: 1px solid rgba(251,191,36,.25);
+  background: var(--yellow-weak);
+  border: 1px solid var(--yellow);
   color: var(--yellow);
 }
 .alert-info {
-  background: rgba(79,156,249,.1);
-  border: 1px solid rgba(79,156,249,.25);
+  background: var(--accent-weak);
+  border: 1px solid var(--accent);
   color: var(--accent);
 }
 
@@ -180,7 +179,7 @@
   padding: 10px 16px;
   font-size: 13px;
   color: var(--text);
-  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  box-shadow: var(--shadow-lift);
   pointer-events: auto;
   animation: toastIn .2s ease-out;
   max-width: 360px;
@@ -202,7 +201,7 @@
 
 /* ── Approval Modal ── */
 .approval-diff {
-  background: var(--bg);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 12px 16px;
@@ -215,14 +214,14 @@
   display: flex;
   justify-content: space-between;
   padding: 4px 0;
-  border-bottom: 1px solid rgba(255,255,255,.04);
+  border-bottom: 1px solid var(--border-soft);
 }
 .approval-diff .diff-field:last-child { border-bottom: none; }
 .approval-diff .diff-old { color: var(--red); text-decoration: line-through; }
 .approval-diff .diff-new { color: var(--green); }
 .approval-banner {
-  background: rgba(251,191,36,.1);
-  border: 1px solid rgba(251,191,36,.25);
+  background: var(--yellow-weak);
+  border: 1px solid var(--yellow);
   border-radius: 6px;
   padding: 10px 14px;
   font-size: 13px;
@@ -236,7 +235,7 @@
   margin-top: 16px;
 }
 .approval-timer {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 8px;
 }
@@ -260,7 +259,7 @@
   flex: 1;
   text-align: center;
   padding: 8px 4px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--muted);
   border-bottom: 2px solid var(--border);
@@ -289,7 +288,7 @@
   text-align: left;
   padding: 8px 12px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .4px;
@@ -303,7 +302,7 @@
   vertical-align: middle;
 }
 .assets-table tbody tr { cursor: pointer; }
-.assets-table tbody tr:hover td { background: rgba(255,255,255,.025); }
+.assets-table tbody tr:hover td { background: var(--row-hover); }
 .assets-table tbody tr:last-child td { border-bottom: none; }
 
 /* ── Ampel-Abzeichen ── */
@@ -323,17 +322,17 @@
   line-height: 1.4;
   white-space: nowrap;
 }
-.nk-badge-green  { background: rgba(74,222,128,.15); color: var(--green); }
-.nk-badge-yellow { background: rgba(251,191,36,.15); color: var(--yellow); }
-.nk-badge-red    { background: rgba(248,113,113,.15); color: var(--red); }
+.nk-badge-green  { background: var(--green-weak); color: var(--green); }
+.nk-badge-yellow { background: var(--yellow-weak); color: var(--yellow); }
+.nk-badge-red    { background: var(--red-weak); color: var(--red); }
 
 /* ── Error highlight for bulk readings ── */
 .error-highlight td {
-  background: rgba(248,113,113,.08) !important;
+  background: var(--red-weak) !important;
 }
 .error-highlight .inline-error {
   color: var(--red);
-  font-size: 11px;
+  font-size: 13px;
   margin-top: 4px;
 }
 
@@ -380,7 +379,7 @@
   background: none;
   border: none;
   color: var(--accent);
-  font-size: 11px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0 4px;
 }
@@ -393,22 +392,21 @@
 }
 
 /* ── Status Badges for Obligations ── */
-.status-pending    { background: rgba(79,156,249,.12); color: var(--accent); }
-.status-active_run { background: rgba(251,191,36,.12); color: var(--yellow); }
-.status-served     { background: rgba(74,222,128,.12); color: var(--green); }
-.status-expired    { background: rgba(248,113,113,.12); color: var(--red); }
-.status-not_applicable { background: rgba(255,255,255,.06); color: var(--muted); }
+.status-pending    { background: var(--accent-weak); color: var(--accent); }
+.status-active_run { background: var(--yellow-weak); color: var(--yellow); }
+.status-served     { background: var(--green-weak); color: var(--green); }
+.status-expired    { background: var(--red-weak); color: var(--red); }
+.status-not_applicable { background: var(--surface-2); color: var(--muted); }
 
 /* ── Search Input ── */
 .search-input {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 7px 12px;
   color: var(--text);
-  font-size: 13px;
+  font-size: 14px;
   font-family: var(--font);
-  outline: none;
   width: 240px;
 }
 .search-input:focus { border-color: var(--accent); }
@@ -423,14 +421,13 @@
   flex-wrap: wrap;
 }
 .filter-select {
-  background: var(--bg);
-  border: 1px solid var(--border);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 6px 10px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   font-family: var(--font);
-  outline: none;
 }
 .filter-select:focus { border-color: var(--accent); }
 
@@ -442,11 +439,11 @@
 
 /* ── Legacy-Marker Banner ── */
 .legacy-banner {
-  background: rgba(251,191,36,.08);
-  border: 1px solid rgba(251,191,36,.2);
+  background: var(--yellow-weak);
+  border: 1px solid var(--yellow);
   border-radius: 6px;
   padding: 10px 14px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--yellow);
   margin-bottom: 16px;
 }

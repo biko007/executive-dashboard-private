@@ -223,7 +223,7 @@ async function nkLoadPreCheck() {
     </div>`;
 
     if (blocking === 0 && warnings === 0) {
-      html += `<div class="alert" style="background:var(--green-bg,rgba(34,197,94,.08));border:1px solid var(--green,#22c55e);color:var(--green,#22c55e);margin-bottom:12px;padding:10px 14px;border-radius:8px">
+      html += `<div class="alert" style="background:var(--green-weak);border:1px solid var(--green);color:var(--green);margin-bottom:12px;padding:10px 14px;border-radius:8px">
         Bereit f\u00fcr Vorschau! <a href="#" onclick="event.preventDefault();nkSwitchSection('preview')" style="color:inherit;text-decoration:underline">Jetzt Vorschau berechnen</a>
       </div>`;
     }
@@ -253,7 +253,7 @@ async function nkLoadPreCheck() {
       + '<div class="ds-leer-titel">Pruefung konnte nicht geladen werden</div>'
       + '<div class="ds-leer-sub">' + esc(e.message)
       + ' — der Bereitschaftszustand ist damit unbekannt, nicht in Ordnung.</div>'
-      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="nkLoadPreCheck()">Erneut versuchen</button></div>'
       + '</div></div>';
   }
@@ -293,7 +293,7 @@ async function nkLoadPreview() {
     if (previewWarnings.length) {
       html += '<div style="margin-bottom:12px">';
       for (const w of previewWarnings) {
-        html += `<div class="alert" style="background:rgba(234,179,8,.08);border:1px solid #eab308;color:#eab308;padding:8px 12px;border-radius:8px;margin-bottom:6px;font-size:13px">${esc(typeof w === 'string' ? w : w.message || JSON.stringify(w))}</div>`;
+        html += `<div class="alert" style="background:var(--yellow-weak);border:1px solid var(--yellow);color:var(--yellow);padding:8px 12px;border-radius:8px;margin-bottom:6px;font-size:13px">${esc(typeof w === 'string' ? w : w.message || JSON.stringify(w))}</div>`;
       }
       html += '</div>';
     }
@@ -306,7 +306,7 @@ async function nkLoadPreview() {
         <tbody>`;
       for (const s of statements) {
         if (s.is_owner_block) continue; // render separately
-        const saldoColor = (s.balance || 0) >= 0 ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)';
+        const saldoColor = (s.balance || 0) >= 0 ? 'var(--green)' : 'var(--red)';
         html += `<tr>
           <td>${esc(s.tenant_name || s.tenant_names || '\u2013')}</td>
           <td>${esc(s.unit_label || '\u2013')}</td>
@@ -321,7 +321,7 @@ async function nkLoadPreview() {
     // Owner block
     const ownerBlocks = (data.statements || []).filter(s => s.is_owner_block);
     if (ownerBlocks.length) {
-      html += `<div style="background:var(--bg-muted,#f5f5f5);border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px">
+      html += `<div style="background:var(--bg-muted,var(--surface-2));border:1px solid var(--border);border-radius:8px;padding:14px;margin-top:12px">
         <strong style="font-size:13px">Eigent\u00fcmer-Anteil</strong>`;
       for (const o of ownerBlocks) {
         html += `<div style="margin-top:8px;font-size:13px">
@@ -467,7 +467,7 @@ async function nkLoadRuns() {
         <td>${fmtDT(r.created_at)}</td>
         <td>${r.finalized_at ? fmtDT(r.finalized_at) : '\u2013'}</td>
         <td style="text-align:center">${r.statement_count ?? r.statements_count ?? '\u2013'}</td>
-        <td><code style="font-size:11px">${esc(snapshot)}</code></td>
+        <td><code style="font-size:13px">${esc(snapshot)}</code></td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -499,9 +499,9 @@ async function nkShowRunDetail(runId) {
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:16px">
         <div><strong>Engine-Version:</strong> ${esc(run.engine_version || '\u2013')}</div>
-        <div><strong>Input-Hash:</strong> <code style="font-size:11px">${esc(run.input_hash || '\u2013')}</code></div>
+        <div><strong>Input-Hash:</strong> <code style="font-size:13px">${esc(run.input_hash || '\u2013')}</code></div>
         <div><strong>CO2-Handling:</strong> ${esc(run.co2_handling || 'default')}</div>
-        <div><strong>Snapshot-SHA:</strong> <code style="font-size:11px">${esc(run.snapshot_sha || '\u2013')}</code></div>
+        <div><strong>Snapshot-SHA:</strong> <code style="font-size:13px">${esc(run.snapshot_sha || '\u2013')}</code></div>
       </div>`;
 
     // Run warnings
@@ -509,7 +509,7 @@ async function nkShowRunDetail(runId) {
     if (runWarnings.length) {
       html += '<div style="margin-bottom:12px">';
       for (const w of runWarnings) {
-        html += `<div class="alert" style="background:rgba(234,179,8,.08);border:1px solid #eab308;color:#eab308;padding:6px 10px;border-radius:6px;margin-bottom:4px;font-size:12px">${esc(typeof w === 'string' ? w : w.message || JSON.stringify(w))}</div>`;
+        html += `<div class="alert" style="background:var(--yellow-weak);border:1px solid var(--yellow);color:var(--yellow);padding:6px 10px;border-radius:6px;margin-bottom:4px;font-size:13px">${esc(typeof w === 'string' ? w : w.message || JSON.stringify(w))}</div>`;
       }
       html += '</div>';
     }
@@ -523,15 +523,15 @@ async function nkShowRunDetail(runId) {
         <tbody>`;
       for (const s of statements) {
         const isOwner = s.is_owner_block;
-        const saldoColor = (s.balance || 0) >= 0 ? 'var(--green,#22c55e)' : 'var(--red,#ef4444)';
-        const rowStyle = isOwner ? 'background:var(--bg-muted,#f5f5f5)' : '';
+        const saldoColor = (s.balance || 0) >= 0 ? 'var(--green)' : 'var(--red)';
+        const rowStyle = isOwner ? 'background:var(--bg-muted,var(--surface-2))' : '';
 
         html += `<tr style="${rowStyle}" id="nk-stmt-${s.id}">
           <td>${isOwner ? `<em style="color:var(--muted)">Eigent\u00fcmer${s.owner_type ? ' (' + esc(fmtOwnerType(s.owner_type)) + ')' : ''}</em>` : esc(s.tenant_name || s.tenant_names || '\u2013')}</td>
           <td>${esc(s.unit_label || '\u2013')}</td>
           <td style="text-align:right;color:${saldoColor};font-weight:600">${fmtEur(s.balance)}</td>
           <td>${_nkPdfBadge(s)}</td>
-          <td>${s.served_at ? `<span class="badge badge-green">${fmtDate(s.served_at)}</span>` : (isOwner ? '<span style="color:var(--muted);font-size:12px">nicht servierbar</span>' : '<span class="badge badge-muted">Offen</span>')}</td>
+          <td>${s.served_at ? `<span class="badge badge-green">${fmtDate(s.served_at)}</span>` : (isOwner ? '<span style="color:var(--muted);font-size:13px">nicht servierbar</span>' : '<span class="badge badge-muted">Offen</span>')}</td>
           <td>${_nkStatementActions(s)}</td>
         </tr>`;
 
@@ -563,26 +563,26 @@ function _nkStatementActions(s) {
   const isOwner = s.is_owner_block;
 
   // Items accordion toggle
-  actions += `<button class="btn" style="font-size:11px" onclick="nkToggleStatementItems(${s.id})">Details</button> `;
+  actions += `<button class="btn" style="font-size:13px" onclick="nkToggleStatementItems(${s.id})">Details</button> `;
 
   // PDF download
   if (s.pdf_render_status === 'ready') {
     const pdfUrl = composeUrl('nk-statements.pdf', { statement_id: s.id });
-    actions += `<button class="btn" style="font-size:11px" onclick="window.open('/dashboard${pdfUrl}?token='+encodeURIComponent(TOKEN),'_blank')">PDF</button> `;
+    actions += `<button class="btn" style="font-size:13px" onclick="window.open('/dashboard${pdfUrl}?token='+encodeURIComponent(TOKEN),'_blank')">PDF</button> `;
   }
 
   // Re-render
   if (s.pdf_render_status === 'failed' && (s.pdf_render_attempts || 0) < 5) {
-    actions += `<button class="btn" style="font-size:11px" onclick="nkRerender(${s.id})" id="nk-rerender-${s.id}">Re-Render</button> `;
+    actions += `<button class="btn" style="font-size:13px" onclick="nkRerender(${s.id})" id="nk-rerender-${s.id}">Re-Render</button> `;
   }
 
   // Serve
   if (!isOwner && !s.superseded && s.pdf_render_status === 'ready' && !s.served_at) {
-    actions += `<button class="btn btn-primary" style="font-size:11px" onclick="nkShowServeForm(${s.id})">Zugestellt</button>`;
+    actions += `<button class="btn btn-primary" style="font-size:13px" onclick="nkShowServeForm(${s.id})">Zugestellt</button>`;
   }
 
   if (isOwner && !actions.trim()) {
-    actions = '<span style="color:var(--muted);font-size:11px">nicht servierbar</span>';
+    actions = '<span style="color:var(--muted);font-size:13px">nicht servierbar</span>';
   }
 
   return actions;
@@ -602,7 +602,7 @@ async function nkToggleStatementItems(statementId) {
   row.style.display = '';
   const contentEl = document.getElementById(`nk-stmt-items-content-${statementId}`);
   if (!contentEl) return;
-  contentEl.innerHTML = '<div class="spinner" style="font-size:12px">Laden...</div>';
+  contentEl.innerHTML = '<div class="spinner" style="font-size:13px">Laden...</div>';
 
   const csrf = Alpine.store('csrf');
   try {
@@ -613,11 +613,11 @@ async function nkToggleStatementItems(statementId) {
     const items = statement.items || statement.line_items || [];
 
     if (!items.length) {
-      contentEl.innerHTML = '<div class="empty" style="font-size:12px">Keine Positionen</div>';
+      contentEl.innerHTML = '<div class="empty" style="font-size:13px">Keine Positionen</div>';
       return;
     }
 
-    let html = `<table class="assets-table" style="font-size:12px">
+    let html = `<table class="assets-table" style="font-size:13px">
       <thead><tr><th>Kostenart</th><th style="text-align:right">Gesamtkosten</th><th>Schl\u00fcssel</th><th style="text-align:right">Mieter-Anteil</th></tr></thead>
       <tbody>`;
     for (const item of items) {
@@ -631,7 +631,7 @@ async function nkToggleStatementItems(statementId) {
     html += '</tbody></table>';
     contentEl.innerHTML = html;
   } catch (e) {
-    contentEl.innerHTML = `<div class="alert alert-error" style="font-size:12px">${esc(e.message)}</div>`;
+    contentEl.innerHTML = `<div class="alert alert-error" style="font-size:13px">${esc(e.message)}</div>`;
   }
 }
 
@@ -778,12 +778,12 @@ async function nkLoadObligationsForProperty() {
 
       let actions = '';
       if (o.status === 'pending') {
-        actions += `<button class="btn" style="font-size:11px" onclick="nkObligationMarkNotApplicable(${o.id})">Nicht anwendbar</button> `;
-        actions += `<button class="btn btn-danger" style="font-size:11px" onclick="nkObligationMarkExpired(${o.id})">Verfristet</button>`;
+        actions += `<button class="btn" style="font-size:13px" onclick="nkObligationMarkNotApplicable(${o.id})">Nicht anwendbar</button> `;
+        actions += `<button class="btn btn-danger" style="font-size:13px" onclick="nkObligationMarkExpired(${o.id})">Verfristet</button>`;
       } else if (o.status === 'active_run') {
-        actions += `<button class="btn btn-danger" style="font-size:11px" onclick="nkObligationMarkExpired(${o.id})">Verfristet</button>`;
+        actions += `<button class="btn btn-danger" style="font-size:13px" onclick="nkObligationMarkExpired(${o.id})">Verfristet</button>`;
       } else if (o.status === 'expired') {
-        actions += `<button class="btn" style="font-size:11px" onclick="nkObligationReopen(${o.id})">Wieder\u00f6ffnen</button>`;
+        actions += `<button class="btn" style="font-size:13px" onclick="nkObligationReopen(${o.id})">Wieder\u00f6ffnen</button>`;
       }
 
       html += `<tr>
@@ -804,7 +804,7 @@ async function nkLoadObligationsForProperty() {
       + '<div class="ds-leer-titel">\u00a7556-Fristen konnten nicht geladen werden</div>'
       + '<div class="ds-leer-sub">' + esc(e.message)
       + ' \u2014 der Pflichtenstand ist unbekannt, nicht unbedenklich.</div>'
-      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:12px"'
+      + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="nkLoadObligationsForProperty()">Erneut versuchen</button></div>'
       + '</div></div>';
   }

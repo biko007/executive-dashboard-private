@@ -231,7 +231,7 @@ document.addEventListener('alpine:init', () => {
             <option value="">Objekt waehlen...</option>
             ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
-          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddMeter()">+ Zaehler</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddMeter()">+ Zaehler</button>
         </div>
         <div id="meters-list"><div class="empty">Objekt waehlen</div></div>
       `;
@@ -378,7 +378,7 @@ async function assetsOpenLeaseDrawer(leaseId) {
       <div class="drawer-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h4 style="margin-bottom:0">Mietbestandteile</h4>
-          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddCharge(${lease.id})">+ Posten</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddCharge(${lease.id})">+ Posten</button>
         </div>
         <table class="assets-table">
           <thead><tr><th>Typ</th><th>Betrag</th><th>Gueltig ab</th><th>Gueltig bis</th></tr></thead>
@@ -573,7 +573,7 @@ async function loadExpenseBookings() {
         <td>${fmtDate(b.service_start)} – ${fmtDate(b.service_end)}</td>
         <td>${b.umlagefaehig ? '<span class="badge badge-green">Ja</span>' : '<span class="badge badge-muted">Nein</span>'}</td>
         <td>${esc(b.maintenance_vs_operating || '–')}</td>
-        <td><button class="btn" style="font-size:11px;padding:2px 6px" onclick="assetsEditExpense(${b.id})">Bearbeiten</button></td>
+        <td><button class="btn" style="font-size:13px;padding:3px 8px" onclick="assetsEditExpense(${b.id})">Bearbeiten</button></td>
       </tr>`;
     }
 
@@ -687,11 +687,11 @@ async function loadAllocationRules() {
 
       // Shares for fixed/mea
       if (r.key_type === 'mea' || r.key_type === 'fixed') {
-        html += `<div style="margin-top:8px"><button class="btn" style="font-size:12px" onclick="loadAllocationShares(${r.id})">Anteile anzeigen</button></div>`;
+        html += `<div style="margin-top:8px"><button class="btn" style="font-size:13px" onclick="loadAllocationShares(${r.id})">Anteile anzeigen</button></div>`;
       }
 
       html += `<div style="margin-top:8px;display:flex;gap:8px">
-        <button class="btn btn-primary" style="font-size:12px" onclick="assetsSaveRule(${r.id})">Speichern</button>
+        <button class="btn btn-primary" style="font-size:13px" onclick="assetsSaveRule(${r.id})">Speichern</button>
       </div></div>`;
     }
 
@@ -930,18 +930,18 @@ async function loadBulkMeters() {
       const lastVal = last ? last.value : null;
       const calibExpired = m.calibration_valid_until && new Date(m.calibration_valid_until) < new Date();
       html += `<tr data-meter-id="${m.id}">
-        <td><strong>${esc(m.meter_number || '')}</strong>${calibExpired ? '<br><span class="badge badge-red" style="font-size:10px">Eichung abgelaufen</span>' : ''}</td>
+        <td><strong>${esc(m.meter_number || '')}</strong>${calibExpired ? '<br><span class="badge badge-red">Eichung abgelaufen</span>' : ''}</td>
         <td>${esc(m.medium || '')}</td>
         <td>${esc(m.unit_label || '–')}</td>
         <td>${lastVal != null ? lastVal : '–'}</td>
         <td><input class="form-input" type="number" step="0.001" data-last="${lastVal}" placeholder="" style="width:120px" oninput="bulkCalcDiff(this, ${lastVal})"></td>
         <td class="bulk-diff">–</td>
         <td>
-          <label class="form-checkbox" style="font-size:12px">
+          <label class="form-checkbox" style="font-size:13px">
             <input type="checkbox" class="bulk-estimated">
           </label>
         </td>
-        <td><input class="form-input" style="width:100px;font-size:12px" placeholder="" class="bulk-notes"></td>
+        <td><input class="form-input" style="width:100px;font-size:13px" placeholder="" class="bulk-notes"></td>
       </tr>`;
     }
 
@@ -970,7 +970,7 @@ function bulkCalcDiff(input, lastVal) {
       const estimated = row.querySelector('.bulk-estimated');
       const readingType = document.getElementById('bulk-type')?.value;
       if (!estimated?.checked && readingType !== 'meter_reset') {
-        diffCell.innerHTML = `<span style="color:var(--red)">${diff.toFixed(3)}</span><br><span style="color:var(--red);font-size:10px">Ruecklaeufig!</span>`;
+        diffCell.innerHTML = `<span style="color:var(--red)">${diff.toFixed(3)}</span><br><span style="color:var(--red);font-size:13px">Ruecklaeufig!</span>`;
       }
     }
   } else {

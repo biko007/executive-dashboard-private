@@ -211,6 +211,7 @@ Befundlage bleibt als Begründung stehen.
 | 6 | **Kopfzeile „Hans Dampf"** | Hartcodiert in `public/index.html:233` und Meta-Tag `:10` | **Bleibt.** Keine Änderung | — (erledigt durch Nicht-Handeln) |
 | 7 | **Nebenkosten-Meldungstexte** | 21 Regeln in `src/modules/nk/precheck.ts` liefern englische Meldungen ohne Ursache/Auswirkung/nächsten Schritt | **Deutsche Texte im Dashboard, `precheck.ts` bleibt unangetastet.** Die fachliche Prüfung der Schweregrad-Zuordnung übernimmt der Owner bei **Checkpoint 1** | P1-6 |
 | 8 | **SharePoint-Altzeile** | Zwei Einträge mit derselben `site_id`, einer mit leerem Namen und einer Datei | **Nur anzeigen, kein Cleanup.** `POST /api/sharepoint/cleanup-missing` wird nicht ausgeführt | P1-4 |
+| 9 | **Nebenkosten-Modul** (Nachtrag 05.10.2026) | Die Schweregrad-Zuordnung der 21 Regeln in `src/modules/nk/precheck.ts` war als Owner-Prüfpunkt für Checkpoint 1 vorgesehen | **Das NK-Modul einschließlich Schweregradlogik wird separat weiterentwickelt. Es blockiert Phase 2 nicht.** Der Prüfpunkt entfällt damit aus dem Checkpoint-Ablauf | — (eigener Strang) |
 
 ---
 

@@ -14,28 +14,91 @@
 <link rel="stylesheet" href="/dashboard/css/wiki.css">
 <link rel="stylesheet" href="/dashboard/css/datenstand.css">
 <style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   Farb- und Typografiebasis — Paket P2-1 (Spec §2)
+
+   Helles Schema als Standard: heller Seitenhintergrund, weisse
+   Inhaltsflaechen, dunkle Schrift, dezente Trennlinien, EIN Akzent.
+   Kein Dark Mode, kein Umschalter — bewusst nicht Teil der Anforderung.
+
+   ALLE Farben des Dashboards kommen aus diesem Block. Ausserhalb stehen
+   keine Hex- oder rgba()-Rohwerte mehr; neue Farbwuensche bekommen hier eine
+   Rolle, statt als Einzelwert verstreut zu werden.
+
+   Jedes Paar aus Text- und Flaechenrolle ist gegen WCGA 2.1 AA geprueft
+   (35 Paare, 0 Unterschreitungen; Nachweis im Report zu P2-1):
+   Fliesstext >= 4.5:1, Rahmen und Diagrammlinien >= 3:1.
+
+   Zum "Gelb": ein echtes Gelb erreicht auf Weiss physikalisch keine 4.5:1.
+   Die Statusrolle --yellow ist deshalb ein dunkles Amber fuer Schrift und
+   Symbole; --yellow-weak ist die helle Toenung fuer Flaechen dahinter.
+   Warnungen tragen ohnehin Symbol UND Text (Spec §2).
+   ═══════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg:      #0f1117;
-  --surface: #161b26;
-  --border:  #272d3d;
-  --text:    #e2e8f0;
-  --muted:   #7a8499;
-  --accent:  #4f9cf9;
-  --green:   #4ade80;
-  --yellow:  #fbbf24;
-  --red:     #f87171;
+  /* Flaechen */
+  --bg:            #f5f6f8;  /* Seitenhintergrund */
+  --surface:       #ffffff;  /* Karten, Tabellen, Dialoge */
+  --surface-2:     #f0f2f5;  /* Flaeche INNERHALB einer Karte */
+  --row-hover:     #f3f5f8;  /* Tabellenzeile unter dem Zeiger */
+
+  /* Linien */
+  --border:        #e2e5ea;  /* Trennlinien, Kartenrahmen */
+  --border-soft:   #eef0f3;  /* noch dezenter, z. B. Listentrenner */
+  --border-strong: #7d8594;  /* Rahmen von Formularfeldern (>= 3:1) */
+
+  /* Schrift */
+  --text:          #1a1d23;  /* Fliesstext            16.9:1 auf Weiss */
+  --text-soft:     #4a5159;  /* zweite Ebene           8.0:1 */
+  --muted:         #5a6270;  /* Nebeninformation       6.2:1 */
+
+  /* Akzent — derselbe Blauton wie vorher, auf Hell-Kontrast gebracht */
+  --accent:        #1668c7;  /* 5.5:1 auf Weiss */
+  --accent-weak:   #e8f1fc;  /* Toenung hinter Akzenttext */
+  --on-accent:     #ffffff;  /* Schrift auf Akzentflaeche, 5.5:1 */
+  --accent-dark:   #12569f;  /* gedrueckte Primaerschaltflaeche, 7.2:1 */
+
+  /* Status — Schriftfarbe dunkel, Flaeche als helle Toenung */
+  --green:         #147235;  --green-weak:  #e6f4ea;
+  --yellow:        #8a6100;  --yellow-weak: #fdf3e0;
+  --red:           #b42318;  --red-weak:    #fdeceb;
+  --orange:        #b54708;  --orange-weak: #fdeee2;
+
+  /* Diagramme */
+  --violet:        #6d28d9;  /* HRV-Linie, 7.1:1 */
+
+  /* Ueberlagerung und Schatten — zurueckhaltend (Spec §2) */
+  --overlay:       rgba(16, 20, 28, .45);
+  --shadow:        0 1px 2px rgba(16, 20, 28, .06), 0 1px 3px rgba(16, 20, 28, .05);
+  --shadow-lift:   0 4px 12px rgba(16, 20, 28, .10);
+
   --r:       8px;
   --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
+/* Teilt dem Browser das helle Schema mit, damit auch von ihm gezeichnete
+   Teile (Bildlaufleisten, Datums- und Zeitwaehler, Auswahlpfeile) hell
+   erscheinen. Ohne diese Angabe bleiben sie bei dunkel eingestelltem System
+   dunkel — ein sichtbarer Rest, den die eigene Palette nicht erreicht. */
+:root { color-scheme: light; }
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+
+/* ── Sichtbarer Tastaturfokus ──────────────────────────────────────────────
+   Acht Stellen setzten `outline: none`, ohne Ersatz — der Fokus war beim
+   Durchtabben unsichtbar (Spec §6 "Sichtbarer Tastaturfokus"). Ein globaler
+   :focus-visible-Ring in der Akzentfarbe (5.5:1 auf Weiss) ersetzt das.
+   :focus-visible statt :focus, damit ein Mausklick keinen Ring hinterlaesst. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* ── Login ── */
 #login { display: none; align-items: center; justify-content: center; min-height: 100vh; }
-.login-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 40px 36px; width: 340px; }
+.login-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 40px 36px; width: 340px; box-shadow: var(--shadow); }
 .login-box h2 { font-size: 20px; margin-bottom: 6px; }
 .login-box p  { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
-.login-box input { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 14px; margin-bottom: 12px; outline: none; }
+.login-box input { width: 100%; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; padding: 10px 12px; color: var(--text); font-size: 14px; margin-bottom: 12px; }
 .login-box input:focus { border-color: var(--accent); }
 .login-err { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 18px; }
 
@@ -44,49 +107,60 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 10; }
 header h1 { font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: .3px; }
 .header-meta { display: flex; align-items: center; gap: 16px; }
-.header-meta span { color: var(--muted); font-size: 12px; }
-.btn-logout { background: none; border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; }
-.btn-logout:hover { border-color: var(--red); color: var(--red); }
+.header-meta span { color: var(--muted); font-size: 13px; }
+.btn-logout { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-soft); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
+.btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
 
 nav { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 20px; display: flex; gap: 2px; }
-nav button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--muted); padding: 11px 14px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: color .12s; white-space: nowrap; }
-nav button:hover { color: var(--text); }
+nav button { background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-soft); padding: 11px 14px; cursor: pointer; font-size: 13px; font-family: var(--font); transition: color .12s; white-space: nowrap; }
+nav button:hover { color: var(--text); background: var(--row-hover); }
 nav button.active { color: var(--accent); border-bottom-color: var(--accent); }
 
 main { padding: 24px; max-width: 1200px; }
 
 /* ── Utilities ── */
-.btn { padding: 6px 12px; border-radius: 6px; border: none; cursor: pointer; font-size: 13px; font-family: var(--font); transition: opacity .12s, background .12s; }
-.btn-primary { background: var(--accent); color: #fff; }
-.btn-primary:hover { opacity: .85; }
-.btn-danger { background: rgba(248,113,113,.12); color: var(--red); border: 1px solid rgba(248,113,113,.25); }
-.btn-danger:hover { background: rgba(248,113,113,.25); }
+/* Neutrale Schaltflaeche ausdruecklich setzen. Ohne eigene Flaeche zeichnet
+   der Browser seine Standardfarbe — die haengt am Systemthema und war damit
+   nicht unter Kontrolle der Palette. */
+.btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-family: var(--font); transition: background .12s, border-color .12s; }
+.btn:hover { background: var(--row-hover); }
+.btn-primary { background: var(--accent); color: var(--on-accent); }
+/* Auf hellem Grund wirkt eine abgesenkte Deckkraft ausgewaschen statt
+   gedrueckt — deshalb ein echter dunklerer Hintergrund per Mischung. */
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-ghost { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
+.btn-ghost:hover { background: var(--row-hover); color: var(--text); }
+.btn-danger { background: var(--red-weak); color: var(--red); border: 1px solid var(--red); }
+.btn-danger:hover { background: var(--red); color: var(--on-accent); }
 
-.badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
-.badge-green  { background: rgba(74,222,128,.12); color: var(--green); }
-.badge-yellow { background: rgba(251,191,36,.12); color: var(--yellow); }
-.badge-red    { background: rgba(248,113,113,.12); color: var(--red); }
-.badge-blue   { background: rgba(79,156,249,.12);  color: var(--accent); }
-.badge-muted  { background: rgba(255,255,255,.06); color: var(--muted); }
+/* 11 px bleibt: ein Abzeichen ist Beschriftung, kein Fliesstext (Spec §6). */
+.badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size:13px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
+.badge-green  { background: var(--green-weak); color: var(--green); }
+.badge-yellow { background: var(--yellow-weak); color: var(--yellow); }
+.badge-red    { background: var(--red-weak); color: var(--red); }
+.badge-blue   { background: var(--accent-weak);  color: var(--accent); }
+.badge-muted  { background: var(--surface-2); color: var(--muted); }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
 .card-pad { padding: 20px; }
 
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+/* Spaltenkopf: 12 px und dunkler als zuvor; reine Beschriftung, kein Fliesstext. */
+th { text-align: left; padding: 10px 14px; background: var(--surface-2); color: var(--text-soft); font-size:13px; font-weight: 600; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 td { padding: 11px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
 tr:last-child td { border-bottom: none; }
-tbody tr:hover td { background: rgba(255,255,255,.018); }
+tbody tr:hover td { background: var(--row-hover); }
 
 .spinner { color: var(--muted); padding: 60px; text-align: center; font-size: 15px; }
-.empty   { color: var(--muted); padding: 60px; text-align: center; }
+.empty   { color: var(--muted); padding: 60px; text-align: center; font-size: 14px; }
 
 /* ── Summary cards ── */
 .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px; }
-.s-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; }
-.s-card .lbl { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+.s-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px 18px; box-shadow: var(--shadow); }
+/* 12 px statt 11 px: die Kachelbeschriftung traegt die Bedeutung der Zahl. */
+.s-card .lbl { color: var(--text-soft); font-size:13px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
 .s-card .val { font-size: 26px; font-weight: 700; line-height: 1; }
-.s-card .sub { color: var(--muted); font-size: 12px; margin-top: 5px; }
+.s-card .sub { color: var(--muted); font-size: 13px; margin-top: 5px; }
 
 /* ── Trip cards ── */
 .trip-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 20px; margin-bottom: 12px; }
@@ -97,43 +171,43 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .trip-grid .mi { font-size: 13px; }
 .trip-grid .ml { color: var(--muted); }
 .segments { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); }
-.seg-header { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
-.seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,.04); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.seg-header { font-size:13px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+.seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border-soft); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .seg-row:last-child { border-bottom: none; }
 
 /* ── Traveled (past trips collapsible) ── */
 .traveled-section { margin-top: 24px; }
 .traveled-section summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 10px 0; border-top: 1px solid var(--border); list-style: none; display: flex; align-items: center; gap: 8px; }
-.traveled-section summary::before { content: '▶'; font-size: 10px; transition: transform .2s; }
+.traveled-section summary::before { content: '▶'; font-size:13px; transition: transform .2s; }
 .traveled-section[open] summary::before { transform: rotate(90deg); }
 .traveled-section summary::-webkit-details-marker { display: none; }
 
 /* ── Instagram Live Feed Grid ── */
 .insta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 20px; }
-.insta-grid-item { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--bg); border: 1px solid var(--border); }
+.insta-grid-item { position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden; cursor: pointer; background: var(--surface-2); border: 1px solid var(--border); }
 .insta-grid-item img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity .15s; }
 .insta-grid-item:hover img { opacity: .75; }
-.insta-grid-item .ig-type { position: absolute; top: 6px; right: 6px; font-size: 14px; text-shadow: 0 1px 3px rgba(0,0,0,.7); }
-.insta-grid-item .ig-likes { position: absolute; bottom: 0; left: 0; right: 0; padding: 4px 8px; font-size: 11px; font-weight: 600; color: #fff; background: linear-gradient(transparent, rgba(0,0,0,.7)); }
+.insta-grid-item .ig-type { position: absolute; top: 6px; right: 6px; font-size: 14px; text-shadow: 0 1px 3px var(--overlay); }
+.insta-grid-item .ig-likes { position: absolute; bottom: 0; left: 0; right: 0; padding: 4px 8px; font-size:13px; font-weight: 600; color: var(--on-accent); background: linear-gradient(transparent, var(--overlay)); }
 
 /* ── Calendar ── */
 .day-group { margin-bottom: 22px; }
 .day-lbl { font-weight: 600; color: var(--accent); font-size: 14px; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
 .ev-row { display: grid; grid-template-columns: 130px 1fr auto; gap: 14px; align-items: start; padding: 10px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; }
 .ev-row.ev-ganztags { border-left: 3px solid var(--accent); }
-.ev-time { color: var(--muted); font-size: 12px; padding-top: 1px; }
+.ev-time { color: var(--muted); font-size:13px; padding-top: 1px; }
 .ev-zeit-haupt { color: var(--text); font-weight: 600; white-space: nowrap; }
-.ev-zeit-sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+.ev-zeit-sub { color: var(--muted); font-size:13px; margin-top: 2px; }
 .ev-body { min-width: 0; }
 .ev-title { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
-.ev-sub { color: var(--muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
+.ev-sub { color: var(--muted); font-size:13px; margin-top: 3px; overflow-wrap: anywhere; }
 /* Lange Beschreibungen liefen ueber die Karte hinaus (Spec §4 F). */
 .ev-beschreibung { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ev-warnung { color: var(--yellow); font-size: 12px; margin-top: 4px; }
+.ev-warnung { color: var(--yellow); font-size:13px; margin-top: 4px; }
 .ev-aktionen { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.ev-teilnehmen { padding: 4px 10px; font-size: 12px; text-decoration: none; white-space: nowrap; }
-.cal-tz-hinweis { color: var(--muted); font-size: 12px; }
-.cal-ist-zustand { color: var(--muted); font-size: 12px; margin-bottom: 14px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; }
+.ev-teilnehmen { padding: 4px 10px; font-size:13px; text-decoration: none; white-space: nowrap; }
+.cal-tz-hinweis { color: var(--muted); font-size:13px; }
+.cal-ist-zustand { color: var(--text-soft); font-size: 13px; margin-bottom: 14px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; }
 .ganztags-zeile { display: flex; align-items: center; gap: 8px; margin-top: 14px; text-transform: none; letter-spacing: 0; font-size: 13px; color: var(--text); }
 .ganztags-zeile input { width: auto; margin: 0; }
 /* P1-5: nur die Terminkarte. Das allgemeine mobile Raster macht P2-2. */
@@ -145,31 +219,31 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 
 /* ── Draft body ── */
 .draft-body-row td { padding: 0 14px 12px; }
-.draft-body { background: var(--bg); border-radius: 6px; padding: 14px; font-family: monospace; font-size: 12px; white-space: pre-wrap; color: var(--muted); border: 1px solid var(--border); }
+.draft-body { background: var(--surface-2); border-radius: 6px; padding: 14px; font-family: monospace; font-size:13px; white-space: pre-wrap; color: var(--muted); border: 1px solid var(--border); }
 
 /* ── Documents ── */
 .doc-toolbar { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-.doc-toolbar select { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: var(--font); outline: none; }
+.doc-toolbar select { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 13px; font-family: var(--font); }
 .doc-toolbar select:focus { border-color: var(--accent); }
 .drop-zone { border: 2px dashed var(--border); border-radius: var(--r); padding: 32px; text-align: center; color: var(--muted); font-size: 14px; cursor: pointer; transition: border-color .15s, background .15s; margin-bottom: 8px; }
-.drop-zone.drag-over { border-color: var(--accent); background: rgba(79,156,249,.06); }
+.drop-zone.drag-over { border-color: var(--accent); background: var(--accent-weak); }
 .doc-trip-link { color: var(--accent); cursor: pointer; text-decoration: none; }
 .doc-trip-link:hover { text-decoration: underline; }
 
 /* ── Modal ── */
 @keyframes fadeIn { from{opacity:0} to{opacity:1} }
 @keyframes slideUp { from{transform:translateY(24px);opacity:0} to{transform:translateY(0);opacity:1} }
-.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
+.modal-overlay { position:fixed; inset:0; background:var(--overlay); z-index:100; display:flex; align-items:center; justify-content:center; animation:fadeIn .15s ease; }
 .modal { background:var(--surface); border:1px solid var(--border); border-radius:var(--r); width:560px; max-width:95vw; max-height:90vh; overflow-y:auto; padding:28px; animation:slideUp .2s ease; }
 .modal h3 { font-size:17px; margin-bottom:18px; }
-.modal label { display:block; color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; margin-top:14px; }
-.modal input, .modal textarea, .modal select { width:100%; background:var(--bg); border:1px solid var(--border); border-radius:6px; padding:9px 12px; color:var(--text); font-size:14px; font-family:var(--font); outline:none; }
+.modal label { display:block; color:var(--muted); font-size:13px; text-transform:uppercase; letter-spacing:.4px; margin-bottom:5px; margin-top:14px; }
+.modal input, .modal textarea, .modal select { width:100%; background:var(--surface); border:1px solid var(--border-strong); border-radius:6px; padding:9px 12px; color:var(--text); font-size:14px; font-family:var(--font); }
 .modal input:focus, .modal textarea:focus, .modal select:focus { border-color:var(--accent); }
 .modal textarea { min-height:120px; resize:vertical; }
 .modal-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:22px; padding-top:16px; border-top:1px solid var(--border); }
 .btn-ghost { background:none; border:1px solid var(--border); color:var(--muted); padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:var(--font); }
 .btn-ghost:hover { border-color:var(--text); color:var(--text); }
-.seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid rgba(255,255,255,.04); font-size:13px; }
+.seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
 .seg-item:last-child { border-bottom:none; }
 .seg-item .seg-rm { background:none; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:2px 4px; }
 
@@ -198,27 +272,27 @@ tbody tr:hover td { background: rgba(255,255,255,.018); }
 .asset-actions { display: flex; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
 .unit-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 13px; }
 .unit-row:last-child { border-bottom: none; }
-.unit-row:hover { background: rgba(255,255,255,.018); }
+.unit-row:hover { background: var(--row-hover); }
 .unit-status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
 .unit-status.permanent { background: var(--green); }
 .unit-status.temporary { background: var(--yellow); }
 .unit-status.vacant    { background: var(--muted); }
-.nk-result { background: var(--bg); border-radius: 6px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
+.nk-result { background: var(--surface-2); border-radius: 6px; padding: 14px; margin-bottom: 10px; border: 1px solid var(--border); }
 .nk-positive { color: var(--green); font-weight: 600; }
 .nk-negative { color: var(--red); font-weight: 600; }
 
 /* ── Entity images ── */
 .entity-img-wrap { position: relative; width: 100%; aspect-ratio: 16/9; border-radius: var(--r) var(--r) 0 0; overflow: hidden; cursor: pointer; }
 .entity-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.img-placeholder { width: 100%; height: 100%; background: var(--bg); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 32px; transition: background .15s; }
-.entity-img-wrap:hover .img-placeholder { background: rgba(79,156,249,.08); }
-.entity-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
+.img-placeholder { width: 100%; height: 100%; background: var(--surface-2); display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 32px; transition: background .15s; }
+.entity-img-wrap:hover .img-placeholder { background: var(--accent-weak); }
+.entity-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: var(--overlay); border-radius: 6px; padding: 4px 8px; }
 .entity-img-wrap input[type=file] { display: none; }
 .detail-img-wrap { position: relative; width: 100%; max-width: 400px; aspect-ratio: 16/9; border-radius: var(--r); overflow: hidden; cursor: pointer; margin-bottom: 16px; }
 .detail-img-wrap img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .detail-img-wrap .img-placeholder { border-radius: var(--r); }
-.detail-img-wrap:hover .img-placeholder { background: rgba(79,156,249,.08); }
-.detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: rgba(0,0,0,.55); border-radius: 6px; padding: 4px 8px; }
+.detail-img-wrap:hover .img-placeholder { background: var(--accent-weak); }
+.detail-img-wrap:hover::after { content: '📷'; position: absolute; bottom: 8px; right: 10px; font-size: 18px; background: var(--overlay); border-radius: 6px; padding: 4px 8px; }
 .detail-img-wrap input[type=file] { display: none; }
 </style>
 <script defer src="/dashboard/js/zeit.js"></script>
@@ -524,11 +598,11 @@ async function loadTrips() {
           ${t.segments.map(s => `<div class="seg-row">
             <span class="badge badge-muted">${esc(s.type)}</span>
             <span>${esc(s.title)}</span>
-            <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local)} (${esc(s.timezone)})</span>
-            ${s.confirmation ? `<span style="color:var(--green);font-size:12px">✔ ${esc(s.confirmation)}</span>` : ''}
+            <span style="color:var(--muted);font-size:13px">${esc(s.datetime_local)} (${esc(s.timezone)})</span>
+            ${s.confirmation ? `<span style="color:var(--green);font-size:13px">✔ ${esc(s.confirmation)}</span>` : ''}
             ${s.calendarEventId
               ? `<a href="${esc(s.calendarWebLink||'')}" target="_blank" title="Kalendereintrag öffnen" style="text-decoration:none;cursor:pointer">📅</a>`
-              : `<button class="btn" style="padding:1px 6px;font-size:12px;background:rgba(79,156,249,.12);color:var(--accent);border:1px solid rgba(79,156,249,.25)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
+              : `<button class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
             }
           </div>`).join('')}
         </div>` : '';
@@ -542,7 +616,7 @@ async function loadTrips() {
             return `<div class="seg-row">
               <span class="badge badge-blue">${esc(DOC_CAT_LABELS[d.kategorie] || d.kategorie)}</span>
               <a href="${esc(dlUrl)}" style="color:var(--text);text-decoration:none" download>${esc(d.name.replace(/^\d+_/, ''))}</a>
-              <span style="color:var(--muted);font-size:12px">${fmtSize(d.size)} · ${fmtDate(d.date)}</span>
+              <span style="color:var(--muted);font-size:13px">${fmtSize(d.size)} · ${fmtDate(d.date)}</span>
             </div>`;
           }).join('')}
         </div>` : '';
@@ -562,7 +636,7 @@ async function loadTrips() {
               <span>${lIcon}</span>
               ${lShowLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
               <span style="${lShowLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${lLink}</span>
-              <button class="btn btn-danger" style="padding:2px 8px;font-size:11px;margin-left:auto"
+              <button class="btn btn-danger" style="padding:2px 8px;font-size:13px;margin-left:auto"
                 onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>
             </div>`;
           }).join('')}
@@ -676,8 +750,8 @@ function editTrip(id) {
       `<div class="seg-item">
         <span class="badge badge-muted">${esc(s.type)}</span>
         <span>${esc(s.title)}</span>
-        <span style="color:var(--muted);font-size:12px">${esc(s.datetime_local)} ${esc(s.timezone)}</span>
-        ${s.confirmation ? `<span style="color:var(--green);font-size:12px">✔ ${esc(s.confirmation)}</span>` : ''}
+        <span style="color:var(--muted);font-size:13px">${esc(s.datetime_local)} ${esc(s.timezone)}</span>
+        ${s.confirmation ? `<span style="color:var(--green);font-size:13px">✔ ${esc(s.confirmation)}</span>` : ''}
         <button class="seg-rm" onclick="removeSegment(${i},'${esc(id)}')" title="Entfernen">✕</button>
       </div>`).join('');
   };
@@ -817,7 +891,7 @@ async function loadHealth() {
       const sevIcon = { critical: '🔴', warning: '⚠️', info: 'ℹ️' };
       const sevColor = { critical: 'var(--red)', warning: 'var(--yellow)', info: 'var(--accent)' };
       const alertItems = alerts.map(a =>
-        `<div style="padding:8px 12px;border-left:3px solid ${sevColor[a.severity]||'var(--muted)'};margin-bottom:6px;background:rgba(255,255,255,.03);border-radius:0 6px 6px 0">
+        `<div style="padding:8px 12px;border-left:3px solid ${sevColor[a.severity]||'var(--muted)'};margin-bottom:6px;background:var(--surface-2);border-radius:0 6px 6px 0">
           <span>${sevIcon[a.severity]||'•'}</span> ${esc(a.message)}
         </div>`
       ).join('');
@@ -947,8 +1021,8 @@ function renderWeightChart(data) {
   for (let i = 0; i <= steps; i++) {
     const v = vMin + (vMax - vMin) * (i / steps);
     const y = yScale(v);
-    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
-    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${v.toFixed(1)}</text>`;
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="11" text-anchor="end">${v.toFixed(1)}</text>`;
   }
 
   // X-axis labels (every ~7th point)
@@ -956,7 +1030,7 @@ function renderWeightChart(data) {
   for (let i = 0; i < data.length; i += step) {
     const x = xScale(i);
     const d = data[i].date.slice(5); // MM-DD
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${d}</text>`;
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${d}</text>`;
   }
 
   // Line
@@ -1000,8 +1074,8 @@ function renderSleepChart(data) {
   // Grid lines
   for (let h = 0; h <= maxH; h += 2) {
     const y = yScale(h);
-    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
-    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${h}h</text>`;
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="11" text-anchor="end">${h}h</text>`;
   }
 
   // Bars
@@ -1010,20 +1084,20 @@ function renderSleepChart(data) {
     const barH = (d.duration / maxH) * ch;
     const y = pad.t + ch - barH;
     const color = d.duration < 6 ? 'var(--red)' : d.duration < 7 ? 'var(--yellow)' : 'var(--green)';
-    svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.75" rx="2"><title>${d.date}: ${d.duration}h${d.quality ? ' (Score: '+d.quality+'%)' : ''}</title></rect>`;
+    svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.9" rx="2"><title>${d.date}: ${d.duration}h${d.quality ? ' (Score: '+d.quality+'%)' : ''}</title></rect>`;
   });
 
   // X-axis labels
   const step = Math.max(1, Math.floor(data.length / 8));
   for (let i = 0; i < data.length; i += step) {
     const x = xScale(i);
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${data[i].date.slice(5)}</text>`;
   }
 
   // 6h reference line
   const y6 = yScale(6);
-  svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.5"/>`;
-  svgContent += `<text x="${W-pad.r+2}" y="${y6+3}" fill="var(--red)" font-size="9" opacity="0.6">6h</text>`;
+  svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.8"/>`;
+  svgContent += `<text x="${W-pad.r+2}" y="${y6+3}" fill="var(--red)" font-size="11" opacity="1">6h</text>`;
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.innerHTML = svgContent;
@@ -1048,20 +1122,20 @@ function renderHrvChart(data) {
   for (let i = 0; i <= steps; i++) {
     const v = vMin + (vMax - vMin) * (i / steps);
     const y = yScale(v);
-    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`;
-    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="10" text-anchor="end">${Math.round(v)}</text>`;
+    svgContent += `<line x1="${pad.l}" y1="${y}" x2="${W-pad.r}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
+    svgContent += `<text x="${pad.l-6}" y="${y+4}" fill="var(--muted)" font-size="11" text-anchor="end">${Math.round(v)}</text>`;
   }
 
   // X-axis labels
   const step = Math.max(1, Math.floor(data.length / 8));
   for (let i = 0; i < data.length; i += step) {
     const x = xScale(i);
-    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="10" text-anchor="middle">${data[i].date.slice(5)}</text>`;
+    svgContent += `<text x="${x}" y="${H-5}" fill="var(--muted)" font-size="11" text-anchor="middle">${data[i].date.slice(5)}</text>`;
   }
 
   // Line
   const points = data.map((d, i) => `${xScale(i).toFixed(1)},${yScale(d.value).toFixed(1)}`).join(' ');
-  svgContent += `<polyline points="${points}" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linejoin="round"/>`;
+  svgContent += `<polyline points="${points}" fill="none" stroke="var(--violet)" stroke-width="2" stroke-linejoin="round"/>`;
 
   // Trend line (linear regression)
   const n = data.length;
@@ -1077,7 +1151,7 @@ function renderHrvChart(data) {
 
   // Dots
   data.forEach((d, i) => {
-    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="#a78bfa" opacity="0.8"><title>${d.date}: ${d.value} ms</title></circle>`;
+    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--violet)"><title>${d.date}: ${d.value} ms</title></circle>`;
   });
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -1108,12 +1182,12 @@ async function loadDrafts() {
         <td style="white-space:nowrap">${fmtDate(d.createdAt)}</td>
         <td><span class="badge badge-blue">${esc(d.account||'–')}</span></td>
         <td><span class="badge ${statusBadge(d.status)}">${esc(d.status||'–')}</span></td>
-        <td>${esc(d.subject||'–')}${dLinksHtml ? `<div style="font-size:11px;margin-top:2px">${dLinksHtml}</div>` : ''}</td>
-        <td style="color:var(--muted);font-size:12px">${esc((d.to||[]).join(', '))}</td>
+        <td>${esc(d.subject||'–')}${dLinksHtml ? `<div style="font-size:13px;margin-top:2px">${dLinksHtml}</div>` : ''}</td>
+        <td style="color:var(--muted);font-size:13px">${esc((d.to||[]).join(', '))}</td>
         <td style="white-space:nowrap" onclick="event.stopPropagation()">
-          <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="linkDocModal('draft','${esc(d.id)}','loadDraftsRefresh')">📎</button>
-          <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" onclick="editDraft('${esc(d.id)}')">✏️</button>
-          <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
+          <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="linkDocModal('draft','${esc(d.id)}','loadDraftsRefresh')">📎</button>
+          <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" onclick="editDraft('${esc(d.id)}')">✏️</button>
+          <button class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDraft('${esc(d.id)}','${esc(d.subject)}')">🗑</button>
         </td>
       </tr>
       <tr id="db-${esc(d.id)}" style="display:none" class="draft-body-row">
@@ -1123,7 +1197,7 @@ async function loadDrafts() {
     c.innerHTML = `<div class="card"><table>
       <thead><tr><th>Erstellt</th><th>Konto</th><th>Status</th><th>Betreff</th><th>An</th><th>Aktionen</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table></div><p style="color:var(--muted);font-size:12px;padding:4px 2px">Zeile klicken = Body einblenden</p>`;
+    </table></div><p style="color:var(--muted);font-size:13px;padding:4px 2px">Zeile klicken = Body einblenden</p>`;
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
 }
@@ -1229,7 +1303,7 @@ async function loadCalendar() {
             const ln = l.docType === 'sharepoint' && l.spWebUrl
               ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.spName||'')}</a>`
               : esc(l.localName||'');
-            return `${li} ${esc(l.label)}: ${ln} <button class="btn btn-danger" style="padding:1px 5px;font-size:10px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
+            return `${li} ${esc(l.label)}: ${ln} <button class="btn btn-danger" style="padding:1px 5px;font-size:13px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
           }).join(' &nbsp; ')}</div>` : '';
 
           return `<div class="ev-row${z.ganztags ? ' ev-ganztags' : ''}">
@@ -1247,9 +1321,9 @@ async function loadCalendar() {
             </div>
             <div class="ev-aktionen">
               ${kalenderMeetingLink(ev)}
-              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" aria-label="Dokument verknüpfen" title="Dokument verknüpfen" onclick="linkDocModal('calendar','${esc(evId)}','loadCalendarRefresh')">📎</button>
-              <button class="btn btn-primary" style="padding:4px 8px;font-size:12px" aria-label="Termin bearbeiten" title="Termin bearbeiten" onclick="editEventModal('${esc(evId)}')">✏️</button>
-              <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" aria-label="Termin löschen" title="Termin löschen" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" aria-label="Dokument verknüpfen" title="Dokument verknüpfen" onclick="linkDocModal('calendar','${esc(evId)}','loadCalendarRefresh')">📎</button>
+              <button class="btn btn-primary" style="padding:4px 8px;font-size:13px" aria-label="Termin bearbeiten" title="Termin bearbeiten" onclick="editEventModal('${esc(evId)}')">✏️</button>
+              <button class="btn btn-danger" style="padding:4px 8px;font-size:13px" aria-label="Termin löschen" title="Termin löschen" onclick="deleteEvent('${esc(evId)}','${esc(ev.subject||'')}')">🗑</button>
             </div>
           </div>`;
         }).join('')}
@@ -1482,8 +1556,8 @@ function renderDocTable(docs, trips) {
       <td style="white-space:nowrap">${fmtSize(d.size)}</td>
       <td style="white-space:nowrap">${fmtDate(d.date)}</td>
       <td style="white-space:nowrap">
-        <a href="${esc(dlUrl)}" class="btn btn-primary" style="padding:4px 8px;font-size:12px;text-decoration:none" download>⬇</a>
-        <button class="btn btn-danger" style="padding:4px 8px;font-size:12px" onclick="deleteDoc('${esc(d.path)}','${esc(d.name)}')">🗑</button>
+        <a href="${esc(dlUrl)}" class="btn btn-primary" style="padding:4px 8px;font-size:13px;text-decoration:none" download>⬇</a>
+        <button class="btn btn-danger" style="padding:4px 8px;font-size:13px" onclick="deleteDoc('${esc(d.path)}','${esc(d.name)}')">🗑</button>
       </td>
     </tr>`;
   }).join('');
@@ -1612,14 +1686,14 @@ async function loadSharePoint() {
     c.innerHTML = `
       <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px">
         <button id="sp-default-btn" onclick="spLoadDefault()"
-          style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s"
+          style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:var(--on-accent);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s"
           onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">📂 Dokumente (bikolino GmbH)</button>
         <a href="https://bikolino.sharepoint.com/sites/dms/Freigegebene%20Dokumente" target="_blank" rel="noopener"
-          style="color:var(--accent);font-size:12px;white-space:nowrap">Öffnen ↗</a>
+          style="color:var(--accent);font-size:13px;white-space:nowrap">Öffnen ↗</a>
       </div>
       <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
         <input type="text" id="sp-search-input" placeholder="Volltextsuche in SharePoint…"
-          style="flex:1;min-width:200px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;font-family:var(--font);outline:none"
+          style="flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;font-family:var(--font)"
           onkeypress="if(event.key==='Enter')spSearch()">
         <button class="btn btn-primary" onclick="spSearch()">🔍 Suchen</button>
       </div>
@@ -1809,7 +1883,7 @@ function spOeffnenAktion(url) {
   const ziel = spAnsichtUrl(url) || url;
   return `<a href="${esc(ziel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
      title="Öffnet die SharePoint-Ansicht im Browser"
-     style="color:var(--accent);font-size:12px">Öffnen ↗</a>`;
+     style="color:var(--accent);font-size:13px">Öffnen ↗</a>`;
 }
 
 function spNameOderHinweis(eintrag) {
@@ -1838,8 +1912,8 @@ function renderSPSites(sites) {
 
   const rows = liste.map(x => `<tr style="cursor:pointer" onclick="spOpenSite('${esc(x.id)}')">
     <td>${spNameOderHinweis(x)}${mehrfach[x.id] > 1 && x.nameFehlt
-      ? '<div style="color:var(--muted);font-size:11px;margin-top:3px">Alteintrag mit derselben Site-Kennung</div>' : ''}</td>
-    <td style="color:var(--muted);font-size:12px">${esc(spDateienText(x.dateien))}</td>
+      ? '<div style="color:var(--muted);font-size:13px;margin-top:3px">Alteintrag mit derselben Site-Kennung</div>' : ''}</td>
+    <td style="color:var(--muted);font-size:13px">${esc(spDateienText(x.dateien))}</td>
     <td style="white-space:nowrap">${spOeffnenAktion('')}</td>
   </tr>`).join('');
 
@@ -1870,7 +1944,7 @@ async function spOpenSite(siteId) {
 function renderSPDrives(drives) {
   const wrap = document.getElementById('sp-main');
   const backBtn = `<div style="padding:12px 14px;border-bottom:1px solid var(--border)">
-    <button class="btn-ghost" onclick="loadSharePoint()" style="font-size:12px">← Zurück zu den Sites</button>
+    <button class="btn-ghost" onclick="loadSharePoint()" style="font-size:13px">← Zurück zu den Sites</button>
   </div>`;
   if (!drives.length) { wrap.innerHTML = backBtn + '<div class="empty">Keine Dokumentbibliotheken im Index.</div>'; return; }
 
@@ -1878,7 +1952,7 @@ function renderSPDrives(drives) {
   const rows = liste.map(x => `<tr style="cursor:pointer"
       onclick="spOpenDrive('${esc(x.id)}', ${x.dateien == null ? 'null' : x.dateien}, '${esc(x.name)}')">
     <td>${spNameOderHinweis(x)}</td>
-    <td style="color:var(--muted);font-size:12px">${esc(spDateienText(x.dateien))}</td>
+    <td style="color:var(--muted);font-size:13px">${esc(spDateienText(x.dateien))}</td>
   </tr>`).join('');
 
   wrap.innerHTML = backBtn + `<table>
@@ -1945,7 +2019,7 @@ function renderSPFiles(files) {
       <span style="color:var(--muted)"> › </span>
       <span>${_spCurrentDriveName ? esc(_spCurrentDriveName) : '<em style="color:var(--muted)">Name nicht erfasst</em>'}</span>
     </div>
-    <button class="btn btn-primary" style="font-size:12px" onclick="spUploadModal()">⬆ Upload</button>
+    <button class="btn btn-primary" style="font-size:13px" onclick="spUploadModal()">⬆ Upload</button>
   </div>`;
 
   if (!files.length) { wrap.innerHTML = toolbar + '<div class="empty">Keine Dateien im Index dieser Bibliothek.</div>'; return; }
@@ -1965,8 +2039,8 @@ function renderSPFiles(files) {
       ${f.ordner ? `<div class="sp-pfad" title="${esc(f.pfad)}">${esc(f.ordner)}</div>` : ''}
       ${f.fehltSeit ? `<div class="sp-fehlt">⚠️ seit ${fmtDate(f.fehltSeit)} nicht mehr in SharePoint gefunden</div>` : ''}
     </td>
-    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
-    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:13px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:13px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
     <td style="white-space:nowrap">${spOeffnenAktion(f.url)}</td>
   </tr>`).join('');
 
@@ -2015,8 +2089,8 @@ function renderSPSearchHits() {
       <div><strong>${esc(f.name)}</strong></div>
       ${f.ordner ? `<div class="sp-pfad" title="${esc(f.pfad)}">${esc(f.ordner)}</div>` : ''}
     </td>
-    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
-    <td style="white-space:nowrap;color:var(--muted);font-size:12px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:13px">${f.groesse != null ? fmtSize(f.groesse) : '–'}</td>
+    <td style="white-space:nowrap;color:var(--muted);font-size:13px">${f.geaendertAm ? fmtDate(f.geaendertAm) : '–'}</td>
     <td style="white-space:nowrap">${spOeffnenAktion(f.url)}</td>
   </tr>`).join('');
 
@@ -2193,8 +2267,8 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
       <span title="${l.docType === 'sharepoint' ? 'SharePoint' : 'Lokal'}">${icon}</span>
       ${showLabel ? `<span style="font-weight:500">${esc(l.label)}</span><span style="color:var(--muted);font-size:13px">—</span>` : ''}
       <span style="${showLabel ? 'color:var(--muted);font-size:13px' : 'font-weight:500'}">${nameHtml}</span>
-      <span style="color:var(--muted);font-size:11px;margin-left:auto">${l.id}</span>
-      <button class="btn btn-danger" style="padding:2px 8px;font-size:11px"
+      <span style="color:var(--muted);font-size:13px;margin-left:auto">${l.id}</span>
+      <button class="btn btn-danger" style="padding:2px 8px;font-size:13px"
         onclick="unlinkDoc('${esc(l.id)}','${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">✕</button>
     </div>`;
   }).join('');
@@ -2202,7 +2276,7 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
   return `<div class="card card-pad" style="margin-top:16px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
       <h3 style="font-size:15px">📎 Verknüpfte Dokumente (${links.length})</h3>
-      <button class="btn btn-primary" style="font-size:12px"
+      <button class="btn btn-primary" style="font-size:13px"
         onclick="linkDocModal('${esc(entityType)}','${esc(entityId)}','${esc(refreshFn)}')">+ Verknüpfen</button>
     </div>
     ${rows || '<span style="color:var(--muted)">Keine Dokumente verknüpft</span>'}
@@ -2254,9 +2328,9 @@ async function searchSpForLink() {
         <span>☁️</span>
         <div style="flex:1">
           <div style="font-weight:500">${esc(r.name)}</div>
-          <div style="color:var(--muted);font-size:12px">${esc(r.siteName)} › ${esc(r.path)}</div>
+          <div style="color:var(--muted);font-size:13px">${esc(r.siteName)} › ${esc(r.path)}</div>
         </div>
-        <span style="color:var(--muted);font-size:11px">${fmtSize(r.size)}</span>
+        <span style="color:var(--muted);font-size:13px">${fmtSize(r.size)}</span>
       </div>
     `).join('');
   } catch (e) { container.innerHTML = `<span style="color:red">Fehler: ${esc(e.message)}</span>`; }
@@ -2441,7 +2515,9 @@ function _instaMiniSvg(data, color, h) {
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const last = pts[pts.length - 1];
   return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:${h}px">
-    <path d="${line} L${w},${h} L0,${h} Z" fill="${color}15"/>
+    <!-- Flaeche unter der Linie: Deckkraft als Attribut, nicht als
+         Hex-Alpha am Farbwert — mit var(--…) waere "${color}15" ungueltig. -->
+    <path d="${line} L${w},${h} L0,${h} Z" fill="${color}" fill-opacity="0.12"/>
     <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${last.x.toFixed(1)}" cy="${last.y.toFixed(1)}" r="3" fill="${color}"/>
   </svg>`;
@@ -2493,21 +2569,21 @@ async function loadInstagram() {
 
   const tokenTage = metaToken ? metaToken.days_remaining : null;
   const tokenColor = tokenTage == null ? 'var(--muted)' : tokenTage > 30 ? 'var(--green)' : tokenTage > 7 ? 'var(--yellow)' : 'var(--red)';
-  const tokenBg = tokenTage == null ? 'rgba(255,255,255,.06)' : tokenTage > 30 ? 'rgba(74,222,128,.1)' : tokenTage > 7 ? 'rgba(251,191,36,.1)' : 'rgba(248,113,113,.1)';
+  const tokenBg = tokenTage == null ? 'var(--surface-2)' : tokenTage > 30 ? 'var(--green-weak)' : tokenTage > 7 ? 'var(--yellow-weak)' : 'var(--red-weak)';
   const tokenText = tokenTage == null ? 'Token: unbekannt' : 'Token: ' + tokenTage + ' Tage';
 
   let header = `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
     <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:36px;height:36px;border-radius:8px;background:linear-gradient(135deg,#833ab4,#fd1d1d,#fcb045);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
+      <div style="width:36px;height:36px;border-radius:8px;background:var(--surface-2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:18px">📷</div>
       <div>
         <div style="font-size:16px;font-weight:700">Instagram</div>
-        <div style="font-size:12px;color:var(--muted)">${kontoName ? '@' + esc(kontoName) : 'Konto nicht ermittelbar'}</div>
+        <div style="font-size:13px;color:var(--muted)">${kontoName ? '@' + esc(kontoName) : 'Konto nicht ermittelbar'}</div>
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center">
-      <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600"
+      <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:13px;font-weight:600"
             title="Quelle: Core /api/system-status (Tabelle insta_tokens)">🔑 ${esc(tokenText)}</span>
-      <button class="btn" style="font-size:12px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:not-allowed"
+      <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:not-allowed"
               disabled title="Abgleich wird nicht aus dem Dashboard ausgelöst. Befehl /instasync im Telegram-Bot.">↻ Sync nur per /instasync</button>
     </div>
   </div>`;
@@ -2522,16 +2598,16 @@ async function loadInstagram() {
     const feedItems = (_instaMediaCache?.items || []).slice(0, 12);
     const liveFeed = feedItems.length ? `
       <div class="card card-pad" style="margin-bottom:20px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Live Feed</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Live Feed</div>
         <div class="insta-grid">
           ${feedItems.map(p => {
             const rawThumb = p.thumbnail_url || p.media_url || '';
             const thumb = rawThumb ? '/dashboard/api/instagram/media-proxy?url=' + encodeURIComponent(rawThumb) + '&token=' + encodeURIComponent(TOKEN) : '';
             const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
             const likes = (p.like_count || 0).toLocaleString('de-DE');
-            const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
+            const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2);color:var(--muted)">
               <span style="font-size:32px">${icon}</span>
-              <span style="font-size:11px;font-weight:600">❤️ ${likes}</span>
+              <span style="font-size:13px;font-weight:600">❤️ ${likes}</span>
             </div>`;
             const imgTag = thumb
               ? `<img src="${esc(thumb)}" alt="" loading="lazy" onerror="var p=this.parentNode;p.querySelector('.ig-placeholder').style.display='flex';p.querySelector('.ig-likes').style.display='none';this.style.display='none'">`
@@ -2539,9 +2615,9 @@ async function loadInstagram() {
             const showPlaceholder = !thumb;
             return `<a href="${esc(p.permalink)}" target="_blank" rel="noopener" class="insta-grid-item" title="${esc((p.caption || '').slice(0, 80))}">
               ${imgTag}
-              <div class="ig-placeholder" style="display:${showPlaceholder ? 'flex' : 'none'};position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--bg);color:var(--muted)">
+              <div class="ig-placeholder" style="display:${showPlaceholder ? 'flex' : 'none'};position:absolute;inset:0;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2);color:var(--muted)">
                 <span style="font-size:32px">${icon}</span>
-                <span style="font-size:11px;font-weight:600">❤️ ${likes}</span>
+                <span style="font-size:13px;font-weight:600">❤️ ${likes}</span>
               </div>
               <span class="ig-type">${icon}</span>
               <span class="ig-likes">❤️ ${likes}</span>
@@ -2554,10 +2630,10 @@ async function loadInstagram() {
           const age = Date.now() - fetchedAt;
           const days = Math.floor(age / 86400000);
           const ageStr = days > 0 ? `vor ${days} Tag${days > 1 ? 'en' : ''}` : 'heute';
-          return `<div style="font-size:11px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:6px">
+          return `<div style="font-size:13px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:6px">
             <span>🔄 Zuletzt synchronisiert: ${ageStr}</span>
             <span style="opacity:.5">·</span>
-            <span>Aktualisieren mit <code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">/instasync</code> im Telegram-Bot</span>
+            <span>Aktualisieren mit <code style="background:var(--surface-2);padding:2px 6px;border-radius:4px;font-size:13px">/instasync</code> im Telegram-Bot</span>
           </div>`;
         })()}
       </div>` : '';
@@ -2589,12 +2665,12 @@ async function loadInstagram() {
       </div>` + liveFeed + `
 
       <div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge</div>
         ${keineAktuellenDaten(medienStand, 'Eine Auswertung der Beitragsleistung gibt es erst nach einem neuen Abgleich (P2-7).')}
       </div>
 
       <div class="card card-pad">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Quick Insights</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Quick Insights</div>
         ${keineAktuellenDaten(medienStand, 'Beste Posting-Zeit, Top-Format und Wachstum werden erst nach einem neuen Abgleich berechnet (P2-7).')}
       </div>`;
   }
@@ -2606,7 +2682,7 @@ async function loadInstagram() {
        Owner-Entscheidung Nr. 2: ausblenden. Aufbau auf echter Grundlage: P2-7. */
     const anzahlEntwuerfe = (_instaDraftsCache || []).length;
     body = `<div class="card card-pad">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Content-Plan</div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Content-Plan</div>
       ${keineAktuellenDaten(medienStand, 'Es ist kein Content-Plan hinterlegt. Vorhandene Entwürfe: '
         + anzahlEntwuerfe + ' — im Unterbereich „Drafts". Verknüpfung von Plan und Entwürfen: P2-7.')}
     </div>`;
@@ -2622,7 +2698,7 @@ async function loadInstagram() {
         const hashtags = Array.isArray(dr.hashtags) ? dr.hashtags : [];
         const hashtagDisplay = hashtags.length ? hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
         const dateStr = dr.scheduledFor || dr.createdAt?.slice(0, 10) || '';
-        const instaLink = dr.instagram_url ? `<a href="${esc(dr.instagram_url)}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:12px">📸 Instagram</a>` : '';
+        const instaLink = dr.instagram_url ? `<a href="${esc(dr.instagram_url)}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:13px">📸 Instagram</a>` : '';
         const safeId = esc(dr.id).replace(/'/g, "\\'");
         return `<div class="card card-pad" style="margin-bottom:12px" id="draft-card-${esc(dr.id)}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
@@ -2630,7 +2706,7 @@ async function loadInstagram() {
             <span style="font-size:20px">${dr.status === 'veröffentlicht' ? '📸' : dr.status === 'freigegeben' ? '✅' : '📝'}</span>
             <div>
               <div style="font-size:14px;font-weight:600;font-family:monospace">${esc(dr.id)}</div>
-              <div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(dateStr)}${dr.mediaPath ? ' · 📎 Media' : ''}</div>
+              <div style="font-size:13px;color:var(--muted);margin-top:2px">${esc(dateStr)}${dr.mediaPath ? ' · 📎 Media' : ''}</div>
             </div>
           </div>
           <div style="display:flex;align-items:center;gap:8px">
@@ -2638,17 +2714,17 @@ async function loadInstagram() {
             ${_instaStatusBadge(dr.status)}
           </div>
         </div>
-        <div style="background:var(--bg);border-radius:6px;padding:14px;font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:${hashtagDisplay ? '10' : '0'}px;border-left:3px solid var(--border)">${esc(captionPreview)}</div>
-        ${hashtagDisplay ? `<div style="font-size:12px;color:var(--accent);word-break:break-all;margin-bottom:10px">${esc(hashtagDisplay)}</div>` : ''}
+        <div style="background:var(--surface-2);border-radius:6px;padding:14px;font-size:13px;color:var(--text-soft);line-height:1.6;margin-bottom:${hashtagDisplay ? '10' : '0'}px;border-left:3px solid var(--border)">${esc(captionPreview)}</div>
+        ${hashtagDisplay ? `<div style="font-size:13px;color:var(--accent);word-break:break-all;margin-bottom:10px">${esc(hashtagDisplay)}</div>` : ''}
 
         <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftEdit('${safeId}')">✏️ Bearbeiten</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftPost('${safeId}')">📤 Freigeben</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftManualToggle('${safeId}')">📋 Manuell posten</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid rgba(248,113,113,.3);color:var(--red)" onclick="_instaDraftDelete('${safeId}')">🗑️</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftEdit('${safeId}')">✏️ Bearbeiten</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftPost('${safeId}')">📤 Freigeben</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaDraftManualToggle('${safeId}')">📋 Manuell posten</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--red);color:var(--red)" onclick="_instaDraftDelete('${safeId}')">🗑️</button>
         </div>
 
-        <div id="manual-post-${esc(dr.id)}" style="display:none;margin-top:12px;background:var(--bg);border-radius:8px;padding:16px;border:1px solid var(--border)"></div>
+        <div id="manual-post-${esc(dr.id)}" style="display:none;margin-top:12px;background:var(--surface-2);border-radius:8px;padding:16px;border:1px solid var(--border)"></div>
       </div>`;
       }).join('');
     }
@@ -2663,7 +2739,7 @@ async function loadInstagram() {
        Belastbare Zahlen stehen bis dahin im Unterbereich "Forensic" — mit
        eigenem Datenstand. */
     body = `<div class="card card-pad">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Analyse</div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:16px">Analyse</div>
       ${keineAktuellenDaten(medienStand, 'Follower-Entwicklung, Engagement-Rate und Auswertung nach Beitragsart brauchen einen aktuellen Abgleich. Geprüfte Rohdaten mit eigenem Datenstand: Unterbereich „Forensic".')}
     </div>`;
   }
@@ -2728,16 +2804,16 @@ async function _instaLoadForensic() {
         const color = isSpike ? 'var(--red)' : 'var(--accent)';
         const dateLabel = item.date ? item.date.slice(5) : '';
         return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
-          <span style="font-size:10px;color:${isSpike ? 'var(--red)' : 'var(--muted)'};font-weight:${isSpike ? '700' : '400'}">${val > 0 ? '+' + val : val}</span>
+          <span style="font-size:13px;color:${isSpike ? 'var(--red)' : 'var(--muted)'};font-weight:${isSpike ? '700' : '400'}">${val > 0 ? '+' + val : val}</span>
           <div style="width:80%;height:${h}px;background:${color};border-radius:3px 3px 0 0;opacity:${isSpike ? 1 : 0.7}"></div>
-          <span style="font-size:9px;color:var(--muted);transform:rotate(-45deg);white-space:nowrap">${dateLabel}</span>
+          <span style="font-size:13px;color:var(--muted);transform:rotate(-45deg);white-space:nowrap">${dateLabel}</span>
         </div>`;
       }).join('');
 
       html += `<div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Follower-Wachstum (${forensic.window.days || 14} Tage)</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Follower-Wachstum (${forensic.window.days || 14} Tage)</div>
         <div style="display:flex;align-items:flex-end;height:180px;gap:2px;padding-bottom:24px">${bars}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">Median: +${forensic.window.follower_median}/Tag · Spike-Schwelle: ${esc(String(forensic.window.spike_threshold || ''))}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:8px">Median: +${forensic.window.follower_median}/Tag · Spike-Schwelle: ${esc(String(forensic.window.spike_threshold || ''))}</div>
       </div>`;
     }
 
@@ -2745,9 +2821,9 @@ async function _instaLoadForensic() {
     if (forensic?.window?.reach_daily?.length) {
       const rd = forensic.window.reach_daily.map(r => ({ d: r.date ? r.date.slice(5) : '', v: Number(r.reach) || 0 }));
       html += `<div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Reichweite (täglich)</div>
-        ${_instaMiniSvg(rd, '#f59e0b', 100)}
-        <div style="display:flex;justify-content:space-between;margin-top:6px">${rd.filter((_, i) => i % 3 === 0 || i === rd.length - 1).map(p => `<span style="font-size:10px;color:var(--muted)">${p.d}</span>`).join('')}</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Reichweite (täglich)</div>
+        ${_instaMiniSvg(rd, 'var(--orange)', 100)}
+        <div style="display:flex;justify-content:space-between;margin-top:6px">${rd.filter((_, i) => i % 3 === 0 || i === rd.length - 1).map(p => `<span style="font-size:13px;color:var(--muted)">${p.d}</span>`).join('')}</div>
       </div>`;
     }
 
@@ -2766,12 +2842,12 @@ async function _instaLoadForensic() {
             <div>
               <span style="font-weight:700;font-size:14px">${esc(sp.date || '')}</span>
               <span style="margin-left:10px;font-size:13px;color:var(--muted)">+${Number(sp.delta_followers || sp.delta || sp.follower_delta || 0).toLocaleString('de-DE')} Follower</span>
-              <span style="margin-left:10px;font-size:12px;color:var(--muted)">${sp.multiple_of_median != null ? Number(sp.multiple_of_median).toFixed(1) + '× Median' : ''}</span>
+              <span style="margin-left:10px;font-size:13px;color:var(--muted)">${sp.multiple_of_median != null ? Number(sp.multiple_of_median).toFixed(1) + '× Median' : ''}</span>
             </div>
             <span class="badge ${badgeCls}">${badgeLbl}</span>
           </div>
-          ${reasoning.length ? `<ul style="margin:0 0 10px 16px;padding:0;font-size:12px;color:var(--muted);line-height:1.7">${reasoning.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
-          ${contentPosts.length ? `<div style="font-size:11px;color:var(--muted);margin-top:6px">
+          ${reasoning.length ? `<ul style="margin:0 0 10px 16px;padding:0;font-size:13px;color:var(--muted);line-height:1.7">${reasoning.map(r => `<li>${esc(r)}</li>`).join('')}</ul>` : ''}
+          ${contentPosts.length ? `<div style="font-size:13px;color:var(--muted);margin-top:6px">
             <span style="font-weight:600">Content im Zeitfenster:</span>
             ${contentPosts.slice(0, 3).map(cp => `<div style="margin-top:4px;padding-left:8px;border-left:2px solid var(--border)">
               ${cp.permalink ? `<a href="${esc(cp.permalink)}" target="_blank" style="color:var(--accent);text-decoration:none">${esc((cp.caption || '').slice(0, 60))}${(cp.caption || '').length > 60 ? '…' : ''}</a>` : esc((cp.caption || '').slice(0, 60))}
@@ -2781,7 +2857,7 @@ async function _instaLoadForensic() {
       }).join('');
 
       html += `<div style="margin-bottom:16px">
-        <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Erkannte Spikes (${forensic.spikes.length})</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Erkannte Spikes (${forensic.spikes.length})</div>
         ${spikeCards}
       </div>`;
     }
@@ -2800,15 +2876,15 @@ async function _instaLoadForensic() {
           const flag = _countryFlags[c.name] || '🏳️';
           return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
             <span style="width:32px;font-size:14px;text-align:center">${flag}</span>
-            <span style="width:28px;font-size:12px;font-weight:600">${esc(c.name)}</span>
-            <div style="flex:1;height:18px;background:var(--bg);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px;opacity:.7"></div>
+            <span style="width:28px;font-size:13px;font-weight:600">${esc(c.name)}</span>
+            <div style="flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px"></div>
             </div>
-            <span style="width:50px;text-align:right;font-size:12px;color:var(--muted)">${cnt.toLocaleString('de-DE')}</span>
+            <span style="width:50px;text-align:right;font-size:13px;color:var(--muted)">${cnt.toLocaleString('de-DE')}</span>
           </div>`;
         }).join('');
         demoHtml += `<div style="flex:1;min-width:280px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Länder</div>
+          <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Länder</div>
           ${countryBars}
         </div>`;
       }
@@ -2817,13 +2893,13 @@ async function _instaLoadForensic() {
       if (demographics.cities?.length) {
         const cityList = demographics.cities.slice(0, 10).map((c, i) => {
           const cityName = c.name.split(',')[0].trim();
-          return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px">
+          return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border);font-size:13px">
             <span><span style="color:var(--muted);margin-right:6px">${i + 1}.</span>${esc(cityName)}</span>
             <span style="color:var(--muted)">${Number(c.count || 0).toLocaleString('de-DE')}</span>
           </div>`;
         }).join('');
         demoHtml += `<div style="flex:1;min-width:240px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Städte</div>
+          <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Top-Städte</div>
           ${cityList}
         </div>`;
       }
@@ -2836,24 +2912,24 @@ async function _instaLoadForensic() {
           const cnt = Number(a.count) || 0;
           const pct = Math.round((cnt / maxA) * 100);
           return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <span style="width:52px;font-size:12px;font-weight:600;text-align:right">${esc(a.name)}</span>
-            <div style="flex:1;height:18px;background:var(--bg);border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${pct}%;background:#a78bfa;border-radius:4px;opacity:.7"></div>
+            <span style="width:52px;font-size:13px;font-weight:600;text-align:right">${esc(a.name)}</span>
+            <div style="flex:1;height:18px;background:var(--surface-2);border-radius:4px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:var(--violet);border-radius:4px"></div>
             </div>
-            <span style="width:50px;text-align:right;font-size:12px;color:var(--muted)">${cnt.toLocaleString('de-DE')}</span>
+            <span style="width:50px;text-align:right;font-size:13px;color:var(--muted)">${cnt.toLocaleString('de-DE')}</span>
           </div>`;
         }).join('');
         demoHtml += `<div style="flex:1;min-width:280px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Altersgruppen</div>
+          <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Altersgruppen</div>
           ${ageBars}
         </div>`;
       }
 
       if (demoHtml) {
         html += `<div class="card card-pad" style="margin-bottom:16px">
-          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Demografie</div>
+          <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Demografie</div>
           <div style="display:flex;gap:24px;flex-wrap:wrap">${demoHtml}</div>
-          ${demographics.timestamp ? `<div style="font-size:10px;color:var(--muted);margin-top:12px">Stand: ${new Date(demographics.timestamp).toLocaleDateString('de-DE')}</div>` : ''}
+          ${demographics.timestamp ? `<div style="font-size:13px;color:var(--muted);margin-top:12px">Stand: ${new Date(demographics.timestamp).toLocaleDateString('de-DE')}</div>` : ''}
         </div>`;
       }
     }
@@ -2876,16 +2952,16 @@ async function _instaDraftEdit(id) {
     <div style="max-width:600px">
       <h3 style="margin:0 0 16px 0;font-size:16px">Draft bearbeiten: ${esc(id)}</h3>
       <div style="margin-bottom:12px">
-        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Caption</label>
-        <textarea id="edit-caption" style="width:100%;height:160px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical">${esc(caption)}</textarea>
+        <label style="font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Caption</label>
+        <textarea id="edit-caption" style="width:100%;height:160px;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:10px;font-size:14px;font-family:var(--font);resize:vertical">${esc(caption)}</textarea>
       </div>
       <div style="margin-bottom:16px">
-        <label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Hashtags (kommagetrennt)</label>
-        <input id="edit-hashtags" type="text" value="${esc(hashtags)}" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:13px;font-family:var(--font)">
+        <label style="font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">Hashtags (kommagetrennt)</label>
+        <input id="edit-hashtags" type="text" value="${esc(hashtags)}" style="width:100%;background:var(--surface);color:var(--text);border:1px solid var(--border-strong);border-radius:6px;padding:8px 10px;font-size:14px;font-family:var(--font)">
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn" onclick="closeModal()" style="font-size:12px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);color:var(--text)">Abbrechen</button>
-        <button class="btn btn-primary" onclick="_instaDraftSaveEdit('${esc(id).replace(/'/g, "\\'")}')" style="font-size:12px;padding:6px 14px">Speichern</button>
+        <button class="btn" onclick="closeModal()" style="font-size:13px;padding:6px 14px;background:var(--surface);border:1px solid var(--border);color:var(--text)">Abbrechen</button>
+        <button class="btn btn-primary" onclick="_instaDraftSaveEdit('${esc(id).replace(/'/g, "\\'")}')" style="font-size:13px;padding:6px 14px">Speichern</button>
       </div>
     </div>
   `);
@@ -2956,44 +3032,44 @@ async function _instaDraftManualToggle(id) {
   const hashtags = Array.isArray(draft.hashtags) ? draft.hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
   const fullCaption = caption + (hashtags ? '\n\n' + hashtags : '');
 
-  let html = '<div style="font-size:12px;font-weight:700;margin-bottom:12px;color:var(--text)">📋 Manuell posten</div>';
+  let html = '<div style="font-size:13px;font-weight:700;margin-bottom:12px;color:var(--text)">📋 Manuell posten</div>';
 
   // Download section
   if (mediaFiles.length) {
     html += `<div style="margin-bottom:14px">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">1. Dateien herunterladen</div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">1. Dateien herunterladen</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${mediaFiles.map(f => `<a href="/dashboard/api/instagram/drafts/${encodeURIComponent(id)}/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(TOKEN)}" download="${esc(f.name)}" class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--accent);text-decoration:none">⬇️ ${esc(f.name)}</a>`).join('')}
+        ${mediaFiles.map(f => `<a href="/dashboard/api/instagram/drafts/${encodeURIComponent(id)}/download/${encodeURIComponent(f.name)}?token=${encodeURIComponent(TOKEN)}" download="${esc(f.name)}" class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--accent);text-decoration:none">⬇️ ${esc(f.name)}</a>`).join('')}
       </div>
     </div>`;
   } else {
-    html += `<div style="margin-bottom:14px;font-size:12px;color:var(--muted)">Keine Media-Dateien verknüpft — lade die Dateien aus dem Raw-Material.</div>`;
+    html += `<div style="margin-bottom:14px;font-size:13px;color:var(--muted)">Keine Media-Dateien verknüpft — lade die Dateien aus dem Raw-Material.</div>`;
   }
 
   // Caption copy
   html += `<div style="margin-bottom:14px">
-    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">2. Caption kopieren</div>
+    <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">2. Caption kopieren</div>
     <div style="position:relative">
-      <textarea readonly style="width:100%;height:100px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:12px;font-family:var(--font);resize:vertical">${esc(fullCaption)}</textarea>
-      <button class="btn btn-primary" onclick="navigator.clipboard.writeText(this.parentNode.querySelector('textarea').value);_toast('Caption kopiert')" style="position:absolute;top:6px;right:6px;font-size:10px;padding:3px 8px">📋 Kopieren</button>
+      <textarea readonly style="width:100%;height:100px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:10px;font-size:13px;font-family:var(--font);resize:vertical">${esc(fullCaption)}</textarea>
+      <button class="btn btn-primary" onclick="navigator.clipboard.writeText(this.parentNode.querySelector('textarea').value);_toast('Caption kopiert')" style="position:absolute;top:6px;right:6px;font-size:13px;padding:3px 8px">📋 Kopieren</button>
     </div>
   </div>`;
 
   // Hashtags copy (separate)
   if (hashtags) {
     html += `<div style="margin-bottom:14px">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">3. Hashtags separat kopieren</div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">3. Hashtags separat kopieren</div>
       <div style="display:flex;align-items:center;gap:8px">
-        <code style="flex:1;background:var(--surface);padding:8px 10px;border-radius:6px;font-size:11px;border:1px solid var(--border);word-break:break-all;color:var(--accent)">${esc(hashtags)}</code>
-        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${esc(hashtags).replace(/'/g, "\\'")}');_toast('Hashtags kopiert')" style="font-size:10px;padding:3px 8px;white-space:nowrap">📋</button>
+        <code style="flex:1;background:var(--surface);padding:8px 10px;border-radius:6px;font-size:13px;border:1px solid var(--border);word-break:break-all;color:var(--accent)">${esc(hashtags)}</code>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText('${esc(hashtags).replace(/'/g, "\\'")}');_toast('Hashtags kopiert')" style="font-size:13px;padding:3px 8px;white-space:nowrap">📋</button>
       </div>
     </div>`;
   }
 
   // Instructions
   html += `<div style="margin-bottom:4px">
-    <div style="font-size:11px;font-weight:600;color:var(--muted);margin-bottom:6px">${hashtags ? '4' : '3'}. Anleitung</div>
-    <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--muted);line-height:1.8">
+    <div style="font-size:13px;font-weight:600;color:var(--muted);margin-bottom:6px">${hashtags ? '4' : '3'}. Anleitung</div>
+    <ol style="margin:0;padding-left:18px;font-size:13px;color:var(--muted);line-height:1.8">
       <li>Dateien auf Handy herunterladen</li>
       <li>Instagram App öffnen → <strong>+</strong> → Beitrag/Reel erstellen</li>
       <li>Heruntergeladene Dateien auswählen</li>
@@ -3038,22 +3114,22 @@ async function _instaLoadRaw() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
           <div style="cursor:pointer" onclick="_rawDetailSession='${esc(s.id)}';_instaLoadRaw()">
             <div style="font-size:14px;font-weight:700">${esc(s.id)}</div>
-            <div style="font-size:12px;color:var(--muted);margin-top:2px">${fmtDT(s.created_at)}</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">${fmtDT(s.created_at)}</div>
           </div>
           ${_instaStatusBadge(s.status)}
         </div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:12px">📎 ${fileLine}</div>
+        <div style="font-size:13px;color:var(--muted);margin-bottom:12px">📎 ${fileLine}</div>
         <div style="display:flex;gap:6px;flex-wrap:wrap">
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaRawUpload('${esc(s.id)}')">📤 Upload</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_rawDetailSession='${esc(s.id)}';_instaLoadRaw()">📄 Details</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="navigator.clipboard.writeText('/instascan ${esc(s.id)}');_toast('Kopiert: /instascan ${esc(s.id)}')">🔍 Scannen</button>
-          <button class="btn" style="font-size:11px;padding:4px 10px;background:var(--surface);border:1px solid rgba(248,113,113,.3);color:var(--red)" onclick="if(confirm('Session ${esc(s.id)} wirklich löschen?'))_instaRawDelete('${esc(s.id)}')">🗑️</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_instaRawUpload('${esc(s.id)}')">📤 Upload</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="_rawDetailSession='${esc(s.id)}';_instaLoadRaw()">📄 Details</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="navigator.clipboard.writeText('/instascan ${esc(s.id)}');_toast('Kopiert: /instascan ${esc(s.id)}')">🔍 Scannen</button>
+          <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--red);color:var(--red)" onclick="if(confirm('Session ${esc(s.id)} wirklich löschen?'))_instaRawDelete('${esc(s.id)}')">🗑️</button>
         </div>
       </div>`;
     }).join('');
     wrap.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Raw Material Sessions</div>
-      <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="_instaNewSessionModal()">+ Neue Session</button>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px">Raw Material Sessions</div>
+      <button class="btn btn-primary" style="font-size:13px;padding:5px 12px" onclick="_instaNewSessionModal()">+ Neue Session</button>
     </div>${cards}`;
   } catch (e) {
     wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
@@ -3071,25 +3147,25 @@ async function _instaRawDetail(sessionId) {
       const isImg = f.type === 'image';
       return `<tr>
         <td style="font-size:13px">${esc(f.name)}</td>
-        <td style="font-size:12px;color:var(--muted)">${f.type === 'image' ? '🖼️' : f.type === 'video' ? '🎬' : '📄'} ${f.type}</td>
-        <td style="font-size:12px;color:var(--muted)">${_fmtFileSize(f.size)}</td>
-        <td style="font-size:12px;color:var(--muted)">${fmtDT(f.mtime)}</td>
+        <td style="font-size:13px;color:var(--muted)">${f.type === 'image' ? '🖼️' : f.type === 'video' ? '🎬' : '📄'} ${f.type}</td>
+        <td style="font-size:13px;color:var(--muted)">${_fmtFileSize(f.size)}</td>
+        <td style="font-size:13px;color:var(--muted)">${fmtDT(f.mtime)}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:20px">Keine Dateien</td></tr>';
     wrap.innerHTML = `<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
-      <button class="btn" style="font-size:12px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--muted)" onclick="_rawDetailSession=null;_instaLoadRaw()">← Zurück</button>
+      <button class="btn" style="font-size:13px;padding:4px 10px;background:var(--surface);border:1px solid var(--border);color:var(--muted)" onclick="_rawDetailSession=null;_instaLoadRaw()">← Zurück</button>
       <div>
         <div style="font-size:15px;font-weight:700">${esc(s.id)}</div>
-        <div style="font-size:12px;color:var(--muted)">${fmtDT(s.created_at)}</div>
+        <div style="font-size:13px;color:var(--muted)">${fmtDT(s.created_at)}</div>
       </div>
       ${_instaStatusBadge(s.status)}
     </div>
     <div style="display:flex;gap:6px;margin-bottom:16px">
-      <button class="btn btn-primary" style="font-size:12px;padding:5px 12px" onclick="_instaRawUpload('${esc(s.id)}')">📤 Upload</button>
-      <button class="btn" style="font-size:12px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="navigator.clipboard.writeText('/instascan ${esc(s.id)}');_toast('Kopiert: /instascan ${esc(s.id)}')">🔍 Scan triggern</button>
+      <button class="btn btn-primary" style="font-size:13px;padding:5px 12px" onclick="_instaRawUpload('${esc(s.id)}')">📤 Upload</button>
+      <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="navigator.clipboard.writeText('/instascan ${esc(s.id)}');_toast('Kopiert: /instascan ${esc(s.id)}')">🔍 Scan triggern</button>
     </div>
     <div class="card card-pad">
-      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Dateien (${files.length})</div>
+      <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Dateien (${files.length})</div>
       <table><thead><tr><th>Name</th><th>Typ</th><th>Größe</th><th>Geändert</th></tr></thead><tbody>${fileRows}</tbody></table>
     </div>`;
   } catch (e) {
@@ -3101,7 +3177,7 @@ function _instaNewSessionModal() {
   openModal(`
     <h3 style="margin-bottom:16px">Neue Raw Session</h3>
     <div style="margin-bottom:12px">
-      <label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">Kontext/Name (optional)</label>
+      <label style="font-size:13px;color:var(--muted);display:block;margin-bottom:4px">Kontext/Name (optional)</label>
       <input id="rawCtx" class="inp" placeholder="z.B. drohne-barcelona" style="width:100%;box-sizing:border-box">
     </div>
     <div style="display:flex;gap:8px;justify-content:flex-end">
@@ -3161,7 +3237,7 @@ async function _instaRawDelete(sessionId) {
 function _toast(msg) {
   const el = document.createElement('div');
   el.textContent = msg;
-  el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--text);padding:8px 16px;border-radius:8px;font-size:13px;border:1px solid var(--border);z-index:10000;box-shadow:0 4px 12px rgba(0,0,0,.3)';
+  el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--surface);color:var(--text);padding:8px 16px;border-radius:8px;font-size:13px;border:1px solid var(--border);z-index:10000;box-shadow:var(--shadow-lift)';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 2500);
 }
@@ -3236,7 +3312,7 @@ async function loadTrading() {
         <div style="font-size:48px;margin-bottom:16px">📈</div>
         <h2 style="margin-bottom:8px;color:var(--fg)">Trading</h2>
         <p style="color:var(--muted);font-size:14px">Service nicht verbunden.</p>
-        <p style="color:var(--muted);font-size:12px;margin-top:8px">${esc(status?.error || 'Trading-Agent ist nicht erreichbar.')}</p>
+        <p style="color:var(--muted);font-size:13px;margin-top:8px">${esc(status?.error || 'Trading-Agent ist nicht erreichbar.')}</p>
       </div>`;
       stamp();
       setDatenstand([{ quelle: 'Trading-Agent', zustand: 'getrennt', stand: null, abgleich: null,
@@ -3295,7 +3371,7 @@ async function loadTrading() {
       <td>${esc(w.exchange)}</td>
       <td>${esc(w.currency)}</td>
       <td style="text-align:right">${w.lastPrice ? fmtUsd(w.lastPrice) : '–'}</td>
-      <td><button class="btn btn-sm" onclick="tradingRemoveWatch('${esc(w.symbol)}')" style="padding:2px 8px;font-size:11px">Entfernen</button></td>
+      <td><button class="btn btn-sm" onclick="tradingRemoveWatch('${esc(w.symbol)}')" style="padding:2px 8px;font-size:13px">Entfernen</button></td>
     </tr>`).join('');
 
     const wlHtml = `<h3 style="margin:20px 0 10px">Watchlist</h3>
@@ -3366,10 +3442,10 @@ async function loadTrading() {
         <div class="s-card"><div class="lbl">Symbole</div><div class="val" style="font-size:22px">${uniSymbols.length}</div></div>
         <div class="s-card"><div class="lbl">Indizes</div><div class="val" style="font-size:14px;margin-top:6px">${indexStats || '—'}</div></div>
         <div class="s-card"><div class="lbl">Letzter Build</div><div class="val" style="font-size:13px;margin-top:6px">${lastBuild}</div></div>
-        <div class="s-card"><div class="lbl">Scan</div><div class="val" style="margin-top:6px"><button class="btn btn-primary" onclick="triggerUniverseScan()" style="padding:4px 12px;font-size:12px" id="uni-scan-btn">Scan starten</button></div></div>
+        <div class="s-card"><div class="lbl">Scan</div><div class="val" style="margin-top:6px"><button class="btn btn-primary" onclick="triggerUniverseScan()" style="padding:4px 12px;font-size:13px" id="uni-scan-btn">Scan starten</button></div></div>
       </div>
       <div style="margin:12px 0">
-        <span style="font-size:12px;color:var(--muted);margin-right:8px">Indizes:</span>${indexToggles}
+        <span style="font-size:13px;color:var(--muted);margin-right:8px">Indizes:</span>${indexToggles}
       </div>
       <h4 style="margin:16px 0 8px;font-size:13px;color:var(--muted)">Top-Kandidaten</h4>
       ${topHtml}`;
@@ -3489,7 +3565,7 @@ async function loadPrivateEquity() {
         <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
           <div>
             <div style="font-weight:700;font-size:15px">${esc(inv.company)}</div>
-            <div style="font-size:12px;color:var(--muted)">${esc(inv.sector)}</div>
+            <div style="font-size:13px;color:var(--muted)">${esc(inv.sector)}</div>
           </div>
           ${statusBadge}
         </div>
@@ -3499,7 +3575,7 @@ async function loadPrivateEquity() {
           <div><span class="fl">Bewertung</span> ${fmtEur(inv.currentValuation)}</div>
           <div><span class="fl">IRR</span> <span style="color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</span></div>
         </div>
-        <div style="font-size:11px;color:var(--muted);margin-top:8px">ID: ${esc(inv.id)} | Bewertung: ${inv.valuationDate || '–'}</div>
+        <div style="font-size:13px;color:var(--muted);margin-top:8px">ID: ${esc(inv.id)} | Bewertung: ${inv.valuationDate || '–'}</div>
       </div>`;
     }).join('');
 
@@ -3572,8 +3648,8 @@ async function peShowDetail(id) {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px">
-        <div><span class="fl">Investiert</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.investedAmount)}</div><div style="font-size:12px;color:var(--muted)">${esc(inv.investmentDate)}</div></div>
-        <div><span class="fl">Aktuelle Bewertung</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.currentValuation)}</div><div style="font-size:12px;color:var(--muted)">${esc(inv.valuationDate)} (${esc(inv.valuationMethod)})</div></div>
+        <div><span class="fl">Investiert</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.investedAmount)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.investmentDate)}</div></div>
+        <div><span class="fl">Aktuelle Bewertung</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.currentValuation)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.valuationDate)} (${esc(inv.valuationMethod)})</div></div>
         <div><span class="fl">IRR</span><div style="font-size:18px;font-weight:700;color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</div></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;font-size:14px;margin-top:16px">
@@ -3746,7 +3822,7 @@ async function loadStatus() {
         return `<tr>
           <td style="padding:6px 12px;white-space:nowrap">${esc(name)}</td>
           <td style="padding:6px 12px">${zustandsBadge('unbekannt')}</td>
-          <td style="padding:6px 12px;color:var(--muted);font-size:12px">kein Statuseintrag vorhanden</td>
+          <td style="padding:6px 12px;color:var(--muted);font-size:13px">kein Statuseintrag vorhanden</td>
         </tr>`;
       }
       const code = s.status === 'up' ? 'erreichbar' : s.status === 'down' ? 'getrennt' : 'unbekannt';
@@ -3761,7 +3837,7 @@ async function loadStatus() {
       return `<tr>
         <td style="padding:6px 12px;white-space:nowrap">${esc(name)}</td>
         <td style="padding:6px 12px">${zustandsBadge(code)}</td>
-        <td style="padding:6px 12px;color:var(--muted);font-size:12px">${esc(herkunft)}${esc(laufzeit)}</td>
+        <td style="padding:6px 12px;color:var(--muted);font-size:13px">${esc(herkunft)}${esc(laufzeit)}</td>
       </tr>`;
     }).join('');
 

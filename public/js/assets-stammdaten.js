@@ -56,7 +56,7 @@ document.addEventListener('alpine:init', () => {
             <button class="btn btn-primary" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='properties';d.renderPropertiesList()})()">Objekte</button>
             <button class="btn" onclick="(function(){var d=Alpine.$data(document.querySelector('[x-data=\\'stammdatenTab\\']'));d.view='tenants';d.loadTenants()})()">Mieter</button>
           </div>
-          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddProperty()">+ Objekt</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddProperty()">+ Objekt</button>
         </div>
       `;
 
@@ -114,7 +114,7 @@ document.addEventListener('alpine:init', () => {
           </div>
           <div style="display:flex;gap:8px;align-items:center">
             <input type="text" class="search-input" placeholder="Mieter suchen..." id="tenantSearch" oninput="assetsFilterTenants(this.value)">
-            <button class="btn btn-primary" style="font-size:12px;white-space:nowrap" onclick="assetsAddTenant()">+ Mieter</button>
+            <button class="btn btn-primary" style="font-size:13px;white-space:nowrap" onclick="assetsAddTenant()">+ Mieter</button>
           </div>
         </div>
       `;
@@ -137,8 +137,8 @@ document.addEventListener('alpine:init', () => {
       for (const t of tenants) {
         const ibanMasked = t.iban ? '***' + t.iban.slice(-4) : '–';
         html += `<tr class="tenant-row" onclick="assetsOpenTenantDrawer(${t.id})" data-search="${esc((t.name || '') + ' ' + (t.company || '') + ' ' + (t.email || '')).toLowerCase()}">
-          <td><strong>${esc(t.name || '')}</strong>${t.company ? '<br><span style="color:var(--muted);font-size:12px">' + esc(t.company) + '</span>' : ''}</td>
-          <td>${esc(t.email || '–')}<br><span style="color:var(--muted);font-size:12px">${esc(t.phone || '')}</span></td>
+          <td><strong>${esc(t.name || '')}</strong>${t.company ? '<br><span style="color:var(--muted);font-size:13px">' + esc(t.company) + '</span>' : ''}</td>
+          <td>${esc(t.email || '–')}<br><span style="color:var(--muted);font-size:13px">${esc(t.phone || '')}</span></td>
           <td><span class="iban-masked">${ibanMasked}</span> ${t.iban ? '<button class="iban-reveal" onclick="event.stopPropagation();assetsRevealIban(this,\'' + esc(t.iban) + '\')">Anzeigen</button>' : ''}</td>
           <td>${t.active_lease_count || 0}</td>
         </tr>`;
@@ -262,7 +262,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
             <label class="form-label">Primaerenergiebedarf</label>
             <div style="display:flex;align-items:center;gap:4px">
               <input class="form-input" type="number" step="0.1" min="0" id="pd-energy" value="${prop.primary_energy_kwh_m2 || ''}" style="flex:1">
-              <span style="color:var(--muted);font-size:12px">kWh/m&sup2;</span>
+              <span style="color:var(--muted);font-size:13px">kWh/m&sup2;</span>
             </div>
           </div>
         </div>
@@ -271,14 +271,14 @@ async function assetsOpenPropertyDrawer(propertyCode) {
             <label class="form-label">Aktueller Verkehrswert</label>
             <div style="display:flex;align-items:center;gap:4px">
               <input class="form-input" type="number" step="0.01" min="0" id="pd-market-value" value="${prop.current_market_value || ''}" style="flex:1">
-              <span style="color:var(--muted);font-size:12px">EUR</span>
+              <span style="color:var(--muted);font-size:13px">EUR</span>
             </div>
           </div>
           <div class="form-group">
             <label class="form-label">Mietsummen-Override</label>
             <div style="display:flex;align-items:center;gap:4px">
               <input class="form-input" type="number" step="0.01" min="0" id="pd-rent-override" value="${prop.monthly_rent_override || ''}" placeholder="leer = berechnet" style="flex:1">
-              <span style="color:var(--muted);font-size:12px">EUR</span>
+              <span style="color:var(--muted);font-size:13px">EUR</span>
             </div>
           </div>
         </div>
@@ -326,7 +326,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
       <div class="drawer-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h4 style="margin-bottom:0">Einheiten (${units.length})</h4>
-          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddUnit('${esc(prop.code)}')">+ Einheit</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddUnit('${esc(prop.code)}')">+ Einheit</button>
         </div>
         <table class="assets-table">
           <thead><tr><th>Bezeichnung</th><th>Etage</th><th>Flaeche</th><th>Status</th><th></th></tr></thead>
@@ -339,7 +339,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
         <td>${esc(u.floor || '–')}</td>
         <td>${u.living_area_qm ? u.living_area_qm + ' m²' : '–'}</td>
         <td>${u.archived_at ? '<span class="badge badge-muted">Archiviert</span>' : '<span class="badge badge-green">Aktiv</span>'}</td>
-        <td><button class="btn" style="font-size:11px;padding:2px 6px" onclick="event.stopPropagation();assetsOpenUnitDrawer('${esc(u.code)}', '${esc(prop.code)}')">→</button></td>
+        <td><button class="btn" style="font-size:13px;padding:3px 8px" onclick="event.stopPropagation();assetsOpenUnitDrawer('${esc(u.code)}', '${esc(prop.code)}')">→</button></td>
       </tr>`;
     }
 
@@ -459,7 +459,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
       <div class="drawer-section">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h4 style="margin-bottom:0">Personen-Historie</h4>
-          <button class="btn btn-primary" style="font-size:12px" onclick="assetsAddResident('${esc(unitCode)}', '${esc(propertyCode)}')">+ Eintrag</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddResident('${esc(unitCode)}', '${esc(propertyCode)}')">+ Eintrag</button>
         </div>
         <table class="assets-table">
           <thead><tr><th>Von</th><th>Bis</th><th>Personen</th><th>Notizen</th></tr></thead>
@@ -470,7 +470,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
         <td>${fmtDate(r.valid_from)}</td>
         <td title="einschliesslich">${r.valid_until ? fmtDate(r.valid_until) : '–'}</td>
         <td>${r.resident_count}</td>
-        <td style="color:var(--muted);font-size:12px">${esc(r.notes || '')}</td>
+        <td style="color:var(--muted);font-size:13px">${esc(r.notes || '')}</td>
       </tr>`;
     }
 
