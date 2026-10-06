@@ -203,6 +203,19 @@
 }
 
 /* Eingeklappte Fristen jenseits der Vormerkfrist. */
+/* C1 (Phase 3): gebündelte Zeile. Die Einzelzeilen stehen eingeklappt
+   darunter, eingerückt und etwas kleiner — sichtbar untergeordnet. */
+.hu-buendel { margin: 0 0 6px 34px; }
+.hu-buendel summary {
+  list-style: none; cursor: pointer; color: var(--muted); font-size: 13px;
+  min-height: 44px; display: flex; align-items: center; gap: 6px;
+}
+.hu-buendel summary::-webkit-details-marker { display: none; }
+.hu-buendel summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
+.hu-buendel[open] summary::before { transform: rotate(90deg); }
+.hu-unter { border-bottom: none; }
+.hu-unter .hu-titel { font-weight: 400; }
+
 .hu-spaeter { margin-top: 10px; border-top: 1px solid var(--border); }
 
 .hu-spaeter summary {

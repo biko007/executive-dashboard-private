@@ -168,14 +168,19 @@ function heutePostenFahrzeuge(fahrzeuge) {
   return posten;
 }
 
+/* C1 (Phase 3): Die sechs Nebenkosten-Zeilen standen einzeln in der Liste und
+   schoben alles andere nach unten. Sie werden jetzt zu EINER Zeile
+   gebuendelt — „6 Objekte mit Abrechnungsblockern" — die sich aufklappen
+   laesst. Die Einzelzeilen bleiben vollstaendig erhalten, auch ihre
+   Sprungziele; nur der Platz in der Grundansicht ist einer statt sechs. */
 function heutePostenNebenkosten(readiness, jahr) {
-  const posten = [];
+  const einzel = [];
   for (const r of readiness) {
     if (!r || !r.daten) continue;
     const d = r.daten;
     const blocker = Number(d.blocking_count || 0);
     if (!blocker) continue;
-    posten.push({
+    einzel.push({
       stufe: 3, tage: null, symbol: '🏠', bereich: 'Nebenkosten',
       titel: 'Nebenkosten ' + jahr + ' — ' + r.name + ': ' + blocker
         + (blocker === 1 ? ' blockierender Befund' : ' blockierende Befunde'),
@@ -189,7 +194,46 @@ function heutePostenNebenkosten(readiness, jahr) {
       zielText: 'Nebenkosten öffnen',
     });
   }
-  return posten;
+  if (!einzel.length) return [];
+  if (einzel.length === 1) return einzel;
+
+  const blockerGesamt = einzel.reduce((n, p) => {
+    const m = /: (\d+) blockierend/.exec(p.titel);
+    return n + (m ? Number(m[1]) : 0);
+  }, 0);
+
+  return [{
+    stufe: 3, tage: null, symbol: '🏠', bereich: 'Nebenkosten',
+    titel: einzel.length + ' Objekte mit Abrechnungsblockern',
+    zusatz: 'Nebenkosten ' + jahr + ' · ' + blockerGesamt
+      + (blockerGesamt === 1 ? ' blockierender Befund' : ' blockierende Befunde')
+      + ' insgesamt. Keine dieser Abrechnungen kann vor der Klärung berechnet werden.',
+    ziel: { tab: 'assets', parameter: { assets_subtab: 'status' } },
+    zielText: 'Abrechnungsreife öffnen',
+    /* Aufklappbar: die Einzelzeilen stehen darin. */
+    unterposten: einzel,
+  }];
+}
+
+/* C1 (Phase 3): Zaehler je Dringlichkeitsstufe statt nur "offen/vorgemerkt".
+   Gezaehlt werden die EINZELNEN Befunde, auch die in einer gebuendelten Zeile —
+   sonst waere die Zahl kleiner als der Handlungsbedarf. Stufen ohne Eintrag
+   stehen nicht da. Die Schwellen 30/90 Tage bleiben unveraendert. */
+function heuteStufenZaehler(posten) {
+  const flach = [];
+  for (const p of posten) {
+    if (p.unterposten && p.unterposten.length) flach.push(...p.unterposten);
+    else flach.push(p);
+  }
+  if (!flach.length) return '';
+  const reihenfolge = [1, 2, 3, 4];
+  const teile = [];
+  for (const stufe of reihenfolge) {
+    const n = flach.filter(p => p.stufe === stufe).length;
+    if (!n) continue;
+    teile.push(n + ' ' + (HEUTE_STUFEN[stufe].label.toLowerCase()));
+  }
+  return teile.join(' · ');
 }
 
 /* ── Rendern ──────────────────────────────────────────────────────────────── */
@@ -210,19 +254,38 @@ function heuteHandlungsliste(posten) {
   posten.sort((a, b) => (a.stufe - b.stufe)
     || ((a.tage === null ? 99999 : a.tage) - (b.tage === null ? 99999 : b.tage)));
 
-  _heuteZiele = posten.map(p => p.ziel);
+  /* C1: Die Sprungziele werden flach gesammelt — Hauptzeilen zuerst, danach
+     die Unterposten. Der Index in _heuteZiele ist die einzige Verbindung
+     zwischen Markup und Ziel. */
+  _heuteZiele = [];
+  const zielIndex = (p) => { _heuteZiele.push(p.ziel); return _heuteZiele.length - 1; };
 
-  const zeile = (p, i) => {
+  const knopf = (p, i) => {
     const stufe = HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3];
-    return '<li class="hu-zeile ' + stufe.klasse + '">'
-      + '<button type="button" class="hu-knopf" onclick="heuteZielKlick(' + i + ')">'
+    return '<button type="button" class="hu-knopf" onclick="heuteZielKlick(' + i + ')">'
       + '<span class="hu-symbol" aria-hidden="true">' + p.symbol + '</span>'
       + '<span class="hu-text">'
       + '<span class="hu-titel">' + esc(p.titel) + '</span>'
       + '<span class="hu-zusatz">' + esc(stufe.label + ' · ' + p.bereich + ' · ' + p.zusatz) + '</span>'
       + '</span>'
       + '<span class="hu-ziel">' + esc(p.zielText) + ' →</span>'
-      + '</button></li>';
+      + '</button>';
+  };
+
+  const zeile = (p) => {
+    const stufe = HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3];
+    const i = zielIndex(p);
+    if (!p.unterposten || !p.unterposten.length) {
+      return '<li class="hu-zeile ' + stufe.klasse + '">' + knopf(p, i) + '</li>';
+    }
+    /* C1: gebuendelte Zeile — die Einzelzeilen stehen eingeklappt darunter. */
+    const innen = p.unterposten.map(u => '<li class="hu-zeile hu-unter '
+      + (HEUTE_STUFEN[u.stufe] || HEUTE_STUFEN[3]).klasse + '">'
+      + knopf(u, zielIndex(u)) + '</li>').join('');
+    return '<li class="hu-zeile ' + stufe.klasse + '">' + knopf(p, i)
+      + '<details class="hu-buendel"><summary>' + esc('Einzeln anzeigen ('
+        + p.unterposten.length + ')') + '</summary>'
+      + '<ul class="hu-liste">' + innen + '</ul></details></li>';
   };
 
   /* Fristen jenseits von 90 Tagen stehen in einem eingeklappten Block.
@@ -230,7 +293,7 @@ function heuteHandlungsliste(posten) {
      heute wichtigen Zeilen zuschütten (Spec §5: keine Kennzahlenwand). */
   const jetzt = [];
   const spaeter = [];
-  posten.forEach((p, i) => (p.stufe >= 4 ? spaeter : jetzt).push(zeile(p, i)));
+  posten.forEach(p => (p.stufe >= 4 ? spaeter : jetzt).push(zeile(p)));
 
   return '<ul class="hu-liste">' + jetzt.join('') + '</ul>'
     + (spaeter.length
@@ -608,10 +671,7 @@ async function loadHeute() {
     '<div class="heute-datum"><span aria-hidden="true">📅</span> ' + esc(datumLang)
       + ' · ' + esc(zeitUhr(jetzt)) + ' Uhr</div>'
     + heuteAbschnitt('Handlungsbedarf', heuteHandlungsliste(posten),
-        posten.length
-          ? esc(posten.filter(p => p.stufe < 4).length + ' offen · '
-              + posten.filter(p => p.stufe >= 4).length + ' vorgemerkt')
-          : '')
+        esc(heuteStufenZaehler(posten)))
     + heuteAbschnitt('Tag und Wetter', heuteUmfeldBlock(umfeld))
     + heuteAbschnitt('Nächste Termine', heuteTermine(kalender))
     + heuteAbschnitt('Gesundheit', heuteGesundheit(health))
