@@ -120,24 +120,32 @@ document.addEventListener('alpine:init', () => {
       `;
 
       if (!tenants.length) {
-        html += '<div class="empty">Keine Mieter vorhanden.</div>';
+        html += zustandBlock('keine_daten', 'Es ist kein Mieterdatensatz angelegt.');
         target.innerHTML = html;
         return;
       }
 
-      html += `<div class="card"><table class="assets-table">
+      html += `<div class="card"><table class="assets-table" data-tabelle="karten">
         <thead><tr>
           <th>Name / Firma</th>
           <th>Kontakt</th>
           <th>IBAN</th>
-          <th>Aktive Vertraege</th>
+          <th>Verträge</th>
         </tr></thead>
         <tbody id="tenants-tbody">`;
 
       for (const t of tenants) {
         const ibanMasked = t.iban ? '***' + t.iban.slice(-4) : '–';
+        /* P2-11: Mehrere Datensätze auf denselben Namen sind beabsichtigt
+           (Owner-Entscheidung Nr. 4) — der Hinweis sagt das, statt sie als
+           möglichen Doppeleintrag zu markieren. */
+        const gleich = typeof mietGleichnamige === 'function' ? mietGleichnamige(t, tenants) : [];
+        const mehrfach = gleich.length
+          ? ' <span class="badge badge-blue" title="Mehrere Mietverhältnisse derselben Person — beabsichtigt, kein Doppeleintrag">Hauptmieter</span>'
+          : '';
         html += `<tr class="tenant-row" onclick="assetsOpenTenantDrawer(${t.id})" data-search="${esc((t.name || '') + ' ' + (t.company || '') + ' ' + (t.email || '')).toLowerCase()}">
-          <td><strong>${esc(t.name || '')}</strong>${t.company ? '<br><span style="color:var(--muted);font-size:13px">' + esc(t.company) + '</span>' : ''}</td>
+          <td><strong>${esc(t.name || '')}</strong>${mehrfach}${t.company ? '<br><span style="color:var(--muted);font-size:13px">' + esc(t.company) + '</span>' : ''}
+            <br><span style="color:var(--muted);font-size:13px">${esc(t.tenant_code || '')}</span></td>
           <td>${esc(t.email || '–')}<br><span style="color:var(--muted);font-size:13px">${esc(t.phone || '')}</span></td>
           <td><span class="iban-masked">${ibanMasked}</span> ${t.iban ? '<button class="iban-reveal" onclick="event.stopPropagation();assetsRevealIban(this,\'' + esc(t.iban) + '\')">Anzeigen</button>' : ''}</td>
           <td>${t.active_lease_count || 0}</td>
@@ -628,6 +636,14 @@ async function assetsOpenTenantDrawer(tenantId) {
   try {
     const res = await csrf.fetch(`/api/assets/tenants/${tenantId}`);
     const tenant = await res.json();
+    /* P2-11: Verträge dieser Person und die Erklärung mehrerer Datensätze auf
+       denselben Namen. Lesend, aus dem gemeinsamen Zwischenspeicher. */
+    const miet = typeof mietDatenLaden === 'function' ? await mietDatenLaden(false) : null;
+    const mietHtml = miet && !miet.fehler
+      ? mietHauptmieterHtml(tenant, miet.tenants, miet.leases)
+        + '<div class="drawer-section"><h4>Verträge dieser Person</h4>'
+        + mietVertragslisteHtml(tenant, miet.leases) + '</div>'
+      : '';
 
     openDrawer(`
       <div class="drawer-header">

@@ -111,14 +111,19 @@ document.addEventListener('alpine:init', () => {
         <thead><tr><th>Objekt/Einheit</th><th>Mieter</th><th>Typ</th><th>Status</th><th>Beginn</th><th>Ende</th><th>Auszug</th></tr></thead>
         <tbody>`;
       for (const l of leases) {
-        const statusBadge = l.status === 'active' ? '<span class="badge badge-green">Aktiv</span>'
-          : l.status === 'ended' ? '<span class="badge badge-muted">Beendet</span>'
-          : l.status === 'future' ? '<span class="badge badge-blue">Zukuenftig</span>'
-          : `<span class="badge badge-muted">${esc(l.status || '–')}</span>`;
+        /* P2-8: Statusbezeichnungen und Vertragstyp kommen aus der
+           gemeinsamen Begriffstabelle (public/js/begriffe.js) — vorher stand
+           der Rohwert `residential`/`temporary` in der Spalte "Typ", und die
+           Statusbezeichnung war hier ein zweites Mal ausgeschrieben. */
+        const statusBadge = begriffBadge('lease_status', l.status);
+        /* P2-11: Faelle mit Klaerungsbedarf schon in der Uebersicht
+           kennzeichnen — nicht erst im Detail. Nur Anzeige. */
+        const klaerung = typeof mietKlaerungBadge === 'function'
+          ? mietKlaerungBadge(l.id, this.leases) : '';
         html += `<tr onclick="assetsOpenLeaseDrawer(${l.id})" style="cursor:pointer">
-          <td>${esc(l.property_name || '')} / ${esc(l.unit_label || '')}</td>
+          <td>${esc(l.property_name || '')} / ${esc(l.unit_label || '')} ${klaerung}</td>
           <td>${esc(l.tenant_names || '–')}</td>
-          <td>${esc(l.lease_type || '–')}</td>
+          <td>${esc(begriff('lease_type', l.lease_type))}</td>
           <td>${statusBadge}</td>
           <td>${fmtDate(l.start_date)}</td>
           <td>${l.end_date ? fmtDate(l.end_date) : '–'}</td>
@@ -318,30 +323,45 @@ async function assetsOpenLeaseDrawer(leaseId) {
     const lease = await leaseRes.json();
     const charges = chargesRes.ok ? await chargesRes.json() : [];
 
-    const statusBadge = lease.status === 'active' ? '<span class="badge badge-green">Aktiv</span>'
-      : lease.status === 'ended' ? '<span class="badge badge-muted">Beendet</span>'
-      : `<span class="badge badge-blue">${esc(lease.status || '–')}</span>`;
+    const statusBadge = begriffBadge('lease_status', lease.status);
+
+    /* P2-11: Verknuepfungen und Klaerungshinweise brauchen den
+       Gesamtbestand. Lesend, aus dem gemeinsamen Zwischenspeicher. */
+    const miet = typeof mietDatenLaden === 'function' ? await mietDatenLaden(false) : null;
+    const mietBefundeHier = miet && !miet.fehler ? mietBefundeZuVertrag(lease.id, miet.leases) : [];
 
     let html = `
       <div class="drawer-header">
-        <h3>Mietvertrag #${lease.id} ${statusBadge}</h3>
+        <h3>${esc(lease.lease_number || 'Mietvertrag #' + lease.id)} ${statusBadge}</h3>
         <button aria-label="Schubfach schließen" title="Schubfach schließen" class="drawer-close" onclick="closeDrawer()">✕</button>
       </div>
+
+      ${mietBefundeHier.length ? mietHinweisHtml(mietBefundeHier) : ''}
 
       <div class="drawer-section">
         <h4>Vertragsdaten</h4>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">Vertragstyp</label>
+            <!-- P2-8: Die Auswahl bot bisher residential_permanent,
+                 residential_temporary und commercial an. Im Bestand stehen
+                 aber residential und temporary — der aktuelle Wert war also
+                 NIE vorausgewaehlt, und ein Klick auf "Speichern" haette den
+                 Vertragstyp stillschweigend auf den ersten Listeneintrag
+                 geaendert. begriffOptionen() nimmt die Bezeichnungen aus der
+                 gemeinsamen Tabelle und haengt einen unbekannten Bestandswert
+                 unveraendert an, damit genau das nicht passiert. -->
             <select class="form-select" id="ld-type">
-              <option value="residential_permanent" ${lease.lease_type === 'residential_permanent' ? 'selected' : ''}>Wohnung unbefristet</option>
-              <option value="residential_temporary" ${lease.lease_type === 'residential_temporary' ? 'selected' : ''}>Wohnung befristet</option>
-              <option value="commercial" ${lease.lease_type === 'commercial' ? 'selected' : ''}>Gewerbe</option>
+              ${begriffOptionen('lease_type', lease.lease_type, lease.lease_type)}
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Status</label>
-            <input class="form-input" value="${esc(lease.status || '')}" disabled>
+            <label class="form-label" for="ld-status">Status</label>
+            <input class="form-input" id="ld-status" value="${esc(begriff('lease_status', lease.status))}" disabled
+                   title="Der Status wird nicht direkt gesetzt, sondern folgt aus Vertragsende und Auszug.">
+            <div class="formular-hinweis">„Aktiv" heißt: der Vertrag ist weder beendet noch
+              ist ein Auszug erfasst. Vertragsende und tatsächlicher Auszug werden getrennt
+              gepflegt — ein eingetragener Auszug ändert den Status nicht von selbst.</div>
           </div>
         </div>
         <div class="form-row">
@@ -378,27 +398,32 @@ async function assetsOpenLeaseDrawer(leaseId) {
           <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddCharge(${lease.id})">+ Posten</button>
         </div>
         <table class="assets-table">
-          <thead><tr><th>Typ</th><th>Betrag</th><th>Gueltig ab</th><th>Gueltig bis</th></tr></thead>
+          <thead><tr><th>Typ</th><th>Betrag</th><th>Gültig ab</th><th>Gültig bis</th></tr></thead>
           <tbody>`;
 
     for (const ch of charges) {
       html += `<tr>
-        <td>${esc(ch.charge_type || '')}</td>
+        <td>${esc(begriff('charge_type', ch.charge_type))}</td>
         <td title="Monatsbetrag">${fmtEur(ch.amount)}</td>
         <td>${fmtDate(ch.valid_from)}</td>
         <td>${ch.valid_until ? fmtDate(ch.valid_until) : '–'}</td>
       </tr>`;
     }
 
-    html += `</tbody></table></div>
+    html += '</tbody></table></div>';
 
+    /* P2-11: Vertragsparteien und alle Vertraege derselben Einheit — damit ein
+       Mieterwechsel erkennbar wird. Nur Anzeige. */
+    html += (miet && !miet.fehler ? mietVertragsdetailHtml(lease, miet.leases, miet.tenants) : '');
+
+    html += `
       <!-- Actions -->
       <div class="drawer-section">
         <h4>Aktionen</h4>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           ${lease.status === 'active' && !lease.end_date ? `<button class="btn btn-primary" onclick="assetsEndLease(${lease.id})">Vertragsende eintragen</button>` : ''}
-          ${lease.end_date && lease.status === 'active' ? `<button class="btn" onclick="assetsRevokeEndLease(${lease.id})">Vertragsende zuruecknehmen</button>` : ''}
-          ${lease.status === 'active' && !lease.actual_move_out ? `<button class="btn btn-primary" onclick="assetsMoveOut(${lease.id})">Tatsaechlichen Auszug eintragen</button>` : ''}
+          ${lease.end_date && lease.status === 'active' ? `<button class="btn" onclick="assetsRevokeEndLease(${lease.id})">Vertragsende zurücknehmen</button>` : ''}
+          ${lease.status === 'active' && !lease.actual_move_out ? `<button class="btn btn-primary" onclick="assetsMoveOut(${lease.id})">Tatsächlichen Auszug eintragen</button>` : ''}
         </div>
       </div>
     `;

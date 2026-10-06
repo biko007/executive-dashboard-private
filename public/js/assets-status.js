@@ -59,7 +59,7 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.data('statusTab', () => ({
     loaded: false,
-    section: 'nk-readiness', // nk-readiness | obligations | audit
+    section: 'nk-readiness', // nk-readiness | klaerung | audit
     properties: [],
     showAdvanced: false,
 
@@ -90,12 +90,17 @@ document.addEventListener('alpine:init', () => {
       if (!target) return;
 
       let html = `<div class="filters-row" style="margin-bottom:16px">
-        <button class="btn ${this.section === 'nk-readiness' ? 'btn-primary' : ''}" onclick="statusSwitch('nk-readiness')">NK-Readiness</button>
+        <button class="btn ${this.section === 'nk-readiness' ? 'btn-primary' : ''}" onclick="statusSwitch('nk-readiness')">Abrechnungsreife</button>
+        <button class="btn ${this.section === 'klaerung' ? 'btn-primary' : ''}" onclick="statusSwitch('klaerung')">Kl&#228;rungsbedarf</button>
         <button class="btn ${this.section === 'audit' ? 'btn-primary' : ''}" onclick="statusSwitch('audit')">Erweitert</button>
       </div>`;
 
       if (this.section === 'nk-readiness') {
         html += this._renderNkReadiness();
+      } else if (this.section === 'klaerung') {
+        /* P2-11: Verträge mit Auszug trotz „Aktiv", doppelt belegte Einheiten
+           und mehrere Mieterdatensätze pro Person — nur Anzeige. */
+        html += '<div id="miet-klaerung"><div class="spinner">Laden\u2026</div></div>';
       } else if (this.section === 'audit') {
         html += this._renderAuditViewer();
       }
@@ -104,6 +109,7 @@ document.addEventListener('alpine:init', () => {
 
       // Auto-load data for active section
       if (this.section === 'nk-readiness') loadNkReadiness();
+      if (this.section === 'klaerung') mietKlaerungsbedarfRendern('miet-klaerung');
     },
 
     _renderNkReadiness() {
