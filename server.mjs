@@ -9,6 +9,7 @@ import sharp from 'sharp';
 import pg from 'pg';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
+import SunCalc from 'suncalc';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -2288,6 +2289,176 @@ app.get('/api/dashboard/status', auth, async (_req, res) => {
     }
     res.status(503).json({ error: e.message });
   }
+});
+
+// ── API: Tagesuebersicht — Umfeld (Standort, Sonne/Mond, Wetter) ────────────
+//
+// P2-5. Dieser Endpunkt liefert AUSSCHLIESSLICH die drei Angaben, fuer die es
+// im Dashboard bisher keine Quelle gab. Alle uebrigen Bausteine der
+// Tagesuebersicht (Kalender, Gesundheitswarnungen, TUeV-Fristen,
+// Nebenkosten, Datenquellen-Status) holt der Browser aus den BEREITS
+// vorhandenen Endpunkten — es gibt deshalb keinen sammelnden `/api/heute`
+// und keinen neuen Datenspeicher.
+//
+// Standort und Astronomie stammen aus denselben Quellen wie das
+// Telegram-Briefing (`location_events` in `openclaw_core`, suncalc, derselbe
+// Open-Meteo-Aufruf). Nur so zeigen Briefing und Dashboard denselben Tag
+// gleich an — dasselbe Prinzip wie bei der Kalender-Zeitlogik aus P1-5.
+//
+// Lesend. Kein Schluessel noetig: Open-Meteo braucht keinen.
+
+const HEUTE_ORT_FALLBACK = { lat: 47.9838, lon: 8.8234, label: 'Tuttlingen', quelle: 'Vorgabewert' };
+
+/* Zwischenspeicher fuer den Wetterabruf. Ohne ihn fragt jeder Seitenaufruf
+   Open-Meteo erneut; die Werte aendern sich dort im Viertelstundenraster. */
+let _wetterCache = { schluessel: '', daten: null, ts: 0 };
+const WETTER_CACHE_TTL = 10 * 60_000;
+
+const WMO_TEXTE = {
+  0: 'klar', 1: 'überwiegend klar', 2: 'leicht bewölkt', 3: 'bewölkt',
+  45: 'Nebel', 48: 'Reifnebel',
+  51: 'leichter Niesel', 53: 'Niesel', 55: 'starker Niesel',
+  56: 'gefrierender Niesel', 57: 'starker gefrierender Niesel',
+  61: 'leichter Regen', 63: 'Regen', 65: 'starker Regen',
+  66: 'gefrierender Regen', 67: 'starker gefrierender Regen',
+  71: 'leichter Schneefall', 73: 'Schneefall', 75: 'starker Schneefall',
+  77: 'Schneegriesel',
+  80: 'Regenschauer', 81: 'starke Schauer', 82: 'Sturzregen',
+  85: 'Schneeschauer', 86: 'starke Schneeschauer',
+  95: 'Gewitter', 96: 'Gewitter mit Hagel', 99: 'starkes Hagelgewitter',
+};
+
+function wmoText(code) {
+  return WMO_TEXTE[code] ?? ('Wettercode ' + code);
+}
+
+async function heuteOrt() {
+  if (!dbPool) return { ...HEUTE_ORT_FALLBACK, stand: null };
+  try {
+    const { rows } = await dbPool.query(
+      'SELECT lat::float AS lat, lon::float AS lon, label, recorded_at FROM location_events ORDER BY recorded_at DESC LIMIT 1'
+    );
+    if (!rows.length) return { ...HEUTE_ORT_FALLBACK, stand: null };
+    const r = rows[0];
+    return {
+      lat: r.lat, lon: r.lon, label: r.label || HEUTE_ORT_FALLBACK.label,
+      quelle: 'location_events', stand: r.recorded_at ? new Date(r.recorded_at).toISOString() : null,
+    };
+  } catch {
+    return { ...HEUTE_ORT_FALLBACK, stand: null };
+  }
+}
+
+/* Dieselbe Mondphasen-Benennung wie im Briefing (executive-agent/index.ts). */
+function mondBenennung(phase) {
+  if (phase < 0.03 || phase >= 0.97) return { icon: '🌑', name: 'Neumond' };
+  if (phase < 0.22) return { icon: '🌒', name: 'Zunehmende Sichel' };
+  if (phase < 0.28) return { icon: '🌓', name: 'Erstes Viertel' };
+  if (phase < 0.47) return { icon: '🌔', name: 'Zunehmender Mond' };
+  if (phase < 0.53) return { icon: '🌕', name: 'Vollmond' };
+  if (phase < 0.72) return { icon: '🌖', name: 'Abnehmender Mond' };
+  if (phase < 0.78) return { icon: '🌗', name: 'Letztes Viertel' };
+  return { icon: '🌘', name: 'Abnehmende Sichel' };
+}
+
+function heuteAstro(jetzt, lat, lon) {
+  const uhr = (d) => (d && !Number.isNaN(d.getTime())
+    ? new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+    : null);
+  const sonne = SunCalc.getTimes(jetzt, lat, lon);
+  const mondZeiten = SunCalc.getMoonTimes(jetzt, lat, lon);
+  const mond = SunCalc.getMoonIllumination(jetzt);
+  const benannt = mondBenennung(mond.phase);
+  return {
+    sonnenaufgang: uhr(sonne.sunrise),
+    sonnenuntergang: uhr(sonne.sunset),
+    tageslaenge_min: (sonne.sunrise && sonne.sunset && !Number.isNaN(sonne.sunrise.getTime()))
+      ? Math.round((sonne.sunset - sonne.sunrise) / 60000) : null,
+    mondaufgang: uhr(mondZeiten.rise),
+    monduntergang: uhr(mondZeiten.set),
+    mond_symbol: benannt.icon,
+    mond_phase: benannt.name,
+    mond_beleuchtung: Math.round(mond.fraction * 100),
+  };
+}
+
+async function heuteWetter(lat, lon) {
+  const schluessel = lat.toFixed(3) + ',' + lon.toFixed(3);
+  if (_wetterCache.daten && _wetterCache.schluessel === schluessel
+      && Date.now() - _wetterCache.ts < WETTER_CACHE_TTL) {
+    return { ..._wetterCache.daten, cache_alter_s: Math.round((Date.now() - _wetterCache.ts) / 1000) };
+  }
+  const url = 'https://api.open-meteo.com/v1/forecast'
+    + '?latitude=' + lat + '&longitude=' + lon
+    + '&current=temperature_2m,weather_code,pressure_msl,wind_speed_10m'
+    + '&hourly=precipitation,pressure_msl&forecast_hours=24&past_hours=3'
+    + '&daily=temperature_2m_max,temperature_2m_min,weather_code,wind_speed_10m_max,precipitation_sum,uv_index_max'
+    + '&timezone=Europe%2FBerlin&forecast_days=3';
+  const r = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+  if (!r.ok) throw new Error('Open-Meteo antwortete mit ' + r.status);
+  const d = await r.json();
+  const t = d.daily || {};
+  const tage = [0, 1, 2].map(i => ({
+    datum: t.time?.[i] ?? null,
+    min: t.temperature_2m_min?.[i] != null ? Math.round(t.temperature_2m_min[i]) : null,
+    max: t.temperature_2m_max?.[i] != null ? Math.round(t.temperature_2m_max[i]) : null,
+    text: wmoText(t.weather_code?.[i] ?? 0),
+    wind: t.wind_speed_10m_max?.[i] != null ? Math.round(t.wind_speed_10m_max[i]) : null,
+    regen_mm: t.precipitation_sum?.[i] != null ? Math.round(t.precipitation_sum[i] * 10) / 10 : null,
+    uv: t.uv_index_max?.[i] != null ? Math.round(t.uv_index_max[i] * 10) / 10 : null,
+  }));
+  /* Druckentwicklung aus den Stundenwerten (3 h zurueck bis jetzt) — dieselbe
+     Schwelle wie im Briefing. */
+  const druckReihe = d.hourly?.pressure_msl || [];
+  let druckTrend = 'stabil';
+  if (druckReihe.length >= 4) {
+    const diff = druckReihe[druckReihe.length - 1] - druckReihe[0];
+    if (diff > 1.5) druckTrend = 'steigend';
+    else if (diff < -1.5) druckTrend = 'fallend';
+  }
+  /* Erste Stunde mit Niederschlag im Vorhersagefenster. */
+  let regenAb = null;
+  const niederschlag = d.hourly?.precipitation || [];
+  const zeiten = d.hourly?.time || [];
+  for (let i = 0; i < niederschlag.length; i++) {
+    if (niederschlag[i] > 0) { regenAb = String(zeiten[i] || '').slice(11, 16) || null; break; }
+  }
+  const daten = {
+    jetzt_grad: d.current?.temperature_2m != null ? Math.round(d.current.temperature_2m) : null,
+    jetzt_text: wmoText(d.current?.weather_code ?? 0),
+    jetzt_wind: d.current?.wind_speed_10m != null ? Math.round(d.current.wind_speed_10m) : null,
+    gemessen: d.current?.time || null,
+    druck_hpa: d.current?.pressure_msl != null ? Math.round(d.current.pressure_msl) : null,
+    druck_trend: druckTrend,
+    regen_ab: regenAb,
+    tage,
+    abgerufen: new Date().toISOString(),
+    quelle: 'Open-Meteo',
+  };
+  _wetterCache = { schluessel, daten, ts: Date.now() };
+  return { ...daten, cache_alter_s: 0 };
+}
+
+app.get('/api/heute/umfeld', auth, async (_req, res) => {
+  const jetzt = new Date();
+  const ort = await heuteOrt();
+  let astro = null;
+  let astroFehler = null;
+  try { astro = heuteAstro(jetzt, ort.lat, ort.lon); }
+  catch (e) { astroFehler = e.message; }
+  let wetter = null;
+  let wetterFehler = null;
+  try { wetter = await heuteWetter(ort.lat, ort.lon); }
+  catch (e) { wetterFehler = e.message; }
+  res.json({
+    zeitpunkt: jetzt.toISOString(),
+    zone: 'Europe/Berlin',
+    ort,
+    astro,
+    astro_fehler: astroFehler,
+    wetter,
+    wetter_fehler: wetterFehler,
+  });
 });
 
 // ── Wiki (Nuveon-Ablösung) ──────────────────────────────────────────────────

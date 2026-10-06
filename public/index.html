@@ -13,6 +13,7 @@
 <link rel="stylesheet" href="/dashboard/css/entity-tile.css">
 <link rel="stylesheet" href="/dashboard/css/wiki.css">
 <link rel="stylesheet" href="/dashboard/css/datenstand.css">
+<link rel="stylesheet" href="/dashboard/css/tagesuebersicht.css">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
    Farb- und Typografiebasis — Paket P2-1 (Spec §2)
@@ -696,6 +697,7 @@ pre, code { overflow-wrap: anywhere; }
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
 <script defer src="/dashboard/js/responsiv.js"></script>
+<script defer src="/dashboard/js/tagesuebersicht.js"></script>
 <script defer src="/dashboard/js/assets-stores.js"></script>
 <script defer src="/dashboard/js/assets-stammdaten.js"></script>
 <script defer src="/dashboard/js/assets-vertraege.js"></script>
@@ -738,7 +740,8 @@ pre, code { overflow-wrap: anywhere; }
        Leiste die Kurzform (.nav-kurz), der Text entfaellt aber nie.
        Kein Hamburger-Menue (Owner-Entscheidung). -->
   <nav aria-label="Hauptbereiche">
-    <button onclick="showTab('health')" class="active" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Health</span><span class="nav-kurz">Health</span></button>
+    <button onclick="showTab('heute')" class="active" data-tab="heute"><span aria-hidden="true">🌅</span><span class="nav-lang">Heute</span><span class="nav-kurz">Heute</span></button>
+    <button onclick="showTab('health')" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Health</span><span class="nav-kurz">Health</span></button>
     <button onclick="showTab('trips')"        data-tab="trips"><span aria-hidden="true">✈️</span><span class="nav-lang">Trips</span><span class="nav-kurz">Trips</span></button>
     <button onclick="showTab('calendar')"     data-tab="calendar"><span aria-hidden="true">📅</span><span class="nav-lang">Kalender</span><span class="nav-kurz">Kalender</span></button>
     <button onclick="showTab('fleet')"        data-tab="fleet"><span aria-hidden="true">🚗</span><span class="nav-lang">Fuhrpark</span><span class="nav-kurz">Fuhrpark</span></button>
@@ -763,7 +766,7 @@ pre, code { overflow-wrap: anywhere; }
 
 /* ── State ── */
 let TOKEN = '';
-let currentTab = 'trips';
+let currentTab = 'heute';
 let _tripsCache = [];
 let _draftsCache = [];
 let _docsCache = [];
@@ -799,7 +802,10 @@ let _docsCache = [];
          zweiten anzulegen — sonst braeuchte Zurueck zwei Schritte, um die
          Seite zu verlassen. Ein Neuladen landet dank ?tab= wieder hier.
          Deeplink-Parameter bleiben dabei erhalten. */
-      const start = istBekannterTab(urlTab) ? urlTab : 'health';
+      /* P2-5: Startansicht ist die Tagesuebersicht. Die 13 Fachbereiche
+         bleiben ueber die Navigation und ueber ?tab=… unveraendert
+         erreichbar — sie werden nicht ersetzt (Spec §5, §7). */
+      const start = istBekannterTab(urlTab) ? urlTab : 'heute';
       setzeTabAdresse(start, true);
       showTab(start, { verlauf: false });
     } else {
@@ -827,8 +833,8 @@ async function submitToken() {
     localStorage.setItem('token', TOKEN);
     document.getElementById('login').style.display = 'none';
     showApp();
-    setzeTabAdresse('health', true);
-    showTab('health', { verlauf: false });
+    setzeTabAdresse('heute', true);
+    showTab('heute', { verlauf: false });
   } catch {
     document.getElementById('loginErr').textContent = 'Token ungültig oder Server nicht erreichbar.';
     TOKEN = '';
@@ -863,7 +869,7 @@ function showApp() {
    schreibt showTab() ?tab= in die Adresse, bevor die Bereichsfunktion laeuft. */
 
 /* Reihenfolge der Schaltflaechen in der Navigationsleiste. */
-const DASHBOARD_TABS = ['health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
+const DASHBOARD_TABS = ['heute','health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
 
 /* Ohne eigene Schaltflaeche, aber gueltige Ziele: 'drafts' und 'documents'
    werden aus dem Code heraus angesprungen, 'banking-connect' ist ein
@@ -903,7 +909,7 @@ window.addEventListener('popstate', (e) => {
   const ausAdresse = new URLSearchParams(location.search).get('tab');
   const tab = istBekannterTab(ausZustand) ? ausZustand
             : istBekannterTab(ausAdresse) ? ausAdresse
-            : 'health';
+            : 'heute';
   if (tab === currentTab) return;
   showTab(tab, { verlauf: false });
 });
@@ -911,7 +917,7 @@ window.addEventListener('popstate', (e) => {
 function showTab(tab, opt) {
   // Handle banking-connect deep link as banking tab
   if (tab === 'banking-connect') tab = 'banking';
-  if (!istBekannterTab(tab)) tab = 'health';
+  if (!istBekannterTab(tab)) tab = 'heute';
   const verlauf = !opt || opt.verlauf !== false;
   currentTab = tab;
   if (verlauf) setzeTabAdresse(tab, false);
@@ -931,7 +937,7 @@ function showTab(tab, opt) {
   if (typeof closeDrawer === 'function') closeDrawer();
   closeModal();
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
-  ({ health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
+  ({ heute: loadHeute, health: loadHealth, trips: loadTrips, drafts: loadDrafts, calendar: loadCalendar, documents: loadDocuments, sharepoint: loadSharePoint, fleet: loadFleet, assets: loadAssets, instagram: loadInstagram, trading: loadTrading, banking: loadBanking, pe: loadPrivateEquity, wiki: loadWiki, agents: loadAgents, status: loadStatus })[tab]();
 }
 
 /* Holt die aktive Schaltflaeche in den sichtbaren Teil der scrollenden

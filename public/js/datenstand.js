@@ -186,3 +186,41 @@ function keineAktuellenDaten(stand, zusatz) {
     + '<div class="ds-leer-sub">' + esc(altersText(stand) + (zusatz ? ' · ' + zusatz : '')) + '</div>'
     + '</div></div>';
 }
+
+/* ── Fünf unterscheidbare Zustände (Spec §4 M e, angelegt in P2-5) ──────────
+   Vorher gab es genau zwei Klassen: `.spinner` und `.empty`. Damit sah ein
+   leerer Filtertreffer aus wie ein leerer Bestand, und eine nicht
+   eingerichtete Funktion wie ein erledigter Punkt.
+
+   Die fünf Zustände:
+     laden               — Abruf läuft
+     keine_daten         — die Quelle ist eingerichtet und liefert nichts
+     keine_treffer       — es gibt Daten, aber der Filter lässt keine übrig
+     nicht_eingerichtet  — die Funktion ist nicht in Betrieb (z. B. §556-Pflichten)
+     fehler              — der Abruf ist fehlgeschlagen
+     veraltet            — Daten vorhanden, aber zu alt (eigener Baustein oben)
+
+   Jeder Zustand hat Symbol UND Text; die Farbe ist nur Ergänzung (Spec §2). */
+const ZUSTAND_BLOECKE = {
+  laden:              { symbol: '⏳', titel: 'Wird geladen' },
+  keine_daten:        { symbol: 'ℹ️', titel: 'Keine Daten' },
+  keine_treffer:      { symbol: '🔍', titel: 'Keine Treffer' },
+  nicht_eingerichtet: { symbol: '⚙️', titel: 'Nicht eingerichtet' },
+  fehler:             { symbol: '⛔', titel: 'Laden fehlgeschlagen' },
+  veraltet:           { symbol: '⚠️', titel: 'Daten veraltet' },
+};
+
+/* `art`   — einer der Schlüssel oben
+   `text`  — Erklärung in einem Satz (was gilt, was zu tun ist)
+   `opt`   — { titel } eigene Überschrift, { aktion } HTML einer Schaltfläche */
+function zustandBlock(art, text, opt) {
+  const z = ZUSTAND_BLOECKE[art] || ZUSTAND_BLOECKE.keine_daten;
+  const o = opt || {};
+  return '<div class="zustand zustand-' + esc(art) + '">'
+    + '<span class="zustand-symbol" aria-hidden="true">' + z.symbol + '</span>'
+    + '<div class="zustand-text">'
+    + '<div class="zustand-titel">' + esc(o.titel || z.titel) + '</div>'
+    + (text ? '<div class="zustand-sub">' + esc(text) + '</div>' : '')
+    + (o.aktion ? '<div class="zustand-aktion">' + o.aktion + '</div>' : '')
+    + '</div></div>';
+}

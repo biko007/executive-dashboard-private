@@ -2,10 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 05.10.2026, 12:55 UTC
-**Aktuelle Phase:** **Phase 2 begonnen** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
-Hetzner-Snapshot liegt vor. **P2-1 (helles Design) ist erledigt.**
-**Nächster Schritt: P2-2** (Navigation und mobile Grundstruktur).
+**Letzte Aktualisierung:** 06.10.2026, 08:40 UTC
+**Aktuelle Phase:** **Phase 2 läuft** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
+Hetzner-Snapshot liegt vor. **P2-1 bis P2-5 sind erledigt.**
+**Nächster Schritt: P2-6** (Wiki-Suchausschnitte).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
@@ -31,7 +31,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
-| P2-5 | Tagesübersicht (§5) | L | offen | — | — |
+| P2-5 | Tagesübersicht (§5) | L | **erledigt** | `PLATZHALTER_P2_5` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-6 | Wiki-Suchausschnitte (I) | S | offen | — | — |
 | P2-7 | Instagram-Planung und Rohmaterial (J) | M | offen | — | — |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
@@ -1158,6 +1158,117 @@ werden.
 - Rückweg: `git revert <commit>`.
 
 **Commit:** `66756ed` · kein Dienst-Restart nötig
+
+---
+
+
+### P2-5 — Tagesübersicht „Heute" — 06.10.2026
+
+**Durchgeführt**
+
+1. **Neue Startansicht „Heute"** als erste Navigationsschaltfläche. Der Standardbereich ist von
+   `health` auf `heute` umgestellt — an fünf Stellen (Erstaufbau, Anmeldung, `popstate`,
+   `showTab()`-Rückfall, `currentTab`-Startwert). Die 13 Fachbereiche bleiben über die
+   Navigation und über `?tab=…` unverändert erreichbar; es wurde keiner ersetzt.
+2. **Sechs Abschnitte, alle aus echten Daten:**
+   - *Handlungsbedarf* — eine Liste über alle Bereiche, sortiert nach (Dringlichkeitsstufe,
+     Resttage), nicht nach Bereich. Vier Stufen: Kritisch, Dringend, Offen, Vorgemerkt.
+     Quellen: `/api/health/alerts` (Schweregrad), `tuevNextDueDate` der aktiven Fahrzeuge,
+     `nk-readiness` je Objekt für das letzte abgeschlossene Jahr. Jede Zeile ist eine
+     56 px hohe Schaltfläche und führt in die zuständige Detailansicht.
+   - *Tag und Wetter* — Sonnenauf-/untergang, Tageslänge, Mondphase mit Beleuchtungsgrad,
+     Mondauf-/untergang, Standort mit Alter der Standortmeldung, Wetter jetzt und drei Tage.
+   - *Nächste Termine* — die sechs nächsten aus dem 7-Tage-Fenster, Zeitlogik aus `zeit.js`
+     (P1-5), Ganztags- und Mehrtagestermine als solche gekennzeichnet.
+   - *Gesundheit* — Schlaf letzte Nacht, Readiness, HRV, Gewicht, jeweils **mit Quelle**
+     (Oura bzw. Withings) und Messdatum.
+   - *Datenquellen* — acht Quellen mit Datenstand und Alter, veraltete oben, mit einer Zeile
+     Fazit („3 von 8 Quellen sind veraltet …"). Baustein `datenstandBadge()` aus P1-1.
+   - *Offene Punkte* — §556-Pflichten, „Änderungen seit letztem Besuch", abgeschalteter
+     Abgleich, Vorgangstabelle. Jeder Punkt sagt, was **nicht** gilt.
+3. **Kein Gesamtscore, keine Kennzahlenwand.** Es gibt keine aggregierte Bewertung über
+   Gesundheit, Finanzen und Technik und keine Kachelreihe mit Zahlen ohne Bezug.
+4. **Ein neuer lesender Endpunkt** `GET /api/heute/umfeld` in `server.mjs` — und nur dieser.
+   Er liefert ausschließlich die drei Angaben, für die es im Dashboard keine Quelle gab:
+   Standort (Tabelle `location_events`, dieselbe Quelle wie das Briefing), Sonne/Mond
+   (`suncalc`, dieselbe Bibliothek und dieselbe Phasenbenennung wie das Briefing) und Wetter
+   (Open-Meteo, derselbe Aufruf wie im Briefing, serverseitig 10 Minuten zwischengespeichert).
+   Alle übrigen Bausteine holt der Browser aus den bereits vorhandenen Endpunkten —
+   **kein sammelnder `/api/heute`, kein neuer Datenspeicher, keine neue Tabelle.**
+5. **Ausfall einzelner Quellen bricht die Ansicht nicht.** Alle Abrufe laufen über
+   `Promise.allSettled`; fällt eine Quelle aus, erscheint genau ihr Block als „nicht
+   abrufbar" bzw. die Quelle in der Liste als „getrennt".
+6. **Fünf unterscheidbare Zustände angelegt** (`zustandBlock()` in `datenstand.js`,
+   Stilvorlage in `datenstand.css`): Wird geladen, Keine Daten, Keine Treffer, Nicht
+   eingerichtet, Laden fehlgeschlagen, Daten veraltet. Bisher gab es nur `.spinner` und
+   `.empty`. P2-8 wendet sie in den Fachbereichen an; hier sind sie erstmals im Einsatz.
+7. **Fristen jenseits von 90 Tagen stehen eingeklappt** („6 weitere Fristen später als
+   90 Tage"). Sie bleiben in der Sortierung, verdecken aber nicht die heute wichtigen Zeilen.
+
+**Geänderte Dateien:** `public/js/tagesuebersicht.js` (neu), `public/css/tagesuebersicht.css`
+(neu), `public/index.html`, `public/js/datenstand.js`, `public/css/datenstand.css`,
+`server.mjs`, `package.json`, `package-lock.json` (neue Abhängigkeit `suncalc@1.9.0`)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` (`node --check server.mjs`) | Exit 0 |
+| `node --check` alle `public/js/*.js` + Inline-Skript | Exit 0 |
+| `grep -n "x-if"` in den geänderten Dateien | keine Treffer — die neue Ansicht nutzt **kein** Alpine |
+| Startansicht | `?tab=` leer → `heute`; `?tab=health` → Health; alle 13 Deeplinks unverändert erreichbar |
+| TÜV-Sortierung | Tesla Model 3 **28.10.2026 (in 22 Tagen, Stufe „Dringend")** steht vor den Fristen 2027/2028 (Stufe „Vorgemerkt", eingeklappt) |
+| Gesundheitswarnungen | 2 Warnungen, **kritische zuerst**: „Schlaf letzte Nacht nur 3.9h" (kritisch) vor „Schlaf unter 6h an 6 von 7 Tagen" (Warnung) |
+| Veraltete Quellen | **3 von 8** mit Datum und Alter: Banking 29.06.2026 (98 Tage), SharePoint 16.05.2026 (142 Tage), Instagram-Medien 11.05.2026 (147 Tage) |
+| §556-Pflichten | erscheinen als „Nicht eingerichtet" mit Begründung — **nicht** als „keine Pflichten" |
+| Gesamtscore | keiner vorhanden (Gegenprobe am gerenderten Text) |
+| Deeplink aus einer Handlungszeile | TÜV-Zeile → `?tab=fleet&fleet_code=FZG-TESLA-M3&fleet_subtab=tuev`, Fahrzeug-TÜV-Liste zeigt 28.10.2026; Browser-Zurück landet wieder auf `heute`; NK-Zeile → `?tab=assets&assets_subtab=nebenkosten`, Unterbereich „Nebenkosten" aktiv |
+| Nebenkosten 2025 | 6 Objekte, alle mit blockierenden Befunden (3/2/2/2/2/2) — Zahlen gegen die Rohantworten von `nk-readiness` abgeglichen |
+| Wetter und Astronomie | `GET /api/heute/umfeld` gegen Open-Meteo-Rohantwort und `suncalc` abgeglichen; Sonnenaufgang 07:31, Mondphase „Abnehmende Sichel" 20 % |
+| Dokumentbreite 14 Bereiche × 360/390/768/1440 px | **0 Überläufe von 56** |
+| Touchziele `heute` bei 360/390 px | **0 Verletzer** unter 44 × 44 px |
+| Abgeschnittener Text ohne Scrollbehälter, `heute` × 4 Breiten | **0** |
+| Regression 13 Fachbereiche bei 360/390 px | unverändert — dieselben **3** vorbestehenden Beanstandungen wie vor dem Paket (Eingabefelder in Trading, SharePoint und Wiki unter 44 px Höhe; Behebung in **P2-8**) |
+| Smoke-Test | ALL PASS (31/31) |
+| Bestandsdaten | nichts geschrieben — alle Abrufe sind `GET` |
+
+**Getroffene Annahmen**
+- **Nebenkostenjahr:** die Tagesübersicht prüft das **letzte abgeschlossene** Kalenderjahr
+  (derzeit 2025). Das ist das Jahr, das abgerechnet werden muss.
+- **Dringlichkeitsschwellen:** eine Frist gilt ab 30 Tagen Restlaufzeit als „Dringend", ab
+  90 Tagen als „Offen", darüber als „Vorgemerkt". Überfällig = „Kritisch". Frei gewählt,
+  weil die Spec keine Schwellen vorgibt; die Werte stehen als Konstanten am Dateianfang.
+- **Standort:** die jüngste Zeile aus `location_events` (derzeit Tuttlingen, Meldung von
+  heute 09:00). Ohne Zeile greift der Vorgabewert Tuttlingen und wird als solcher benannt.
+- **Wetterquelle:** Open-Meteo ohne Schlüssel — dieselbe Quelle, die der executive-agent
+  für das Briefing schon nutzt. Keine neuen laufenden Kosten, kein Konto.
+- **Abhängigkeit `suncalc`:** bewusst dieselbe Bibliothek wie im Briefing, damit Dashboard
+  und Telegram-Briefing denselben Tag gleich darstellen (dasselbe Prinzip wie die geteilte
+  Kalender-Zeitlogik aus P1-5). Alternative wäre eigene Astronomie-Rechnung gewesen.
+
+**Nicht umgesetzt — Owner-Entscheidung nötig**
+- **„Änderungen seit letztem Besuch".** Es gibt weder eine Tabelle noch einen Mechanismus,
+  der Besuche oder Deltas festhält; jede Umsetzung braucht eine **neue Speicherung**.
+  Der Auftrag erlaubte die Umsetzung nur „ohne neue Speicherung" — auch die kleinste
+  Variante (Zeitstempel im `localStorage` des Browsers) ist eine neue Speicherung.
+  Der Punkt steht sichtbar im Abschnitt „Offene Punkte" der Tagesübersicht und wartet auf
+  die Entscheidung des Owners.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Lesbarkeit und Daumenerreichbarkeit der Handlungsliste am echten Gerät.
+- **CP2 prüfen:** Ob die vier Dringlichkeitsstufen fachlich richtig geschnitten sind
+  (30/90 Tage) — das ist eine Owner-Einschätzung, keine technische Frage.
+- **CP2 prüfen:** Der Text der Gesundheitswarnungen kommt wörtlich aus dem Core
+  („Schlaf letzte Nacht nur 3.9h" — englische Dezimalschreibweise). Eine Übersetzung wie
+  bei den Nebenkosten-Befunden (P1-6) wäre ein eigener Schritt und ist **nicht** Teil von P2-5.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: **ja** — `server.mjs` wurde geändert (neuer Endpunkt, `suncalc`-Import).
+  Dienst am 06.10.2026 neu gestartet, `GET /health` → 200.
+- Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
+  Keine Datenänderung, deshalb kein Datenrückweg.
+
+**Commit:** `PLATZHALTER_P2_5` · Dienst-Restart nötig und durchgeführt
 
 ---
 

@@ -1,0 +1,222 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tagesübersicht — Paket P2-5
+   Gehört zu public/js/tagesuebersicht.js.
+   Mobile-first: schmal steht alles untereinander, ab 640 px wird verdichtet.
+   Farben ausschließlich über die Tokens aus index.html.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.heute-datum {
+  font-size: 14px;
+  color: var(--text-soft);
+  margin: 2px 0 14px;
+}
+
+.heute-block { margin-bottom: 16px; }
+
+.heute-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.heute-titel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.heute-kopf-zusatz { font-size: 13px; color: var(--muted); }
+
+/* ── Handlungsbedarf ──────────────────────────────────────────────────────── */
+
+.hu-liste { list-style: none; }
+
+.hu-zeile {
+  border-left: 3px solid var(--border-strong);
+  border-bottom: 1px solid var(--border);
+}
+
+.hu-zeile:last-child { border-bottom: none; }
+
+.hu-kritisch   { border-left-color: var(--red); }
+.hu-dringend   { border-left-color: var(--yellow); }
+.hu-offen      { border-left-color: var(--accent); }
+.hu-vorgemerkt { border-left-color: var(--border-strong); }
+
+/* Die ganze Zeile ist die Schaltfläche — am Telefon ist ein kleiner Link
+   darin nicht zu treffen (Spec §6, 44 px Mindestmaß). */
+.hu-knopf {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.hu-knopf:hover { background: var(--row-hover); }
+
+.hu-symbol { font-size: 18px; line-height: 1; flex: 0 0 auto; }
+
+.hu-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
+
+.hu-titel { font-weight: 600; overflow-wrap: anywhere; }
+
+.hu-zusatz { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+
+/* Schmal nimmt die Zielangabe eine ganze Spalte weg; die Zeile ist ohnehin
+   vollständig anklickbar, der Pfeil genügt dort. */
+.hu-ziel { display: none; font-size: 13px; color: var(--accent); white-space: nowrap; flex: 0 0 auto; }
+
+/* ── Tag und Wetter ───────────────────────────────────────────────────────── */
+
+.heute-astro { display: flex; flex-direction: column; gap: 6px; }
+.heute-astro-zeile { font-size: 14px; }
+.heute-zeile-fehler { font-size: 13px; color: var(--yellow); }
+
+.heute-ort {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 10px 0 14px;
+  overflow-wrap: anywhere;
+}
+
+.heute-wetter {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.heute-wetter-jetzt { display: flex; flex-direction: column; gap: 3px; }
+.heute-wetter-grad { font-size: 26px; font-weight: 700; line-height: 1; }
+.heute-wetter-text { font-size: 14px; }
+.heute-wetter-sub { font-size: 13px; color: var(--muted); }
+
+.heute-wetter-tage {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.heute-wetter-tag {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+}
+
+.heute-wetter-tag-kopf {
+  font-size: 13px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 4px;
+}
+
+.heute-wetter-tag-wert { font-size: 16px; font-weight: 600; }
+.heute-wetter-tag-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+/* ── Termine ──────────────────────────────────────────────────────────────── */
+
+.heute-termine { list-style: none; }
+
+.heute-termin {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.heute-termin:last-child { border-bottom: none; }
+.heute-termin-zeit { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.heute-termin-titel { font-size: 14px; overflow-wrap: anywhere; }
+.heute-termin-warn { font-size: 13px; color: var(--yellow); }
+
+.heute-mehr { margin-top: 14px; }
+.heute-mehr .btn { min-height: 44px; }
+
+/* ── Gesundheit ───────────────────────────────────────────────────────────── */
+
+.heute-werte {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.heute-wert {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px 14px;
+}
+
+.heute-wert-lbl {
+  font-size: 13px;
+  color: var(--text-soft);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-bottom: 5px;
+}
+
+.heute-wert-val { font-size: 20px; font-weight: 700; line-height: 1.1; }
+.heute-wert-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+/* ── Datenquellen ─────────────────────────────────────────────────────────── */
+
+.heute-quellen-fazit { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+
+/* ── Offene Punkte ────────────────────────────────────────────────────────── */
+
+.heute-offen { list-style: none; }
+
+.heute-offen li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.heute-offen li:last-child { border-bottom: none; }
+.heute-offen-titel { font-size: 14px; font-weight: 600; }
+.heute-offen-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+@media (min-width: 640px) {
+  .hu-ziel { display: inline; }
+  .heute-wetter-tage { grid-template-columns: repeat(3, 1fr); }
+  .heute-termin { flex-direction: row; align-items: baseline; gap: 14px; }
+  .heute-termin-zeit { flex: 0 0 120px; }
+}
+
+/* Eingeklappte Fristen jenseits der Vormerkfrist. */
+.hu-spaeter { margin-top: 10px; border-top: 1px solid var(--border); }
+
+.hu-spaeter summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.hu-spaeter summary::-webkit-details-marker { display: none; }
+.hu-spaeter summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
+.hu-spaeter[open] summary::before { transform: rotate(90deg); }

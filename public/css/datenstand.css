@@ -241,3 +241,30 @@
   font-size: 12px;
   padding: 3px 9px;
 }
+
+/* ── Fünf unterscheidbare Zustände (P2-5) ─────────────────────────────────── */
+
+.zustand {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px 16px;
+  border: 1px solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--r);
+}
+
+.zustand-symbol { font-size: 18px; line-height: 1.2; }
+.zustand-titel { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.zustand-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.zustand-aktion { margin-top: 10px; }
+
+/* Gestrichelt = nichts vorhanden, durchgezogen = etwas stimmt nicht. */
+.zustand-laden,
+.zustand-keine-daten,
+.zustand-keine-treffer,
+.zustand-nicht-eingerichtet { border-style: dashed; border-left-color: var(--border-strong); }
+
+.zustand-nicht-eingerichtet { border-left-color: var(--accent); }
+.zustand-veraltet { border-left-color: var(--yellow); }
+.zustand-fehler   { border-left-color: var(--red); }
