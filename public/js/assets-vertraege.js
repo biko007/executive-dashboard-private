@@ -104,10 +104,16 @@ document.addEventListener('alpine:init', () => {
             ${this.properties.map(p => `<option value="${esc(p.code)}"${selected(this.filterProperty === p.code)}>${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
           <select class="filter-select" id="vt-filter-status" onchange="vertraegeFilter()" aria-label="Status filtern">
+            <!-- B (Phase 3): "Zukuenftig" (future) kommt in leases.status nicht vor
+                 (leases_status_check: draft, active, terminated, ended,
+                 unverified_legacy). Der Filter konnte deshalb nie einen Treffer
+                 liefern. Angeboten werden jetzt die fuenf tatsaechlichen Werte. -->
             <option value=""${selected(!this.filterStatus)}>Alle Status</option>
+            <option value="draft"${selected(this.filterStatus === 'draft')}>Entwurf</option>
             <option value="active"${selected(this.filterStatus === 'active')}>Aktiv</option>
+            <option value="terminated"${selected(this.filterStatus === 'terminated')}>Gek&#252;ndigt</option>
             <option value="ended"${selected(this.filterStatus === 'ended')}>Beendet</option>
-            <option value="future"${selected(this.filterStatus === 'future')}>Zuk&#252;nftig</option>
+            <option value="unverified_legacy"${selected(this.filterStatus === 'unverified_legacy')}>Altbestand, ungepr&#252;ft</option>
           </select>
           <input class="search-input" placeholder="Mieter, Objekt oder Einheit suchen\u2026" id="vt-search-tenant"
                  value="${esc(this.searchTenant)}" oninput="vertraegeFilter()" aria-label="Mietverträge durchsuchen">
@@ -267,11 +273,13 @@ document.addEventListener('alpine:init', () => {
           </select>
           <input class="form-input" type="date" id="bulk-date" value="${new Date().toISOString().slice(0,10)}" style="width:160px">
           <input class="form-input" type="time" id="bulk-time" value="${new Date().toTimeString().slice(0,5)}" style="width:100px">
-          <select class="filter-select" id="bulk-type">
-            <option value="periodic">Periodisch</option>
-            <option value="move_in">Einzug</option>
-            <option value="move_out">Auszug</option>
-            <option value="meter_reset">Zählerreset</option>
+          <!-- B (Phase 3): "periodic" war der Vorgabewert und erfuellt
+               meter_readings_reading_type_check nicht — jede Sammelerfassung
+               waere mit einem Datenbankfehler gescheitert. Zulaessig sind
+               annual, interim, move_in, move_out, meter_reset, automatic.
+               Vorgabe ist jetzt die Jahresablesung. -->
+          <select class="filter-select" id="bulk-type" aria-label="Art der Ablesung">
+            ${begriffOptionen('reading_type', 'annual', null, ['annual','interim','move_in','move_out','meter_reset'])}
           </select>
         </div>
         <div id="bulk-readings-form"><div class="empty">Objekt wählen</div></div>
@@ -542,13 +550,16 @@ async function assetsAddCharge(leaseId) {
     <h3>Mietbestandteil hinzufügen</h3>
     <div class="form-group">
       <label class="form-label">Typ</label>
+      <!-- B (Phase 3): Die Liste bot fuenf Werte an, von denen KEINER die
+           Pruefbedingung lease_charges_charge_type_check erfuellt. Jedes
+           Anlegen eines Mietbestandteils schlug mit einem Datenbankfehler
+           fehl. Zulaessig sind genau diese fuenf. Die Beschriftungen kommen
+           aus begriffe.js, damit Anzeige und Formular dasselbe Wort
+           benutzen. -->
       <select class="form-select" id="ac-type">
-        <option value="kaltmiete">Kaltmiete</option>
-        <option value="nk_vorauszahlung">NK-Vorauszahlung</option>
-        <option value="heizkosten_vorauszahlung">Heizkosten-Vorauszahlung</option>
-        <option value="kaution">Kaution</option>
-        <option value="sonstige">Sonstige</option>
+        ${begriffOptionen('charge_type')}
       </select>
+      <div class="form-hinweis">Eine Kaution ist kein Mietbestandteil — sie steht im Vertrag selbst.</div>
     </div>
     <div class="form-group">
       <label class="form-label">Monatsbetrag (EUR)</label>
@@ -822,15 +833,28 @@ async function loadMeters() {
   }
 }
 
+/* B (Phase 3): Objektkennung fuer das Anlegen eines Gebaeudezaehlers. */
+let _neuerZaehlerPropertyId = null;
+
 async function assetsAddMeter() {
   const propCode = document.getElementById('meters-filter-prop')?.value;
   if (!propCode) { Alpine.store('toast').error('Bitte erst ein Objekt waehlen'); return; }
 
   // Load units for this property
   const csrf = Alpine.store('csrf');
-  const unitsRes = await csrf.fetch(`/api/assets/properties/${propCode}/units`);
+  /* B (Phase 3): Fuer einen Gebaeudezaehler verlangt die Datenbank
+     property_id (meters_check); das Formular schickte nur den Objektcode.
+     Deshalb wird das Objekt mitgeladen. Die Einheiten tragen `code`, nicht
+     `label` — in der Auswahl stand bisher ueberall "ID 27". */
+  const [unitsRes, propRes] = await Promise.all([
+    csrf.fetch(`/api/assets/properties/${propCode}/units`),
+    csrf.fetch(`/api/assets/properties/${propCode}`),
+  ]);
   const units = unitsRes.ok ? await unitsRes.json() : [];
-  const unitOpts = units.map(u => `<option value="${u.id}">${esc(u.label || 'ID ' + u.id)}</option>`).join('');
+  const prop = propRes.ok ? await propRes.json() : null;
+  _neuerZaehlerPropertyId = prop && prop.id != null ? Number(prop.id)
+    : (units.length ? Number(units[0].property_id) : null);
+  const unitOpts = units.map(u => `<option value="${u.id}">${esc(u.code || ('ID ' + u.id))}</option>`).join('');
 
   openModal(`
     <h3>Zähler hinzufügen</h3>
@@ -910,11 +934,21 @@ function assetsCheckSubmeteringRequired() {
 async function assetsSaveNewMeter(propertyCode) {
   try {
     const medium = document.getElementById('nm-medium').value;
+    const scope = document.getElementById('nm-scope').value;
+    const unitId = document.getElementById('nm-unit').value
+      ? Number(document.getElementById('nm-unit').value) : null;
+    /* B (Phase 3): meters_check verlangt GENAU EINS von beiden:
+       scope_type 'property' -> property_id gesetzt, unit_id leer;
+       scope_type 'unit'     -> unit_id gesetzt, property_id leer.
+       Vorher wurde nie eine property_id geschickt; ein Gebaeudezaehler war
+       damit nicht anlegbar, und ein Einheitenzaehler ohne Auswahl ebenso
+       wenig. */
     const body = {
       meter_number: document.getElementById('nm-number').value.trim(),
       medium: medium,
-      scope_type: document.getElementById('nm-scope').value,
-      unit_id: document.getElementById('nm-unit').value ? Number(document.getElementById('nm-unit').value) : null,
+      scope_type: scope,
+      property_id: scope === 'property' ? _neuerZaehlerPropertyId : null,
+      unit_id: scope === 'unit' ? unitId : null,
       is_main_meter: document.getElementById('nm-main').checked,
       installed_at: document.getElementById('nm-installed').value || null,
       calibration_valid_until: document.getElementById('nm-calibration').value || null,
@@ -922,7 +956,13 @@ async function assetsSaveNewMeter(propertyCode) {
     if (['heat', 'warm_water'].includes(medium)) {
       body.submetering_purpose = document.getElementById('nm-purpose').value;
     }
-    if (!body.meter_number) { Alpine.store('toast').error('Zaehlernummer ist Pflicht'); return; }
+    if (!body.meter_number) { Alpine.store('toast').error('Zählernummer ist Pflicht'); return; }
+    if (scope === 'unit' && !body.unit_id) {
+      Alpine.store('toast').error('Für einen Zähler der Einheit muss eine Einheit gewählt werden'); return;
+    }
+    if (scope === 'property' && !body.property_id) {
+      Alpine.store('toast').error('Objektkennung nicht ermittelbar — Objekt erneut wählen'); return;
+    }
     await approvalMutation('meters.create', 'POST', { property_code: propertyCode }, body);
     closeModal();
     loadMeters();
@@ -930,6 +970,23 @@ async function assetsSaveNewMeter(propertyCode) {
 }
 
 // ── Bulk Meter Readings ─────────────────────────────────────────────────────
+
+/* ── B (Phase 3): Messeinheit je Medium ──────────────────────────────────────
+   `meter_readings.unit` ist NOT NULL und hat keine Vorgabe. Die Tabelle ist
+   leer (0 Zeilen), es gibt also keine gewachsene Schreibweise im Bestand.
+   Festgelegt wird deshalb die uebliche Einheit je Medium. Arbeitsannahme,
+   im Bericht benannt. */
+const ZAEHLER_EINHEIT = {
+  cold_water: 'm³',
+  warm_water: 'm³',
+  heat: 'kWh',
+  electricity: 'kWh',
+  gas: 'm³',
+};
+
+function zaehlerEinheit(medium) {
+  return ZAEHLER_EINHEIT[medium] || '';
+}
 
 let _bulkMetersCache = [];
 
@@ -952,9 +1009,12 @@ async function loadBulkMeters() {
         const rRes = await csrf.fetch(`/api/assets/meters/${m.id}/readings`);
         const rArr = rRes.ok ? await rRes.json() : [];
         // Pick latest by reading_at
+        /* B (Phase 3): Die Antwort liefert `read_at`, nicht `reading_at`.
+           Der Vergleich lief damit auf "Invalid Date" gegen "Invalid Date" und
+           lieferte willkuerlich den ersten Eintrag als "letzten Stand". */
         let latest = null;
         for (const r of rArr) {
-          if (!latest || new Date(r.reading_at) > new Date(latest.reading_at)) {
+          if (!latest || new Date(r.read_at) > new Date(latest.read_at)) {
             latest = r;
           }
         }
@@ -974,8 +1034,11 @@ async function loadBulkMeters() {
       const calibExpired = m.calibration_valid_until && new Date(m.calibration_valid_until) < new Date();
       html += `<tr data-meter-id="${m.id}">
         <td><strong>${esc(m.meter_number || '')}</strong>${calibExpired ? '<br><span class="badge badge-red">Eichung abgelaufen</span>' : ''}</td>
-        <td>${esc(m.medium || '')}</td>
-        <td>${esc(m.unit_label || '–')}</td>
+        <!-- B (Phase 3): Medium war unuebersetzt ("cold_water"); die Spalte
+             "Einheit" las das Feld unit_label, das die Antwort nicht enthaelt —
+             dort stand immer ein Gedankenstrich. Gemeint ist die Messeinheit. -->
+        <td>${esc(begriff('medium', m.medium))}</td>
+        <td>${esc(zaehlerEinheit(m.medium) || 'nicht festgelegt')}</td>
         <td>${lastVal != null ? lastVal : '–'}</td>
         <td><input class="form-input" type="number" step="0.001" data-last="${lastVal}" placeholder="" style="width:120px" oninput="bulkCalcDiff(this, ${lastVal})"></td>
         <td class="bulk-diff">–</td>
@@ -1031,7 +1094,8 @@ function bulkCalcDiff(input, lastVal) {
 async function submitBulkReadings() {
   const date = document.getElementById('bulk-date')?.value;
   const time = document.getElementById('bulk-time')?.value || '00:00';
-  const readingType = document.getElementById('bulk-type')?.value || 'periodic';
+  /* B (Phase 3): Vorgabe 'annual' statt des unzulaessigen 'periodic'. */
+  const readingType = document.getElementById('bulk-type')?.value || 'annual';
   const readingAt = date ? `${date}T${time}:00` : new Date().toISOString();
 
   const rows = document.querySelectorAll('#bulk-table tbody tr');
@@ -1044,11 +1108,22 @@ async function submitBulkReadings() {
     const notesInput = row.querySelector('.bulk-notes');
 
     if (valueInput && valueInput.value) {
+      /* B (Phase 3): drei Fehler auf einmal behoben.
+         1. Das Feld heisst im Core `read_at`, nicht `reading_at` — der im
+            Formular gewaehlte Zeitpunkt wurde verworfen und durch now()
+            ersetzt.
+         2. `unit` fehlte vollstaendig. meter_readings.unit ist NOT NULL ohne
+            Vorgabe; das Anlegen waere an der Datenbank gescheitert.
+         3. `source` fehlte. Die Spalte ist NOT NULL; der Core setzt zwar
+            'manual' als Ersatz, die Angabe gehoert aber hierher. */
+      const zaehler = _bulkMetersCache.find(m => Number(m.id) === meterId) || null;
       readings.push({
         meter_id: meterId,
         value: Number(valueInput.value),
-        reading_at: readingAt,
+        unit: zaehlerEinheit(zaehler && zaehler.medium),
+        read_at: readingAt,
         reading_type: readingType,
+        source: 'manual',
         is_estimated: estimatedCheck?.checked || false,
         notes: notesInput?.value?.trim() || null,
       });
@@ -1069,10 +1144,22 @@ async function submitBulkReadings() {
 
     const csrf = Alpine.store('csrf');
     let totalSaved = 0;
+    /* Eine Kennung fuer diesen Speichervorgang. crypto.randomUUID steht in
+       allen hier verwendeten Browsern bereit; der Ersatzweg deckt alte ab. */
+    const vorgangsKennung = (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : 'sa-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10);
 
     for (const [meterId, meterReadings] of Object.entries(grouped)) {
+      /* B (Phase 3): Der Core verlangt fuer Sammelvorgaenge einen
+         Idempotency-Key und antwortete sonst mit 400
+         (IDEMPOTENCY_KEY_MISSING) — die Sammelablesung konnte also nie
+         gespeichert werden. Der Schluessel wird je Zaehler und Vorgang einmal
+         gebildet; ein Wiederholungsversuch mit demselben Inhalt legt dadurch
+         nichts doppelt an. */
       const res = await csrf.fetch(`/api/assets/meters/${meterId}/readings/bulk`, {
         method: 'POST',
+        headers: { 'Idempotency-Key': vorgangsKennung + '-' + meterId },
         body: JSON.stringify({ readings: meterReadings }),
       });
       if (!res.ok) {
@@ -1080,7 +1167,8 @@ async function submitBulkReadings() {
         throw { ...err, failed_meter_id: Number(meterId) };
       }
       const result = await res.json();
-      totalSaved += result.created?.length || meterReadings.length;
+      /* `created` ist eine Anzahl, kein Array — `.length` war undefined. */
+      totalSaved += (typeof result.created === 'number' ? result.created : meterReadings.length);
     }
 
     Alpine.store('toast').success(`${totalSaved} Ablesungen gespeichert`);

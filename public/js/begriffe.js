@@ -256,9 +256,12 @@ function begriff(gruppe, wert) {
    `vorhandenerWert` wird ergänzt, falls er nicht in der Tabelle steht. Ohne
    das würde ein Bestandswert beim Speichern stillschweigend durch den ersten
    Eintrag der Liste ersetzt — eine Datenänderung durch ein Anzeigeproblem. */
-function begriffOptionen(gruppe, auswahl, vorhandenerWert) {
+/* B (Phase 3): `erlaubte` schraenkt die Liste weiter ein. Gebraucht fuer die
+   Sammelerfassung von Ablesungen: `automatic` ist in der Datenbank zulaessig,
+   in einem Handformular aber keine sinnvolle Auswahl. */
+function begriffOptionen(gruppe, auswahl, vorhandenerWert, erlaubte) {
   const tabelle = BEGRIFFE[gruppe] || {};
-  const schluessel = (BEGRIFF_OPTIONEN[gruppe] || Object.keys(tabelle)).slice();
+  const schluessel = (erlaubte || BEGRIFF_OPTIONEN[gruppe] || Object.keys(tabelle)).slice();
   if (vorhandenerWert && !schluessel.includes(vorhandenerWert)) schluessel.unshift(vorhandenerWert);
   /* Doppelte Bezeichnungen (zwei Schlüssel, ein Text) nur einmal anbieten. */
   const gesehen = new Set();

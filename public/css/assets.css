@@ -517,3 +517,6 @@
 .miet-erklaerung-text { font-size: 13px; color: var(--text-soft); line-height: 1.55; margin-bottom: 6px; }
 
 .miet-dieser td { background: var(--accent-weak); }
+
+/* B (Phase 3): kurze Erläuterung unter einem Auswahlfeld. */
+.form-hinweis { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.5; }

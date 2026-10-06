@@ -65,7 +65,10 @@ const ENDPOINT_MAP = {
   'allocation-rule-shares.update':   (p) => `/api/assets/allocation-rules/${p.rule_id}/shares/${p.share_id}`,
   'allocation-rule-shares.archive':  (p) => `/api/assets/allocation-rules/${p.rule_id}/shares/${p.share_id}`,
   'meters.list':                     (p) => `/api/assets/properties/${p.property_code}/meters`,
-  'meters.create':                   (p) => `/api/assets/properties/${p.property_code}/meters`,
+  /* B (Phase 3): Diese Adresse beantwortet nur GET; ein POST darauf lief in
+     "405 Method not allowed" — das Anlegen eines Zaehlers konnte nie gelingen.
+     Der schreibende Endpunkt ist /api/assets/meters. */
+  'meters.create':                   () => '/api/assets/meters',
   'meters.read':                     (p) => `/api/assets/meters/${p.meter_id}`,
   'meters.update':                   (p) => `/api/assets/meters/${p.meter_id}`,
   'meters.archive':                  (p) => `/api/assets/meters/${p.meter_id}/archive`,
