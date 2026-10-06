@@ -508,6 +508,47 @@ nav button { min-height: 44px; min-width: 44px; }
   nav button { min-height: 44px; min-width: 44px; }
 }
 
+/* ── Banking: Kontozeile, Summe und Umsaetze (P2-9) ───────────────────────── */
+.bank-konto-knopf {
+  background: none; border: none; padding: 6px 0; margin: 0;
+  text-align: left; font-family: var(--font); color: var(--text);
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px;
+  min-height: 44px; justify-content: center; min-width: 0;
+}
+.bank-konto-knopf:hover .bank-konto-name { text-decoration: underline; }
+.bank-konto-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.bank-konto-sub { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.bank-konto-saldo { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.bank-saldo-plus  { color: var(--green); }
+.bank-saldo-minus { color: var(--red); }
+.bank-saldo-leer  { color: var(--muted); font-weight: 400; font-style: italic; }
+
+.bank-summe { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.bank-summe-zeile { font-size: 15px; font-weight: 700; }
+.bank-summe-hinweis { font-size: 13px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
+
+.bank-archiv { margin-top: 14px; border-top: 1px solid var(--border); }
+.bank-archiv summary {
+  min-height: 44px; display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--muted); cursor: pointer; list-style: none;
+}
+.bank-archiv summary::-webkit-details-marker { display: none; }
+.bank-archiv summary::before { content: '\25B6'; font-size: 11px; transition: transform .2s; }
+.bank-archiv[open] summary::before { transform: rotate(90deg); }
+.bank-konto-archiv { opacity: .75; }
+
+.bank-umsaetze { margin-top: 16px; }
+.bank-umsatz-kopf {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.bank-umsatz-titel { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.bank-umsatz-kopf .btn { min-height: 44px; }
+.bank-umsatz-hinweis { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+.bank-umsatz-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.bank-umsatz-mehr { margin-top: 12px; }
+.bank-umsatz-mehr .btn { min-height: 44px; }
+
 /* ── Bankkonten (P2-3) ────────────────────────────────────────────────────
    Schmal stapeln IBAN und Saldo/Aktion untereinander — nebeneinander blieben
    bei 360 px fuer die IBAN kaum 150 px. Ab 640 px wieder eine Zeile. */

@@ -45,7 +45,7 @@ function bankingConnectFormHtml() {
             <select class="form-select" x-model="blz" disabled>
               <option value="64350070">Kreissparkasse Tuttlingen (64350070)</option>
             </select>
-            <div class="form-hint">Weitere Banken werden spaeter unterstuetzt.</div>
+            <div class="form-hint">Weitere Banken werden später unterstützt.</div>
           </div>
 
           <div class="form-group">
@@ -59,7 +59,7 @@ function bankingConnectFormHtml() {
             <input class="form-input" type="password" x-model="pin" required
                    placeholder="Online-Banking PIN" autocomplete="new-password"
                    x-ref="pinInput" />
-            <div class="form-hint">PIN wird nur verschluesselt uebertragen und nicht gespeichert.</div>
+            <div class="form-hint">PIN wird nur verschlüsselt übertragen und nicht gespeichert.</div>
           </div>
 
           <div class="form-group">
@@ -92,7 +92,7 @@ function bankingConnectFormHtml() {
               <template x-if="!pushTanTimedOut">
                 <div>
                   <div class="alert alert-info" style="margin-bottom:12px">
-                    Bitte Freigabe in der S-pushTAN App bestaetigen.
+                    Bitte Freigabe in der S-pushTAN App bestätigen.
                   </div>
                   <div x-show="connectResult.message" style="color:var(--muted);font-size:13px;margin-bottom:12px"
                        x-text="connectResult.message"></div>
@@ -101,8 +101,8 @@ function bankingConnectFormHtml() {
                   <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
                     <button type="button" class="btn btn-ghost" @click="cancelPushTan()" :disabled="connectInProgress">Abbrechen</button>
                     <button type="button" class="btn btn-primary" @click="confirmPushTan()" :disabled="connectInProgress">
-                      <span x-show="!connectInProgress">TAN bestaetigen</span>
-                      <span x-show="connectInProgress">Pruefe…</span>
+                      <span x-show="!connectInProgress">TAN bestätigen</span>
+                      <span x-show="connectInProgress">Prüfe…</span>
                     </button>
                   </div>
                 </div>
@@ -177,7 +177,7 @@ function bankingConnectFormHtml() {
                 Sidecar noch nicht aktiv (Etappe f pending).<br>
                 Die Bankverbindung wird eingerichtet, sobald der FinTS-Sidecar bereit ist.
               </div>
-              <button class="btn btn-ghost" @click="resetForm()">Zurueck</button>
+              <button class="btn btn-ghost" @click="resetForm()">Zurück</button>
             </div>
           </template>
         </div>
@@ -233,21 +233,25 @@ function bankingOverviewHtml() {
                     <div style="margin-top:8px">
                       <template x-for="acct in accountsForInst(inst.id)" :key="acct.id">
                         <!-- P2-3: eigene Klasse, damit die Zeile schmal stapeln kann.
-                             IBAN, Saldo und Aktion nebeneinander ergeben bei 360 px
-                             drei gequetschte Spalten. -->
+                             P2-9: die Zeile nennt jetzt Kontobezeichnung, Status,
+                             Waehrung und den Datenstand des Saldos und fuehrt per
+                             Klick in die Umsatzliste. Vorher standen nur IBAN und
+                             Saldo da, und der Saldo fuehrte nirgendwohin. -->
                         <div class="bank-konto-zeile">
                           <span class="bank-konto-iban">
                             <input type="checkbox" x-show="bulkMode"
+                                   aria-label="Konto auswählen"
                                    :checked="isSelected(acct.id)"
                                    @change="toggleSelection(acct.id)"
                                    style="width:18px;height:18px;cursor:pointer">
-                            <span x-text="formatIban(acct.iban)"></span>
+                            <button class="bank-konto-knopf" @click="umsaetzeOeffnen(acct.id)"
+                                    :title="kontoTitel(acct)">
+                              <span class="bank-konto-name" x-text="kontoName(acct)"></span>
+                              <span class="bank-konto-sub" x-text="kontoZusatz(acct)"></span>
+                            </button>
                           </span>
                           <span class="bank-konto-wert">
-                            <span x-show="acct.currentBalance != null"
-                                  :style="{ color: acct.currentBalance >= 0 ? 'var(--green)' : 'var(--red)' }"
-                                  x-text="formatBalance(acct.currentBalance, acct.currency)">
-                            </span>
+                            <span class="bank-konto-saldo" :class="saldoKlasse(acct)" x-text="saldoText(acct)"></span>
                             <button aria-label="Konto archivieren" class="btn btn-danger" style="font-size:13px;padding:3px 8px"
                                     x-show="!bulkMode"
                                     @click="archiveSingle(acct.id)"
@@ -258,11 +262,46 @@ function bankingOverviewHtml() {
                     </div>
                   </template>
                   <template x-if="accountsForInst(inst.id).length === 0">
-                    <div style="margin-top:8px;color:var(--muted);font-size:13px">Keine Konten gefunden.</div>
+                    <div style="margin-top:8px;color:var(--muted);font-size:13px">Keine aktiven Konten bei diesem Institut.</div>
                   </template>
                 </div>
               </template>
               </div>
+              <!-- P2-9: Summe je Waehrung ueber die AKTIVEN Konten. Getrennt
+                   summiert, damit nie unkommentiert ueber Waehrungen hinweg
+                   addiert wird. -->
+              <div class="bank-summe" x-show="summenZeilen().length > 0">
+                <template x-for="z in summenZeilen()" :key="z.waehrung">
+                  <div class="bank-summe-zeile">
+                    <span class="bank-summe-text" x-text="z.text"></span>
+                  </div>
+                </template>
+                <div class="bank-summe-hinweis" x-text="summeHinweis()"></div>
+              </div>
+
+              <!-- Archivierte Konten: getrennt und eingeklappt. -->
+              <details class="bank-archiv" x-show="archivierteKonten().length > 0">
+                <summary x-text="archivTitel()"></summary>
+                <div>
+                  <template x-for="acct in archivierteKonten()" :key="acct.id">
+                    <div class="bank-konto-zeile bank-konto-archiv">
+                      <span class="bank-konto-iban">
+                        <button class="bank-konto-knopf" @click="umsaetzeOeffnen(acct.id)" :title="kontoTitel(acct)">
+                          <span class="bank-konto-name" x-text="kontoName(acct)"></span>
+                          <span class="bank-konto-sub" x-text="kontoZusatz(acct)"></span>
+                        </button>
+                      </span>
+                      <span class="bank-konto-wert">
+                        <span class="bank-konto-saldo" x-text="saldoText(acct)"></span>
+                      </span>
+                    </div>
+                  </template>
+                </div>
+              </details>
+
+              <!-- Umsatzliste des gewaehlten Kontos (lesend). -->
+              <div id="bank-umsaetze" class="bank-umsaetze"></div>
+
               <div x-show="hasBulkSelection()"
                    style="position:sticky;bottom:0;background:var(--surface);padding:12px 16px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;margin-top:16px">
               <span x-text="selectionCountLabel()"></span>
@@ -278,11 +317,11 @@ function bankingOverviewHtml() {
                 <h3 style="margin-bottom:12px"
                     x-text="modalTitle()"></h3>
                 <div style="margin-bottom:16px;padding:10px;background:var(--red-weak);border:1px solid var(--red);border-radius:6px;font-size:13px;color:var(--red)">
-                  Transaktionen und Umsaetze bleiben erhalten. Archivierte Konten koennen nicht reaktiviert werden.
+                  Transaktionen und Umsätze bleiben erhalten. Archivierte Konten können nicht reaktiviert werden.
                 </div>
                 <div style="font-size:13px;color:var(--muted);margin-bottom:12px"
                      x-show="hasBulkTimer()">
-                  Gueltig: <span x-text="bulkTimerText"></span>
+                  Gültig: <span x-text="bulkTimerText"></span>
                 </div>
                 <div style="max-height:300px;overflow-y:auto;margin-bottom:16px">
                   <template x-for="group in selectedAccountsGrouped()" :key="group.institution.id">
@@ -420,7 +459,97 @@ document.addEventListener('alpine:init', () => {
 
     formatBalance(balance, currency) {
       if (balance == null) return '';
-      return Number(balance).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (currency || '');
+      return Number(balance).toLocaleString('de-DE', { minimumFractionDigits: 2 })
+        + '\u00a0' + (currency || '');
+    },
+
+    /* ── P2-9: Kontozeile, Summe und Umsätze ─────────────────────────────────
+       Die Antwort von /api/banking/accounts enthält zu jedem Konto
+       `accountType`, `displayName`, `ownerName`, `currency`, `currentBalance`,
+       `lastSyncAt` und `status`. Angezeigt wurden davon nur IBAN und Saldo.
+       `accountType` und `ownerName` sind im Bestand bei ALLEN Konten leer und
+       `displayName` enthält jeweils nur die IBAN — ein Kontozweck steht also
+       nicht in den Daten und wird auch nicht erfunden. */
+
+    /* Bezeichnung: der Anzeigename nur dann, wenn er von der IBAN abweicht. */
+    kontoName(acct) {
+      const name = String(acct.displayName || '').trim();
+      const iban = String(acct.iban || '').trim();
+      if (name && name !== iban) return name;
+      return this.formatIban(acct.iban) || ('Konto ' + acct.id);
+    },
+
+    /* Zweite Zeile: Status, Währung und Datenstand des Saldos mit Alter. */
+    kontoZusatz(acct) {
+      const teile = [];
+      teile.push(acct.status === 'active' ? 'Aktiv' : acct.status === 'archived' ? 'Archiviert' : String(acct.status || 'Status unbekannt'));
+      if (acct.currency) teile.push(acct.currency);
+      if (acct.lastSyncAt) {
+        teile.push('Saldo vom ' + fmtDate(acct.lastSyncAt) + ' (' + altersText(acct.lastSyncAt) + ')');
+      } else {
+        teile.push('kein Abgleich erfasst');
+      }
+      return teile.join(' · ');
+    },
+
+    kontoTitel(acct) {
+      return 'Umsätze dieses Kontos anzeigen';
+    },
+
+    /* Kein Saldo ist NICHT null Euro. */
+    saldoText(acct) {
+      if (acct.currentBalance == null) return 'kein Saldo erfasst';
+      return this.formatBalance(acct.currentBalance, acct.currency);
+    },
+
+    saldoKlasse(acct) {
+      if (acct.currentBalance == null) return 'bank-saldo-leer';
+      return acct.currentBalance < 0 ? 'bank-saldo-minus' : 'bank-saldo-plus';
+    },
+
+    aktiveKonten() {
+      return this.accounts.filter(a => a.status === 'active');
+    },
+
+    archivierteKonten() {
+      return this.accounts.filter(a => a.status !== 'active');
+    },
+
+    archivTitel() {
+      const n = this.archivierteKonten().length;
+      return n + (n === 1 ? ' archiviertes Konto' : ' archivierte Konten') + ' anzeigen';
+    },
+
+    /* Summe JE WÄHRUNG. Niemals über Währungen hinweg addieren. */
+    summenZeilen() {
+      const jeWaehrung = {};
+      for (const a of this.aktiveKonten()) {
+        if (a.currentBalance == null) continue;
+        const w = a.currency || 'ohne Währung';
+        jeWaehrung[w] = (jeWaehrung[w] || 0) + Number(a.currentBalance);
+      }
+      return Object.keys(jeWaehrung).sort().map(w => ({
+        waehrung: w,
+        text: 'Summe der aktiven Konten: '
+          + Number(jeWaehrung[w]).toLocaleString('de-DE', { minimumFractionDigits: 2 })
+          + '\u00a0' + w,
+      }));
+    },
+
+    summeHinweis() {
+      const aktiv = this.aktiveKonten();
+      const ohne = aktiv.filter(a => a.currentBalance == null).length;
+      const stand = aktiv.map(a => a.lastSyncAt).filter(Boolean).sort().slice(-1)[0] || null;
+      const teile = [aktiv.length + (aktiv.length === 1 ? ' aktives Konto' : ' aktive Konten')];
+      if (ohne) teile.push(ohne + ' davon ohne erfassten Saldo (nicht mitgerechnet)');
+      if (stand) teile.push('Datenstand ' + fmtDate(stand) + ', ' + altersText(stand));
+      teile.push('Summiert wird je Währung getrennt');
+      return teile.join(' · ') + '.';
+    },
+
+    umsaetzeOeffnen(accountId) {
+      const konto = this.accounts.find(a => a.id === accountId) || null;
+      bankingUmsaetzeRendern(konto);
     },
 
     toggleBulkMode() {
@@ -446,11 +575,11 @@ document.addEventListener('alpine:init', () => {
     },
 
     bulkToggleLabel() {
-      return this.bulkMode ? 'Auswahl beenden' : 'Mehrere auswaehlen';
+      return this.bulkMode ? 'Auswahl beenden' : 'Mehrere auswählen';
     },
 
     selectionCountLabel() {
-      return this.selectedIds.length + ' Konto(en) ausgewaehlt';
+      return this.selectedIds.length + (this.selectedIds.length === 1 ? ' Konto ausgewählt' : ' Konten ausgewählt');
     },
 
     archiveBtnLabel() {
@@ -828,3 +957,120 @@ document.addEventListener('alpine:init', () => {
     },
   }));
 });
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Umsatzliste eines Kontos (P2-9)
+
+   Der lesende Zugriff war in der Spec als „nicht verifiziert" vermerkt. Er
+   existiert: `GET /api/banking/accounts/:id/transactions` liefert die Zeilen
+   aus `banking_transactions` (derzeit 1.633 Zeilen im Bestand).
+
+   NUR LESEND: kein Abgleich, keine Bankverbindung, keine Transaktion. Die
+   Liste zeigt den Stand des letzten FinTS-Abgleichs — nicht den aktuellen
+   Kontostand bei der Bank. Das steht ausdrücklich darüber.
+
+   Die IBAN der Gegenseite wird maskiert und erst auf Klick gezeigt — dasselbe
+   Muster wie bei den Mieter-IBANs (`iban-masked` / `iban-reveal`).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+const BANK_UMSATZ_SCHRITT = 50;
+
+let _bankUmsatzKonto = null;
+let _bankUmsatzAnzahl = BANK_UMSATZ_SCHRITT;
+
+async function bankingUmsaetzeRendern(konto, mehr) {
+  const ziel = document.getElementById('bank-umsaetze');
+  if (!ziel) return;
+
+  /* Derselbe Klick auf dasselbe Konto schließt die Liste wieder. */
+  if (!mehr && _bankUmsatzKonto && konto && _bankUmsatzKonto.id === konto.id) {
+    _bankUmsatzKonto = null;
+    ziel.innerHTML = '';
+    return;
+  }
+  if (!konto) return;
+  if (!mehr) _bankUmsatzAnzahl = BANK_UMSATZ_SCHRITT;
+  _bankUmsatzKonto = konto;
+
+  ziel.innerHTML = '<div class="spinner">Umsätze werden geladen…</div>';
+  let zeilen;
+  try {
+    const csrf = Alpine.store('csrf');
+    const res = await csrf.fetch('/api/banking/accounts/' + encodeURIComponent(konto.id) + '/transactions');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    zeilen = await res.json();
+  } catch (e) {
+    ziel.innerHTML = zustandBlock('fehler', 'Die Umsätze sind nicht abrufbar: ' + e.message);
+    return;
+  }
+
+  const kopf = '<div class="bank-umsatz-kopf">'
+    + '<div class="bank-umsatz-titel">' + esc('Umsätze ' + (konto.displayName || konto.iban || konto.id)) + '</div>'
+    + '<button class="btn" onclick="bankingUmsaetzeSchliessen()">Schließen</button>'
+    + '</div>';
+
+  if (!Array.isArray(zeilen) || !zeilen.length) {
+    ziel.innerHTML = kopf + zustandBlock('keine_daten',
+      'Für dieses Konto sind keine Umsätze gespeichert. Umsätze entstehen beim FinTS-Abgleich; '
+      + 'der wird nicht aus dem Dashboard ausgelöst.');
+    return;
+  }
+
+  const sortiert = zeilen.slice().sort((a, b) =>
+    String(b.bookingDate || '').localeCompare(String(a.bookingDate || '')));
+  const sichtbar = sortiert.slice(0, _bankUmsatzAnzahl);
+  const juengste = sortiert[0] ? sortiert[0].bookingDate : null;
+
+  const tabelle = '<table class="data-table" data-tabelle="karten">'
+    + '<thead><tr><th>Buchung</th><th>Gegenseite</th><th>Verwendungszweck</th>'
+    + '<th style="text-align:right">Betrag</th></tr></thead><tbody>'
+    + sichtbar.map(t => {
+      const betrag = Number(t.amount);
+      const klasse = betrag < 0 ? 'bank-saldo-minus' : 'bank-saldo-plus';
+      const iban = String(t.counterpartyIban || '');
+      const maskiert = iban
+        ? '<span class="iban-masked">***' + esc(iban.slice(-4)) + '</span> '
+          + '<button class="iban-reveal" onclick="assetsRevealIban(this, \'' + esc(iban) + '\')">Anzeigen</button>'
+        : '';
+      return '<tr>'
+        + '<td>' + esc(fmtDate(t.bookingDate))
+          + (t.valueDate && t.valueDate !== t.bookingDate
+              ? '<div class="bank-umsatz-sub">Wertstellung ' + esc(fmtDate(t.valueDate)) + '</div>' : '')
+        + '</td>'
+        + '<td>' + esc(t.counterpartyName || 'nicht angegeben')
+          + (maskiert ? '<div class="bank-umsatz-sub">' + maskiert + '</div>' : '') + '</td>'
+        + '<td>' + esc(t.reference || '–')
+          + (t.transactionCode ? '<div class="bank-umsatz-sub">' + esc(t.transactionCode) + '</div>' : '')
+        + '</td>'
+        + '<td style="text-align:right" class="' + klasse + '">'
+          + esc(betrag.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (t.currency || ''))
+        + '</td></tr>';
+    }).join('') + '</tbody></table>';
+
+  const mehrKnopf = sortiert.length > sichtbar.length
+    ? '<div class="bank-umsatz-mehr"><button class="btn" onclick="bankingUmsaetzeMehr()">'
+      + esc('Weitere ' + Math.min(BANK_UMSATZ_SCHRITT, sortiert.length - sichtbar.length) + ' laden')
+      + '</button></div>'
+    : '';
+
+  ziel.innerHTML = kopf
+    + '<div class="treffer-zeile">' + esc(sichtbar.length + ' von ' + sortiert.length
+      + (sortiert.length === 1 ? ' Umsatz' : ' Umsätzen')
+      + (juengste ? ' · jüngste Buchung ' + fmtDate(juengste) + ' (' + altersText(juengste) + ')' : ''))
+    + '</div>'
+    + '<div class="bank-umsatz-hinweis">' + esc(
+      'Stand des letzten FinTS-Abgleichs — nicht der aktuelle Stand bei der Bank. '
+      + 'Ein Abgleich wird nicht aus dem Dashboard ausgelöst.') + '</div>'
+    + tabelle + mehrKnopf;
+}
+
+function bankingUmsaetzeMehr() {
+  _bankUmsatzAnzahl += BANK_UMSATZ_SCHRITT;
+  bankingUmsaetzeRendern(_bankUmsatzKonto, true);
+}
+
+function bankingUmsaetzeSchliessen() {
+  _bankUmsatzKonto = null;
+  const ziel = document.getElementById('bank-umsaetze');
+  if (ziel) ziel.innerHTML = '';
+}
