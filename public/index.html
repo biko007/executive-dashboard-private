@@ -115,15 +115,35 @@ html, body { overflow-x: hidden; max-width: 100%; }
 #app { display: none; min-height: 100vh; }
 
 /* Kopfzeile stapelt schmal: Titel ueber Abrufzeitpunkt und Abmelden. */
+/* C2 (Phase 3): Schmal eine Zeile. Gemessen 360/390 px: Kopf 55 px,
+   Navigation 45 px, zusammen 100 px (vorher rund 190 px). */
 header {
   background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 10px 12px; display: flex; flex-direction: column; align-items: stretch; gap: 6px;
+  padding: 5px 10px; display: flex; flex-direction: row; align-items: center;
+  justify-content: space-between; gap: 10px;
   position: sticky; top: 0; z-index: 10;
 }
-header h1 { font-size: 16px; font-weight: 600; color: var(--accent); letter-spacing: .3px; }
-.header-meta { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.header-meta span { color: var(--muted); font-size: 13px; }
-.btn-logout { background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-soft); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
+header h1 {
+  font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: .3px;
+  /* Einzeilig: lieber abgeschnitten als zweizeilig. */
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.kopf-lang { display: none; }
+.kopf-kurz { display: inline; }
+.kopf-name { display: none; color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
+.header-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: nowrap; }
+.header-meta span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.btn-logout {
+  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-soft);
+  border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font);
+  /* Beruehrungsziel nach Spec §6, auch als Symbol. */
+  min-width: 44px; min-height: 44px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.abm-lang { display: none; }
+.abm-kurz { display: inline; font-size: 17px; line-height: 1; }
+.kopf-zeit-lang { display: none; }
+.kopf-zeit-kurz { display: inline; }
 .btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
 
 /* ── Hauptnavigation ───────────────────────────────────────────────────────
@@ -439,7 +459,16 @@ input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-co
 
 @media (min-width: 640px) {
   header { flex-direction: row; align-items: center; justify-content: space-between; padding: 12px 16px; gap: 16px; }
-  .header-meta { justify-content: flex-end; flex-wrap: nowrap; }
+  header h1 { font-size: 16px; }
+  .kopf-lang { display: inline; }
+  .kopf-kurz { display: none; }
+  .kopf-name { display: inline; }
+  .header-meta { justify-content: flex-end; flex-wrap: nowrap; gap: 12px; }
+  .header-meta span { font-size: 13px; }
+  .abm-lang { display: inline; }
+  .abm-kurz { display: none; }
+  .kopf-zeit-lang { display: inline; }
+  .kopf-zeit-kurz { display: none; }
   nav { padding: 0 8px; }
   /* Ab hier ist Platz fuer die ausgeschriebene Beschriftung. */
   .nav-lang { display: inline; }
@@ -802,11 +831,19 @@ pre, code { overflow-wrap: anywhere; }
 
 <!-- ── App ───────────────────────────────────────────────────────────────── -->
 <div id="app">
+  <!-- C2 (Phase 3): Kopf und Navigation brauchten schmal zusammen rund 190 px.
+       Jetzt steht der Kopf schmal in EINER Zeile: Titel einzeilig (gekuerzt,
+       mit Auslassungszeichen), kurzer Zeitstempel mit Zeitzone, Abmelden als
+       Symbol mit zugaenglichem Namen. Ab 640 px bleibt alles beim Alten. -->
   <header>
-    <h1>⚙️ Executive Dashboard &nbsp;<span style="color:var(--muted);font-weight:400;font-size:13px">Hans Dampf</span></h1>
+    <h1><span aria-hidden="true">⚙️</span>
+      <span class="kopf-lang">Executive Dashboard</span><span class="kopf-kurz">Dashboard</span>
+      <span class="kopf-name">Hans Dampf</span></h1>
     <div class="header-meta">
       <span id="lastUpdate"></span>
-      <button class="btn-logout" onclick="logout()">Abmelden</button>
+      <button class="btn-logout" onclick="logout()" aria-label="Abmelden" title="Abmelden">
+        <span class="abm-lang">Abmelden</span><span class="abm-kurz" aria-hidden="true">⏻</span>
+      </button>
     </div>
   </header>
   <!-- P2-2: Die Leiste scrollt schmal INNERHALB ihres Containers. Vorher war
@@ -1149,8 +1186,17 @@ function fmtSize(bytes) {
    auch in denen ohne Datenstand-Leiste. In der Leiste ist der Satz dafür
    entfallen; zweimal dasselbe auf einer Seite ist Rauschen (vgl. P2-3). */
 function stamp() {
-  document.getElementById('lastUpdate').textContent =
-    seitenabrufText() + ' · alle Zeiten in Europe/Berlin';
+  /* C2 (Phase 3): Schmal nur die Uhrzeit des Seitenabrufs und die Zeitzone —
+     das vollstaendige Datum und der Satz "alle Zeiten in …" brauchten am
+     Telefon zwei Zeilen. Beide Formen stehen im Markup; die Stilvorlage
+     entscheidet, welche sichtbar ist. Der Zeitzonenhinweis bleibt also auch
+     schmal sichtbar (Spec §4 M), nur kuerzer. */
+  const el = document.getElementById('lastUpdate');
+  const lang = seitenabrufText() + ' · alle Zeiten in Europe/Berlin';
+  const kurz = zeitUhr(new Date()) + ' Uhr · Europe/Berlin';
+  el.innerHTML = '<span class="kopf-zeit-lang">' + esc(lang) + '</span>'
+    + '<span class="kopf-zeit-kurz">' + esc(kurz) + '</span>';
+  el.title = lang;
 }
 
 /* ── Modal helpers ── */
@@ -2076,7 +2122,9 @@ async function loadCalendar() {
 
     const toolbar = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
       + '<button class="btn btn-primary" onclick="newEventModal()">+ Neuer Termin</button>'
-      + '<span class="cal-tz-hinweis">Alle Zeiten in Europe/Berlin</span>'
+      /* C2 (Phase 3): Der Zeitzonenhinweis steht im Seitenkopf und gilt
+         fuer alle Bereiche. Zweimal derselbe Satz auf einer Seite kostete
+         schmal eine ganze Zeile. */
       + '</div>';
 
     if (!events.length) { c.innerHTML = toolbar + '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
