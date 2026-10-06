@@ -353,6 +353,150 @@ function wikiCategoryOptions(selected) {
     .join('');
 }
 
+/* ── Suchausschnitte aufbereiten (P2-6, Befund I) ────────────────────────────
+ *
+ * Der Core erzeugt die Ausschnitte mit `ts_headline(…)` auf dem ROHEN
+ * Markdown (`src/modules/wiki/store.ts`). Zwei Folgen davon landeten
+ * unverändert in der Anzeige:
+ *   1. `ts_headline` markiert Fundstellen standardmäßig mit `<b>`/`</b>`;
+ *   2. der Rohtext enthält Markdown — Linksyntax `[Text](URL)`, Tabellenstriche,
+ *      Listenmarker, Überschriftenzeichen.
+ * Weil das Frontend den Ausschnitt (richtigerweise) vollständig escapte,
+ * erschien `<b>Pflanzliste</b>` wörtlich auf dem Bildschirm.
+ *
+ * Die Reihenfolge der drei Schritte ist der Sicherheitskern:
+ *   1. Markdown entfernen — dabei bleiben die `<b>`-Marker des Core erhalten,
+ *   2. den ganzen Text escapen — danach ist KEIN beliebiges HTML mehr möglich,
+ *   3. GENAU die beiden bekannten Marker `&lt;b&gt;` / `&lt;/b&gt;` nach
+ *      `<mark>` / `</mark>` zurückverwandeln.
+ * Schritt 3 ist deshalb kein Freibrief für Seiteninhalte: ein `<script>` im
+ * Seitentext ist nach Schritt 2 Text und bleibt es (Spec §4 I).
+ *
+ * Ein Linkziel, dessen Beschriftung selbst die URL ist (so steht es in der
+ * Pflanzliste), wird auf den Hostnamen gekürzt — eine 90 Zeichen lange URL
+ * im Ausschnitt ist keine Information, sondern Rauschen.
+ */
+
+const WIKI_B_AUF = /&lt;b&gt;/g;
+const WIKI_B_ZU = /&lt;\/b&gt;/g;
+
+/** URL → lesbarer Kurztext ("mein-schoener-garten.de", "/dashboard/wiki/wlan" → "wlan"). */
+function wikiUrlKurz(url) {
+  const u = String(url || '').trim();
+  const extern = /^https?:\/\/([^/?#]+)/i.exec(u);
+  if (extern) return extern[1].replace(/^www\./i, '');
+  const intern = /\/([^/?#]+)\/?$/.exec(u);
+  return intern ? decodeURIComponent(intern[1]) : u;
+}
+
+/** Beschriftung eines Markdown-Links; ist sie selbst eine URL, wird gekürzt. */
+function wikiLinkText(label, url) {
+  const l = String(label || '').trim();
+  if (!l) return wikiUrlKurz(url);
+  if (/^!?\s*(https?:\/\/|\/)\S*$/i.test(l)) return wikiUrlKurz(l);
+  return l;
+}
+
+/* Liest ab der öffnenden Klammer das Linkziel und zählt dabei verschachtelte
+ * Klammern mit. Nötig, weil Anhangnamen welche enthalten:
+ * `[IPC-VEC754P(N)F-E.pdf](/dashboard/api/wiki/file/…/IPC-VEC754P(N)F-E.pdf)`.
+ * Ein `[^)]*`-Ausdruck bricht dort an der falschen Klammer ab und lässt
+ * `F-E.pdf)` im Text stehen. */
+function wikiZielLesen(text, auf) {
+  let tiefe = 0;
+  for (let j = auf; j < text.length; j++) {
+    if (text[j] === '(') tiefe++;
+    else if (text[j] === ')') {
+      tiefe--;
+      if (tiefe === 0) return { url: text.slice(auf + 1, j), ende: j + 1 };
+    }
+  }
+  /* Vom Ausschnitt angeschnitten — der Rest ist das Ziel. */
+  return { url: text.slice(auf + 1), ende: text.length };
+}
+
+/** Markdown-Links auf ihre Beschriftung reduzieren.
+ *
+ * Bewusst ein Durchlauf statt eines Ausdrucks: `ts_headline` schneidet
+ * Fragmente mitten im Markdown ab, deshalb kommen drei unvollständige Formen
+ * vor, die alle behandelt werden müssen:
+ *   `Adressen](/dashboard/wiki/ipadressen)`   Beschriftung fehlt vorne
+ *   `[Elstner IP Gateway](/dashboard/wiki/el` Ziel fehlt hinten
+ *   `[Elstner IP Gate`                        Beschriftung fehlt hinten
+ */
+function wikiLinksAufloesen(text) {
+  const s = String(text || '');
+  let aus = '';
+  let i = 0;
+  while (i < s.length) {
+    const z = s[i];
+    if (z === '[') {
+      const zu = s.indexOf(']', i + 1);
+      if (zu === -1) { aus += s.slice(i + 1); break; }
+      const beschriftung = s.slice(i + 1, zu);
+      const istBild = aus.endsWith('!');
+      if (istBild) aus = aus.slice(0, -1);
+      if (s[zu + 1] === '(') {
+        const ziel = wikiZielLesen(s, zu + 1);
+        aus += istBild ? (beschriftung.trim() || '[Bild]') : wikiLinkText(beschriftung, ziel.url);
+        i = ziel.ende;
+      } else {
+        /* Referenzlink oder einfache Klammer: Beschriftung behalten. */
+        aus += beschriftung;
+        i = zu + 1;
+      }
+      continue;
+    }
+    if (z === ']' && s[i + 1] === '(') {
+      /* Angeschnittener Link am Fragmentanfang: das Ziel allein ist wertlos. */
+      i = wikiZielLesen(s, i + 1).ende;
+      continue;
+    }
+    aus += z;
+    i++;
+  }
+  return aus;
+}
+
+/** Schritt 1: Markdown aus dem Rohausschnitt entfernen.
+ *
+ * Nicht entfernt werden Nummerierungen ("1. Mespilus Germanica"). Sie sind von
+ * echtem Text ("Punkt 3. Absatz") nicht zuverlässig zu unterscheiden, und ein
+ * stehengelassener Listenpunkt ist weniger schlimm als ein verschluckter Satz.
+ */
+function wikiMarkdownEntfernen(text) {
+  let t = wikiLinksAufloesen(text);
+  /* Bare URLs, die ohne Linksyntax im Text stehen. */
+  t = t.replace(/(^|\s)(https?:\/\/\S+)/gi, (_m, vor, url) => vor + wikiUrlKurz(url));
+  /* Trennzeilen von Markdown-Tabellen ("| --- | --- |"). */
+  t = t.replace(/\|?(?:\s*:?-{3,}:?\s*\|)+\s*:?-{3,}:?\s*\|?/g, ' ');
+  /* Tabellenstriche zu einem Mittelpunkt; leere Zellen fallen dabei weg. */
+  t = t.replace(/\s*\|\s*/g, ' · ').replace(/(?:·\s*){2,}/g, '· ');
+  /* Überschriftenzeichen, Listenmarker und Hervorhebungen. Der Listenmarker
+     darf auch direkt an einer Core-Hervorhebung kleben ("-<b>PDF</b>"). */
+  t = t.replace(/(^|\s)#{1,6}\s+/g, '$1');
+  t = t.replace(/(^|\s)[-*+•]\s+/g, '$1');
+  t = t.replace(/(^|\s)[-*+•](?=[A-Za-zÄÖÜäöüß<])/g, '$1');
+  t = t.replace(/(^|\s)>\s+/g, '$1');
+  /* Hervorhebungszeichen nur dort entfernen, wo sie als Auszeichnung stehen.
+     Es muss ein PAAR vorliegen. Ein pauschales Löschen zerstört Inhalte:
+     aus "ETS_ GroupAddressesOverview.pdf" wurde "ETS GroupAddresses…" und aus
+     "window.__XSS" "window.XSS". */
+  t = t.replace(/\*{1,3}([^*\s](?:[^*]*[^*\s])?)\*{1,3}/g, '$1');
+  t = t.replace(/(^|[\s(])_{1,3}([^_\s](?:[^_]*[^_\s])?)_{1,3}(?=[\s).,;:!?]|$)/g, '$1$2');
+  t = t.replace(/`/g, '');
+  /* Mehrfache Leerzeichen und Satzzeichen an den Rändern aufräumen. */
+  t = t.replace(/\s+/g, ' ').replace(/^[\s·:,-]+/, '').replace(/[\s·]+$/, '').trim();
+  return t;
+}
+
+/** Fertiges HTML eines Suchausschnitts. Enthält höchstens `<mark>`. */
+function wikiAusschnittHtml(snippet) {
+  const ohneMarkdown = wikiMarkdownEntfernen(snippet);
+  if (!ohneMarkdown) return '';
+  return esc(ohneMarkdown).replace(WIKI_B_AUF, '<mark>').replace(WIKI_B_ZU, '</mark>');
+}
+
 function wikiSearchBarHtml() {
   return `
     <div class="wiki-searchbar">
@@ -379,7 +523,7 @@ function wikiOverviewHtml() {
           <span class="wiki-badge">${esc(h.category)}</span>
           ${h.hitType === 'attachment' ? `<span class="wiki-badge wiki-badge-file">Anhang: ${esc(h.filename)}</span>` : ''}
         </div>
-        <div class="wiki-snippet">${esc(h.snippet)}</div>
+        <div class="wiki-snippet">${wikiAusschnittHtml(h.snippet)}</div>
       </div>`).join('');
     return wikiSearchBarHtml()
       + `<div class="wiki-hint">${hits.length} Treffer für „${esc(wikiState.searchTerm)}"</div>`

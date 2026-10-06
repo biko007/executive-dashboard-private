@@ -2,10 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 08:40 UTC
+**Letzte Aktualisierung:** 06.10.2026, 08:55 UTC
 **Aktuelle Phase:** **Phase 2 läuft** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
-Hetzner-Snapshot liegt vor. **P2-1 bis P2-5 sind erledigt.**
-**Nächster Schritt: P2-6** (Wiki-Suchausschnitte).
+Hetzner-Snapshot liegt vor. **P2-1 bis P2-6 sind erledigt.**
+**Nächster Schritt: P2-7** (Instagram-Planung und Rohmaterial).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
@@ -32,7 +32,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
 | P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-6 | Wiki-Suchausschnitte (I) | S | offen | — | — |
+| P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `PLATZHALTER_P2_6` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-7 | Instagram-Planung und Rohmaterial (J) | M | offen | — | — |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
 | P2-9 | Banking-Übersicht (K) | S | offen | — | — |
@@ -1269,6 +1269,88 @@ werden.
   Keine Datenänderung, deshalb kein Datenrückweg.
 
 **Commit:** `4983506` · Dienst-Restart nötig und durchgeführt
+
+---
+
+
+### P2-6 — Wiki-Suchausschnitte — 06.10.2026
+
+**Durchgeführt**
+
+Der Suchausschnitt wird in drei Schritten aufbereitet; die **Reihenfolge ist der
+Sicherheitskern** (neue Funktionen in `public/js/wiki.js`):
+
+1. **Markdown entfernen** (`wikiMarkdownEntfernen`) — dabei bleiben die `<b>`-Marker, die
+   `ts_headline` im Core erzeugt, unangetastet.
+2. **Den ganzen Text escapen** — danach ist kein beliebiges HTML mehr möglich.
+3. **Genau zwei bekannte Marker zurückverwandeln:** `&lt;b&gt;` → `<mark>`,
+   `&lt;/b&gt;` → `</mark>`. Weil Schritt 2 vorher lief, ist das kein Freibrief für
+   Seiteninhalte — ein `<script>` im Seitentext ist dann Text und bleibt es (Spec §4 I).
+   Das Escaping wurde **nicht** entfernt.
+
+Beim Markdown-Abbau waren vier Dinge nötig, die ein einfacher Ausdruck nicht leistet:
+
+- **Linkziele mit Klammern.** Anhangnamen wie `IPC-VEC754P(N)F-E.pdf` enthalten Klammern.
+  Ein `[^)]*`-Ausdruck bricht an der falschen Klammer ab und lässt `F-E.pdf)` im Text stehen.
+  `wikiZielLesen()` zählt die Klammerebenen mit; `wikiLinksAufloesen()` arbeitet deshalb als
+  Durchlauf, nicht als Ersetzungsausdruck.
+- **Angeschnittene Fragmente.** `ts_headline` schneidet mitten im Markdown ab. Drei Formen
+  kommen vor und werden alle behandelt: `Adressen](/dashboard/wiki/ipadressen)` (Beschriftung
+  fehlt vorne — das Ziel allein ist wertlos und entfällt), `[Elstner IP Gateway](/dashboard/…`
+  (Ziel fehlt hinten — Beschriftung bleibt) und `[Elstner IP Gate` (ohne Klammer).
+- **Linkbeschriftung ist selbst eine URL.** In der Pflanzliste steht
+  `[https://www.mein-schoener-garten.de/pflanzen/obst/mispel-12491](…)`. Eine 90 Zeichen
+  lange URL im Ausschnitt ist Rauschen; sie wird auf den Hostnamen gekürzt
+  („mein-schoener-garten.de").
+- **Hervorhebungszeichen nur paarweise.** Ein pauschales Löschen von `_` zerstört Inhalte:
+  aus `ETS_ GroupAddressesOverview.pdf` wurde `ETS GroupAddressesOverview.pdf` und aus
+  `window.__XSS` `window.XSS`. Jetzt wird nur ein vollständiges Paar entfernt.
+
+**Bewusst nicht entfernt:** Nummerierungen („1. Mespilus Germanica"). Sie sind von echtem
+Text („Punkt 3. Absatz") nicht zuverlässig zu unterscheiden; ein stehengelassener Listenpunkt
+ist weniger schlimm als ein verschluckter Satz.
+
+**Der Core blieb unangetastet** — `src/modules/wiki/store.ts` und die
+`ts_headline`-Einstellungen sind unverändert. Die Alternative (Steuerzeichen als
+`StartSel`/`StopSel`) hätte den Core-Vertrag geändert und war nach Spec zweite Wahl.
+
+**Geänderte Dateien:** `public/js/wiki.js`, `public/css/wiki.css` (Klasse für `mark`)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `node --check public/js/wiki.js` | Exit 0 |
+| `grep -n "x-if" public/js/wiki.js` | keine Treffer — der Wiki-Bereich nutzt kein Alpine |
+| Suche „Pflanzliste" | `<mark>Pflanzliste</mark>` hervorgehoben; **kein** `<b>Pflanzliste</b>` als Text; die beiden URLs zu „mein-schoener-garten.de" bzw. „gartendatenbank.de" gekürzt |
+| Ausschnitt der Seite „Home" | `[WLAN](/dashboard/wiki/wlan)` erscheint als „WLAN"; **keine** Markdown-Linksyntax mehr |
+| Anhang-Treffer (`hitType: "attachment"`) | Suche „Anleitung": Segways/`Deutsche Bedienungsanleitung SL V1.27.pdf` und Bedienungsanleitungen L19/`Waermepumpe.pdf` korrekt, je 2 Hervorhebungen, Anhang-Abzeichen vorhanden |
+| Tabellenausschnitt (Seite „PDFDokumente") | Tabellenstriche zu „·" verdichtet, Trennzeile `\| --- \|` entfernt, `IPC-VEC754P(N)F-E.pdf` vollständig und ohne Rest |
+| Gegenprobe über alle angezeigten Ausschnitte | `<b>`-Tags **0**, `](`-Linksyntax **0**, Tabellenstriche **0** |
+| Konstruierter Ausschnitt mit `<script>`, `<img onerror=…>`, `<a href="javascript:…">` und `[Label](javascript:…)` | im DOM nur zwei `MARK`-Elemente; `script` 0, `img` 0, `a` 0; die Schadcode-Zeichen stehen als Text da; die eingebauten Marker wurden **nicht** ausgeführt (`window.__XSS` undefiniert). **Keine Testseite angelegt und keine gelöscht** — die Prüfung lief rein im Browser über den Zustand der Trefferliste |
+| Suche ohne Treffer | „0 Treffer für „zzzqqqxxx"" plus „Keine Treffer." — kein leerer Bereich |
+| Regression Wiki | Kategorien (48 Seiten, 5 Kategorien), Quellenstand, Anhangzahl, Seitenansicht („Home", 148 Links), Revisionsliste (1 Revision), „Bearbeiten", Rücknavigation und Suchfeld unverändert vorhanden |
+| Dokumentbreite Wiki × 360/390/768/1440 px | **0 Überläufe** |
+| Zusatzprüfung der Aufbereitung ausserhalb des Browsers | 12 Fälle, darunter Pfade mit Unterstrichen, `**fett**`, Versionsnummern und angeschnittene Links — alle wie erwartet |
+| Dienste | unverändert — **kein Restart**, nur `public/` betroffen |
+
+**Getroffene Annahmen**
+- Eine Linkbeschriftung, die selbst eine URL ist, wird auf den Hostnamen gekürzt (extern)
+  bzw. auf das letzte Pfadstück (intern). Die Spec verlangt nur „keine Markdown-Linksyntax";
+  die Kürzung ist eine Lesbarkeitsentscheidung und im Code begründet.
+- Nummerierte Listenpunkte bleiben stehen (siehe oben).
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Lesbarkeit der Hervorhebung (`<mark>` auf `--yellow-weak`) am Gerät.
+- **CP2 prüfen:** Das Wiki-Suchfeld ist 33 px hoch und bleibt damit unter dem 44-px-Maß.
+  Vorbestehender Befund, Behebung in **P2-8** (Barrierefreiheit) — nicht in diesem Paket.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git revert <commit>`. Keine Wiki-Mutation, deshalb kein Datenrückweg.
+
+**Commit:** `PLATZHALTER_P2_6` · kein Dienst-Restart nötig
 
 ---
 

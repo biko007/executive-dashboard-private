@@ -155,3 +155,14 @@
 .wiki-body thead tr:has(th:empty:only-child),
 .wiki-body thead tr.wiki-leerer-kopf { display: none; }
 .wiki-body thead th:empty { padding: 0; border: 0; height: 0; }
+
+/* Hervorhebung der Fundstelle im Suchausschnitt (P2-6).
+   Die Marke kommt aus `ts_headline` im Core; das Dashboard setzt sie erst
+   NACH dem Escapen und nur für genau diese eine Ersetzung (siehe wiki.js). */
+.wiki-snippet mark {
+  background: var(--yellow-weak);
+  color: var(--text);
+  padding: 0 2px;
+  border-radius: 3px;
+  font-weight: 600;
+}
