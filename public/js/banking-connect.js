@@ -265,12 +265,16 @@ function bankingOverviewHtml() {
                               <span class="bank-konto-sub" x-text="kontoZusatz(acct)"></span>
                             </button>
                           </span>
+                          <!-- A3 (Phase 3): Der rote Archivier-Knopf (Kartonsymbol) stand
+                               direkt neben dem Saldo in jeder Kontozeile. Am Telefon lag er
+                               einen Fingerbreit neben der Schaltflaeche, die die Umsaetze
+                               oeffnet — eine folgenschwere Aktion neben einer alltaeglichen.
+                               Er steht jetzt in der Detailansicht des Kontos, zurueckhaltend
+                               gestaltet, und bestaetigt wird weiter im Genehmigungsdialog
+                               (kein confirm()). -->
                           <span class="bank-konto-wert">
                             <span class="bank-konto-saldo" :class="saldoKlasse(acct)" x-text="saldoText(acct)"></span>
-                            <button aria-label="Konto archivieren" class="btn btn-danger" style="font-size:13px;padding:3px 8px"
-                                    x-show="!bulkMode"
-                                    @click="archiveSingle(acct.id)"
-                                    title="Konto archivieren">📦</button>
+                            <span class="bank-konto-pfeil" aria-hidden="true">›</span>
                           </span>
                         </div>
                       </template>
@@ -623,6 +627,9 @@ document.addEventListener('alpine:init', () => {
     },
 
     umsaetzeOeffnen(accountId) {
+      /* A3 (Phase 3): Verweis fuer die Aktionen in der Detailansicht —
+         sie liegt ausserhalb dieser Alpine-Komponente. */
+      _bankingRoot = this;
       const konto = this.accounts.find(a => a.id === accountId) || null;
       bankingUmsaetzeRendern(konto);
     },
@@ -1053,6 +1060,14 @@ const BANK_UMSATZ_SCHRITT = 50;
 let _bankUmsatzKonto = null;
 let _bankUmsatzAnzahl = BANK_UMSATZ_SCHRITT;
 
+/* A3 (Phase 3): Verweis auf die laufende Banking-Komponente. Die Detailansicht
+   wird ausserhalb von Alpine gerendert und braucht einen Weg zu archiveSingle(). */
+let _bankingRoot = null;
+
+function bankingKontoArchivieren(accountId) {
+  if (_bankingRoot) _bankingRoot.archiveSingle(accountId);
+}
+
 async function bankingUmsaetzeRendern(konto, mehr) {
   const ziel = document.getElementById('bank-umsaetze');
   if (!ziel) return;
@@ -1080,15 +1095,30 @@ async function bankingUmsaetzeRendern(konto, mehr) {
     return;
   }
 
-  const kopf = '<div class="bank-umsatz-kopf">'
-    + '<div class="bank-umsatz-titel">' + esc('Umsätze ' + (konto.displayName || konto.iban || konto.id)) + '</div>'
+  /* A3: Die Detailansicht ist als solche erkennbar — eigene Ueberschrift mit
+     Kontobezeichnung, Schliessen-Schaltflaeche und die zurueckhaltende
+     Archivier-Aktion. Aktive Konten nur. */
+  const kopf = '<div class="bank-detail-kopf">'
+    + '<div class="bank-umsatz-kopf">'
+    + '<div class="bank-umsatz-titel">' + esc('Konto ' + (konto.displayName || konto.iban || konto.id)) + '</div>'
     + '<button class="btn" onclick="bankingUmsaetzeSchliessen()">Schließen</button>'
+    + '</div>'
+    + '<div class="bank-detail-aktionen">'
+    + (konto.status === 'active'
+        ? '<button type="button" class="bank-detail-archiv" onclick="bankingKontoArchivieren('
+          + Number(konto.id) + ')">Konto archivieren…</button>'
+          + '<span class="bank-detail-aktion-sub">'
+          + esc('Umsätze bleiben erhalten. Die Änderung wird im Genehmigungsdialog bestätigt; '
+            + 'archivierte Konten lassen sich nicht reaktivieren.') + '</span>'
+        : '<span class="bank-detail-aktion-sub">' + esc('Dieses Konto ist archiviert.') + '</span>')
+    + '</div>'
     + '</div>';
 
   if (!Array.isArray(zeilen) || !zeilen.length) {
     ziel.innerHTML = kopf + zustandBlock('keine_daten',
       'Für dieses Konto sind keine Umsätze gespeichert. Umsätze entstehen beim FinTS-Abgleich; '
       + 'der wird nicht aus dem Dashboard ausgelöst.');
+    bankingDetailAnzeigen(ziel, mehr);
     return;
   }
 
@@ -1138,6 +1168,24 @@ async function bankingUmsaetzeRendern(konto, mehr) {
       'Stand des letzten FinTS-Abgleichs — nicht der aktuelle Stand bei der Bank. '
       + 'Ein Abgleich wird nicht aus dem Dashboard ausgelöst.') + '</div>'
     + tabelle + mehrKnopf;
+  bankingDetailAnzeigen(ziel, mehr);
+}
+
+/* A3 (Phase 3): Die Umsatzliste liegt UNTER der Kontenuebersicht, der Summe und
+   dem eingeklappten Archiv. Am iPhone lag sie damit nach dem Tippen ausserhalb
+   des sichtbaren Bereichs — der Owner sah "scheinbar nichts". Jetzt wird sie
+   nach dem Oeffnen in den Blick geholt und erhaelt den Tastaturfokus.
+   Beim Nachladen weiterer Umsaetze (`mehr`) wird NICHT gescrollt, sonst
+   springt die Seite unter dem Finger weg. */
+function bankingDetailAnzeigen(ziel, mehr) {
+  if (mehr) return;
+  ziel.setAttribute('tabindex', '-1');
+  try {
+    ziel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch {
+    ziel.scrollIntoView();
+  }
+  ziel.focus({ preventScroll: true });
 }
 
 function bankingUmsaetzeMehr() {

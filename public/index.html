@@ -547,6 +547,21 @@ nav button { min-height: 44px; min-width: 44px; }
 .bank-stand-hinweis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); }
 
 .bank-umsaetze { margin-top: 16px; }
+.bank-umsaetze:focus { outline: none; }
+/* A3 (Phase 3): Detailansicht eines Kontos — als eigener Bereich erkennbar. */
+.bank-detail-kopf {
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: 8px; padding: 12px; margin-bottom: 12px; background: var(--surface);
+}
+.bank-detail-aktionen { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.bank-detail-archiv {
+  align-self: flex-start; min-height: 44px; padding: 0 12px;
+  background: none; border: 1px solid var(--border); border-radius: 6px;
+  color: var(--muted); font-size: 13px; cursor: pointer;
+}
+.bank-detail-archiv:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+.bank-detail-aktion-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.bank-konto-pfeil { color: var(--muted); font-size: 18px; padding: 0 2px; }
 .bank-umsatz-kopf {
   display: flex; align-items: center; justify-content: space-between;
   gap: 12px; flex-wrap: wrap; margin-bottom: 10px;
