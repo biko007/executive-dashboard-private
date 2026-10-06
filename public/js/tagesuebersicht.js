@@ -392,6 +392,56 @@ function heuteGesundheit(entries) {
     + 'Gesundheit öffnen</button></div>';
 }
 
+/* A7 (Phase 3): Die Statusquelle mischt live geprüfte und gespeicherte
+   Zustände. Diese Zeile trennt beides, nennt den ältesten gespeicherten
+   Prüfzeitpunkt und unterscheidet Abrufzeit (wann wurde die Statusquelle
+   gefragt) von Prüfzeitpunkt (wann wurde der Dienst zuletzt wirklich
+   geprüft). */
+function heuteQuelleSystemstatus(status) {
+  if (!status) {
+    return { quelle: 'Systemstatus (Core)', zustand: 'getrennt', stand: null,
+      abgleich: null, standLabel: 'Abrufzeit', abgleichLabel: 'ältester Prüfzeitpunkt',
+      hinweis: 'Statusquelle nicht erreichbar.' };
+  }
+  const dienste = status.services || [];
+  const live = dienste.filter(d => d.source === 'live');
+  const gespeichert = dienste.filter(d => d.source !== 'live');
+  const pruefzeiten = gespeichert.map(d => d.checked_at).filter(Boolean).sort();
+  const aeltester = pruefzeiten[0] || null;
+  const nichtOben = dienste.filter(d => d.status !== 'up').length;
+
+  const teile = [];
+  teile.push(live.length + (live.length === 1 ? ' Dienst live geprüft' : ' Dienste live geprüft'));
+  if (gespeichert.length) {
+    teile.push(gespeichert.length
+      + (gespeichert.length === 1 ? ' gespeicherter Zustand' : ' gespeicherte Zustände')
+      + (aeltester ? ' (ältester vom ' + fmtDate(aeltester) + ')' : ''));
+  }
+  let satz = teile.join(', ') + '.';
+  if (nichtOben) {
+    satz += ' ' + nichtOben + (nichtOben === 1 ? ' Dienst' : ' Dienste')
+      + ' nicht auf „läuft“.';
+  }
+  if (gespeichert.length) {
+    satz += ' Ein gespeicherter Zustand ist nicht nachgeprüft — er sagt nur, '
+      + 'was zuletzt eingetragen wurde.';
+  }
+
+  return {
+    quelle: 'Systemstatus (Core)',
+    /* Nicht „aktuell“, solange gespeicherte Zustände dabei sind. */
+    zustand: status._stale ? 'degradiert'
+      : gespeichert.length ? 'degradiert'
+      : 'aktuell',
+    live: false,
+    stand: status.timestamp || null,
+    abgleich: aeltester,
+    standLabel: 'Abrufzeit',
+    abgleichLabel: 'ältester Prüfzeitpunkt',
+    hinweis: satz,
+  };
+}
+
 /* Datenquellen mit Stand und Alter. Veraltete stehen oben — das ist der
    Baustein aus P1-1, hier über alle Bereiche zusammengezogen. */
 function heuteQuellen(quellen) {
@@ -510,13 +560,12 @@ async function loadHeute() {
       abgleich: insta ? (insta.datenstand || insta.fetched_at || null) : null,
       zustand: insta ? undefined : 'getrennt',
       hinweis: 'Abgleich nur manuell per /instasync im Telegram-Bot.' },
-    { quelle: 'Systemstatus (Core)',
-      zustand: status ? (status._stale ? 'degradiert' : 'aktuell') : 'getrennt',
-      live: !!status && !status._stale, stand: status ? status.timestamp : null,
-      hinweis: status
-        ? (status.services || []).filter(s => s.status !== 'up').length + ' von '
-          + (status.services || []).length + ' Diensten nicht auf „läuft".'
-        : 'Statusquelle nicht erreichbar.' },
+    /* A7 (Phase 3): Hier stand „Live-Abruf · 6 Dienste laufen“. Von den sechs
+       Diensten werden aber nur zwei live geprüft (Postgres, IB Gateway); für
+       Core, Dashboard, Trading und n8n liefert die Statusquelle gespeicherte
+       Zustände aus Mai und Juli. Ein gespeicherter Zustand ist keine Aussage
+       über jetzt und darf nicht grün erscheinen. */
+    heuteQuelleSystemstatus(status),
     { quelle: 'Fuhrpark (Fristen)', live: Array.isArray(fahrzeuge),
       zustand: Array.isArray(fahrzeuge) ? 'aktuell' : 'getrennt',
       stand: new Date().toISOString(),

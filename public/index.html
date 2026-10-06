@@ -546,6 +546,10 @@ nav button { min-height: 44px; min-width: 44px; }
 .bank-stand-warn { color: var(--red); font-weight: 600; }
 .bank-stand-hinweis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); }
 
+/* A7 (Phase 3): Herkunft der Dienstezustände über der Tabelle. */
+.status-herkunft { font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.5; }
+.status-abrufzeit { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
+
 .bank-umsaetze { margin-top: 16px; }
 .bank-umsaetze:focus { outline: none; }
 /* A3 (Phase 3): Detailansicht eines Kontos — als eigener Bereich erkennbar. */
@@ -4836,9 +4840,35 @@ async function loadStatus() {
     // Jede Zeile nennt zusaetzlich Herkunft (Live-Pruefung oder gespeicherter
     // Zustand) und Pruefzeitpunkt. Ein unbekannter Zustand erscheint nie als
     // Erfolg.
+    /* ── A7 (Phase 3): gespeicherter Zustand ist kein Erfolg ──────────────────
+       BEFUND: "Heute" meldete „Live-Abruf, 6 Dienste laufen", die Statusseite
+       zeigte Core, Dashboard, Trading und n8n aber mit gespeicherten Zuständen
+       aus Mai bzw. Juli 2026; nur Postgres und IB Gateway werden live geprüft.
+       Ein gespeicherter Zustand erschien grün als „erreichbar".
+       JETZT: live geprüft → erreichbar/getrennt. Gespeichert → „unbekannt",
+       mit dem eingetragenen Wert und dem Prüfzeitpunkt im Klartext. Die
+       Zusammenfassung über der Tabelle nennt die Verteilung. */
     const svcOrder = ['Core','Dashboard','Trading','n8n','Postgres','IB Gateway'];
     const svcMap = {};
     (d.services || []).forEach(s => { svcMap[s.name] = s; });
+    const svcListe = svcOrder.map(n => svcMap[n]).filter(Boolean);
+    const svcLive = svcListe.filter(s => s.source === 'live');
+    const svcGespeichert = svcListe.filter(s => s.source !== 'live');
+    const svcPruefzeiten = svcGespeichert.map(s => s.checked_at).filter(Boolean).sort();
+    const svcAeltesterPruefzeitpunkt = svcPruefzeiten[0] || null;
+    const svcZusammenfassung = [
+      svcLive.length + (svcLive.length === 1 ? ' Dienst live geprüft' : ' Dienste live geprüft'),
+      svcGespeichert.length
+        ? svcGespeichert.length
+          + (svcGespeichert.length === 1 ? ' gespeicherter Zustand' : ' gespeicherte Zustände')
+          + (svcAeltesterPruefzeitpunkt ? ' (ältester vom ' + fmtDate(svcAeltesterPruefzeitpunkt) + ')' : '')
+        : null,
+    ].filter(Boolean).join(', ') + '.'
+      + (svcGespeichert.length
+          ? ' Ein gespeicherter Zustand ist nicht nachgeprüft.'
+          : '');
+
+    const svcStatusWort = { up: 'läuft', down: 'nicht erreichbar' };
     const svcHtml = svcOrder.map(name => {
       const s = svcMap[name];
       if (!s) {
@@ -4848,19 +4878,21 @@ async function loadStatus() {
           <td style="padding:6px 12px;color:var(--muted);font-size:13px">kein Statuseintrag vorhanden</td>
         </tr>`;
       }
-      const code = s.status === 'up' ? 'erreichbar' : s.status === 'down' ? 'getrennt' : 'unbekannt';
       const live = s.source === 'live';
+      /* Ohne Live-Prüfung ist der Zustand unbekannt — nicht „erreichbar". */
+      const code = live
+        ? (s.status === 'up' ? 'erreichbar' : s.status === 'down' ? 'getrennt' : 'unbekannt')
+        : 'unbekannt';
       const herkunft = live
-        ? 'live geprüft ' + (s.checked_at ? fmtDT(s.checked_at) : '–')
-        : 'gespeicherter Zustand' + (s.last_change ? ', unverändert seit ' + fmtDT(s.last_change) : '');
-      // Der frueher gezeigte "uptime"-Wert ist bei DB-Zeilen nur das Alter der
-      // Zeile, keine gemessene Laufzeit — deshalb nur bei Live-Pruefung zeigen.
-      const laufzeit = live && s.status === 'up' && s.uptime_seconds > 0
-        ? ' · Laufzeit ' + fmtUptime(s.uptime_seconds) : '';
+        ? 'live geprüft ' + (s.checked_at ? fmtDT(s.checked_at) : 'ohne Zeitangabe')
+          + (s.status === 'up' && s.uptime_seconds > 0 ? ' · Laufzeit ' + fmtUptime(s.uptime_seconds) : '')
+        : 'gespeicherter Zustand „' + (svcStatusWort[s.status] || String(s.status || 'unbekannt')) + '“'
+          + (s.checked_at ? ', eingetragen ' + fmtDT(s.checked_at) + ' (' + altersText(s.checked_at) + ')' : '')
+          + ' — seither nicht nachgeprüft';
       return `<tr>
         <td style="padding:6px 12px;white-space:nowrap">${esc(name)}</td>
         <td style="padding:6px 12px">${zustandsBadge(code)}</td>
-        <td style="padding:6px 12px;color:var(--muted);font-size:13px">${esc(herkunft)}${esc(laufzeit)}</td>
+        <td style="padding:6px 12px;color:var(--muted);font-size:13px">${esc(herkunft)}</td>
       </tr>`;
     }).join('');
 
@@ -4885,7 +4917,10 @@ async function loadStatus() {
 
     c.innerHTML = `
       <div class="card card-pad" style="margin-bottom:16px">
-        <div style="font-weight:600;margin-bottom:12px;font-size:14px">Dienste</div>
+        <div style="font-weight:600;margin-bottom:4px;font-size:14px">Dienste</div>
+        <div class="status-herkunft">${esc(svcZusammenfassung)}</div>
+        <div class="status-abrufzeit">${esc('Abrufzeit der Statusquelle: ' + (d.timestamp ? fmtDT(d.timestamp) : 'unbekannt')
+          + ' \u00b7 Prüfzeitpunkt steht je Dienst in der letzten Spalte.')}</div>
         <table style="width:100%;border-collapse:collapse;font-size:13px">
           <thead><tr><th style="padding:6px 12px">Dienst</th><th style="padding:6px 12px">Zustand</th><th style="padding:6px 12px">Herkunft und Prüfzeitpunkt</th></tr></thead>
           <tbody>${svcHtml}</tbody>
@@ -4916,15 +4951,22 @@ async function loadStatus() {
         : ''}
     `;
     stamp();
+    /* A7 (Phase 3): Die Leiste meldete "Live-Abruf" fuer die ganze Seite,
+       obwohl vier von sechs Diensten gespeicherte Zustaende sind. Jetzt
+       dieselbe Aussage wie in der Tagesuebersicht, und Abrufzeit und
+       Pruefzeitpunkt sind getrennt beschriftet. */
     setDatenstand([{
       quelle: 'Systemstatus (Core)',
-      live: !d._stale,
-      zustand: d._stale ? 'degradiert' : 'aktuell',
+      live: false,
+      zustand: d._stale ? 'degradiert' : (svcGespeichert.length ? 'degradiert' : 'aktuell'),
       stand: d.timestamp || new Date().toISOString(),
-      abgleich: d.timestamp || null,
-      hinweis: d._stale
-        ? 'Core nicht erreichbar — Anzeige aus dem Zwischenspeicher.'
-        : 'Zwischenspeicher ' + (d._cache_alter_s ?? 0) + ' s alt (Höchstalter 30 s).',
+      abgleich: svcAeltesterPruefzeitpunkt,
+      standLabel: 'Abrufzeit',
+      abgleichLabel: 'ältester Prüfzeitpunkt',
+      hinweis: (d._stale
+        ? 'Core nicht erreichbar — Anzeige aus dem Zwischenspeicher. '
+        : 'Zwischenspeicher ' + (d._cache_alter_s ?? 0) + ' s alt (Höchstalter 30 s). ')
+        + svcZusammenfassung,
     }]);
 
     _statusRefresh = setInterval(() => {

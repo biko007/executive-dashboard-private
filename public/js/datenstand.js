@@ -107,7 +107,9 @@ function datenstandZustand(wert, schwelleTage) {
    - schwelleTage: eigene Veraltungsschwelle
    - live:         true = bei jedem Seitenaufruf direkt aus der Quelle gelesen
    - zustand:      Zustand erzwingen (z. B. 'getrennt' bei Abrufausfall)
-   - hinweis:      zusätzliche Klartextzeile */
+   - hinweis:      zusätzliche Klartextzeile
+   - standLabel:   eigene Beschriftung für `stand` (Vorgabe "Datenstand")
+   - abgleichLabel: eigene Beschriftung für `abgleich` (Vorgabe "letzter Abgleich") */
 function datenstandBadge(eintrag) {
   const e = eintrag || {};
   const code = e.zustand || (e.live ? 'aktuell' : datenstandZustand(e.stand, e.schwelleTage));
@@ -128,8 +130,13 @@ function datenstandBadge(eintrag) {
     zustandText = 'Daten aktuell (' + altersText(e.stand) + ')';
   }
 
-  const felder = ['Datenstand ' + datenstandZeitpunktText(e.stand)];
-  if ('abgleich' in e) felder.push('letzter Abgleich ' + datenstandZeitpunktText(e.abgleich));
+  /* A7 (Phase 3): Die beiden Zeitpunkte heissen nicht ueberall gleich. Beim
+     Systemstatus ist `stand` die ABRUFZEIT und `abgleich` der PRUEFZEITPUNKT;
+     "Datenstand"/"letzter Abgleich" waere dort irrefuehrend. */
+  const standLabel = e.standLabel || 'Datenstand';
+  const abgleichLabel = e.abgleichLabel || 'letzter Abgleich';
+  const felder = [standLabel + ' ' + datenstandZeitpunktText(e.stand)];
+  if ('abgleich' in e) felder.push(abgleichLabel + ' ' + datenstandZeitpunktText(e.abgleich));
 
   return '<div class="ds-eintrag ds-' + code + '">'
     + '<span class="ds-symbol" aria-hidden="true">' + z.symbol + '</span>'
