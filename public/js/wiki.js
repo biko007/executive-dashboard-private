@@ -486,6 +486,22 @@ function wikiMarkdownEntfernen(text) {
   t = t.replace(/\*{1,3}([^*\s](?:[^*]*[^*\s])?)\*{1,3}/g, '$1');
   t = t.replace(/(^|[\s(])_{1,3}([^_\s](?:[^_]*[^_\s])?)_{1,3}(?=[\s).,;:!?]|$)/g, '$1$2');
   t = t.replace(/`/g, '');
+  /* ── D3 (Phase 3): angeschnittene Hervorhebung ───────────────────────────
+     BEFUND CHECKPOINT 2: Ein Ausschnitt endete auf „**Seiten".
+     URSACHE: `ts_headline` schneidet mitten im Markdown ab. Die Regel darüber
+     verlangt ein PAAR von Sternen — das gab es im Fragment nicht, der
+     Markdown-Rest blieb deshalb stehen.
+     Ein übrig gebliebener Doppel- oder Dreifachstern ist eindeutig ein
+     Markdown-Marker; in Fließtext kommt „**" nicht vor. EINZELNE Sterne
+     bleiben stehen, die gibt es in Dateinamen und als Rechenzeichen — nur am
+     Rand des Fragments werden auch sie entfernt. */
+  t = t.replace(/\*{2,3}/g, '');
+  t = t.replace(/^\*+\s*/, '').replace(/\s*\*+$/, '');
+  /* Dieselbe Ursache, andere Zeichen: ein angeschnittenes Überschriften- oder
+     Zitatzeichen am Rand des Fragments. Am ENDE wird ">" ausgenommen — dort
+     steht das Schlusszeichen der Core-Hervorhebung "</b>", und ein
+     Zitatzeichen kann ohnehin nur am Zeilenanfang stehen. */
+  t = t.replace(/^[#>|]+\s*/, '').replace(/\s*[#|]+$/, '');
   /* Mehrfache Leerzeichen und Satzzeichen an den Rändern aufräumen. */
   t = t.replace(/\s+/g, ' ').replace(/^[\s·:,-]+/, '').replace(/[\s·]+$/, '').trim();
   return t;
