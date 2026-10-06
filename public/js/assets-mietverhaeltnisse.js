@@ -395,16 +395,45 @@ async function mietKlaerungsbedarfRendern(zielId) {
     (gruppen[schluessel] ||= []).push(t);
   }
 
+  /* ── C4 (Phase 3): Statuserklärung nach der tatsächlichen Logik ─────────────
+     Die bisherige Erklärung sagte, der Status folge NICHT aus dem Auszugsdatum.
+     Das ist für einen Teil der Wege falsch. Am Core nachgelesen:
+       • Aktion „Auszug eintragen" (POST .../move-out) setzt den Status von
+         „Aktiv" auf „Beendet" und schreibt das Auszugsdatum.
+       • Aktion „Vertrag beenden" (POST .../end) setzt „Beendet".
+       • Aktion „Vertragsende zurücknehmen" (POST .../revoke-end) setzt „Aktiv",
+         aber nur aus dem Zustand „Gekündigt".
+       • Ein Kündigungsdatum allein ändert den Status nicht.
+       • Datumsfelder, die über das Vertragsformular gespeichert werden, ändern
+         den Status nicht — auch das Auszugsdatum nicht.
+     Daraus folgt widerspruchsfrei: ein Vertrag kann „Aktiv" sein UND ein
+     Auszugsdatum in der Vergangenheit tragen, wenn dieses Datum nicht über die
+     Aktion, sondern über das Formular oder eine Altdatenübernahme in die Daten
+     gekommen ist. Genau das sind die Befunde unten. */
+  const statusZaehlung = (() => {
+    const je = {};
+    for (const l of d.leases) je[l.status] = (je[l.status] || 0) + 1;
+    const teile = Object.keys(je).sort().map(k => je[k] + '× „' + begriff('lease_status', k) + '"');
+    return teile.join(', ');
+  })();
+
   const statusErklaerung = '<div class="miet-erklaerung">'
     + '<div class="miet-erklaerung-titel">Was „Aktiv" bedeutet</div>'
     + '<div class="miet-erklaerung-text">' + esc(
-      'Ein Vertrag gilt als „Aktiv", solange sein Status auf diesem Wert steht. Der Status '
-      + 'folgt NICHT automatisch aus Kündigungsdatum oder Auszugsdatum: beide werden getrennt '
-      + 'gepflegt. Ein Vertrag kann deshalb „Aktiv" sein, obwohl ein Auszug erfasst ist — '
-      + 'genau diese Fälle stehen unten.') + '</div>'
+      '„Aktiv" ist der Wert im Statusfeld des Vertrags. Er wird nicht aus den Datumsfeldern '
+      + 'berechnet, sondern nur von einer Aktion geändert.') + '</div>'
     + '<div class="miet-erklaerung-text">' + esc(
-      'Derzeit stehen alle ' + d.leases.length + ' Verträge auf „Aktiv"; es gibt keine Zeile '
-      + 'mit „Beendet" oder „Zukünftig".') + '</div></div>';
+      'Diese Aktionen ändern den Status: „Auszug eintragen" setzt „Aktiv" auf „Beendet" und '
+      + 'schreibt das Auszugsdatum. „Vertrag beenden" setzt „Beendet". '
+      + '„Vertragsende zurücknehmen" setzt „Aktiv", aber nur aus „Gekündigt".') + '</div>'
+    + '<div class="miet-erklaerung-text">' + esc(
+      'Diese Angaben ändern den Status NICHT: ein Kündigungsdatum allein, und jedes Datum, '
+      + 'das über das Vertragsformular gespeichert wird — auch das Auszugsdatum. Deshalb kann '
+      + 'ein Vertrag „Aktiv" sein und trotzdem ein Auszugsdatum in der Vergangenheit tragen: '
+      + 'dann ist das Datum nicht über die Aktion in die Daten gekommen. Genau diese Fälle '
+      + 'stehen unten.') + '</div>'
+    + '<div class="miet-erklaerung-text">' + esc(
+      'Stand im Bestand: ' + (statusZaehlung || 'kein Vertrag erfasst') + '.') + '</div></div>';
 
   let befundHtml;
   if (!befunde.length) {
