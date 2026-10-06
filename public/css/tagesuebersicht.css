@@ -233,4 +233,14 @@
   margin-top: 14px;
 }
 
-.agent-link { display: inline-block; min-height: 44px; line-height: 28px; text-decoration: none; }
+/* inline-flex statt inline-block: nur so greift min-height zuverlaessig
+   (als inline-block ergab die Zeilenhoehe 42 px). Die doppelte Klasse ist
+   noetig, weil P2-2 die Mindesthoehe ab 640 px fuer `a.btn` zuruecknimmt —
+   bei einem Link, der die einzige Aktion des Abschnitts ist, soll sie aber
+   auf jeder Breite gelten. */
+.agent-link.btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-decoration: none;
+}
