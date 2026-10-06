@@ -4345,23 +4345,159 @@ async function triggerUniverseScan() {
 let _peCache = [];
 
 /* ── Agents Tab ── */
-function loadAgents() {
+/* ── Automatisierung (P2-10, Owner-Entscheidung Nr. 5) ──────────────────────
+   Vorher war das eine statische Karte mit einem einzigen Link auf n8n: keine
+   Daten, kein Datenstand, kein Abruf.
+
+   Jetzt eine LESENDE Übersicht über `GET /api/agents/workflows`. Der
+   n8n-Schlüssel bleibt serverseitig; die Route liefert nur aufbereitete
+   Felder. Es wird nichts aktiviert und nichts ausgeführt — der bestehende
+   n8n-Link bleibt der Weg dorthin.
+
+   Wo keine Daten vorliegen, steht das ausdrücklich da. n8n hat derzeit KEINE
+   Laufhistorie; „keine Ausführungen aufgezeichnet" ist deshalb die richtige
+   Aussage — nicht „alles in Ordnung". */
+async function loadAgents() {
   const c = document.getElementById('content');
+  let d = null;
+  let fehler = null;
+  try { d = await apiFetch('/api/agents/workflows'); } catch (e) { fehler = e.message; }
+
+  if (fehler) {
+    c.innerHTML = zustandBlock('fehler',
+      'Die Agentenübersicht ist nicht abrufbar: ' + fehler + '. '
+      + 'Der n8n-Dienst läuft auf diesem Server; ist er gestoppt, fehlt diese Anzeige.');
+    stamp();
+    setDatenstand([{ quelle: 'n8n (Automatisierung)', zustand: 'getrennt', stand: null,
+      abgleich: null, hinweis: 'Abruf fehlgeschlagen: ' + fehler }]);
+    return;
+  }
+
+  const wf = d.workflows;
+  const laeufe = d.ausfuehrungen;
+
+  /* ── Workflows ── */
+  let wfHtml;
+  if (!wf) {
+    wfHtml = zustandBlock('fehler',
+      'Die Workflow-Liste ist nicht abrufbar: ' + (d.workflows_fehler || 'unbekannter Grund')
+      + '. Das heißt NICHT, dass keine Workflows vorhanden sind.');
+  } else if (!wf.length) {
+    wfHtml = zustandBlock('keine_daten', 'In n8n ist kein Workflow angelegt.');
+  } else {
+    const aktiv = wf.filter(w => w.aktiv).length;
+    const zeilen = wf.map(w => {
+      /* Ein inaktiver Workflow ist NICHT grün: er läuft nicht. */
+      const zustand = w.aktiv
+        ? '<span class="badge badge-green">Aktiv</span>'
+        : '<span class="badge badge-muted">Inaktiv — läuft nicht</span>';
+      const archiv = w.archiviert ? ' <span class="badge badge-muted">Archiviert</span>' : '';
+      const letzte = laeufe
+        ? laeufe.filter(a => String(a.workflow_id) === String(w.id))
+            .sort((a, b) => String(b.gestartet || '').localeCompare(String(a.gestartet || '')))[0]
+        : null;
+      const laufText = !laeufe
+        ? 'Laufhistorie nicht abrufbar'
+        : letzte
+          ? (letzte.status === 'success' ? 'Erfolgreich ' : 'Ergebnis „' + esc(letzte.status || 'unbekannt') + '" ')
+            + fmtDT(letzte.gestartet)
+          : 'Keine Ausführung aufgezeichnet';
+      const plan = w.zeitplan
+        ? (w.aktiv ? 'Nächster Lauf: ' + esc(w.zeitplan) : 'Zeitplan hinterlegt (' + esc(w.zeitplan) + '), wird nicht ausgeführt')
+        : 'Kein Zeitplan hinterlegt';
+      return `<tr>
+        <td><div class="agent-name">${esc(w.name)}</div><div class="agent-sub">${esc(w.knoten != null ? w.knoten + ' Schritte' : '')}</div></td>
+        <td>${zustand}${archiv}</td>
+        <td>${esc(fmtDate(w.geaendert))}</td>
+        <td>${esc(laufText)}</td>
+        <td>${plan}</td>
+      </tr>`;
+    }).join('');
+    wfHtml = `<div class="treffer-zeile">${esc(wf.length + (wf.length === 1 ? ' Workflow' : ' Workflows')
+        + ' · ' + aktiv + ' aktiv, ' + (wf.length - aktiv) + ' inaktiv')}</div>
+      <table class="data-table" data-tabelle="karten">
+        <thead><tr><th>Workflow</th><th>Zustand</th><th>Geändert</th><th>Letzter Lauf</th><th>Zeitplan</th></tr></thead>
+        <tbody>${zeilen}</tbody>
+      </table>`;
+  }
+
+  /* ── Ausführungen ── */
+  let laufHtml;
+  if (!laeufe) {
+    laufHtml = zustandBlock('fehler', 'Die Laufhistorie ist nicht abrufbar: '
+      + (d.ausfuehrungen_fehler || 'unbekannter Grund') + '.');
+  } else if (!laeufe.length) {
+    laufHtml = zustandBlock('keine_daten',
+      'Keine Ausführungen aufgezeichnet. n8n führt derzeit keinen Workflow aus — '
+      + 'alle sind inaktiv (Owner-Entscheidung Nr. 1: n8n wird nicht reaktiviert). '
+      + 'Das ist keine Aussage darüber, dass alles in Ordnung ist.');
+  } else {
+    laufHtml = `<table class="data-table" data-tabelle="karten">
+      <thead><tr><th>Workflow</th><th>Ergebnis</th><th>Start</th><th>Ende</th></tr></thead>
+      <tbody>${laeufe.map(a => {
+        const name = wf ? (wf.find(w => String(w.id) === String(a.workflow_id)) || {}).name : null;
+        return `<tr><td>${esc(name || 'Workflow ' + a.workflow_id)}</td>
+          <td>${esc(a.status || 'unbekannt')}</td>
+          <td>${esc(fmtDT(a.gestartet))}</td>
+          <td>${esc(a.beendet ? fmtDT(a.beendet) : '–')}</td></tr>`;
+      }).join('')}</tbody></table>`;
+  }
+
+  /* ── Offene Freigaben ── */
+  const f = d.freigaben;
+  const freigabeHtml = !f
+    ? zustandBlock('fehler', 'Die Freigaben sind nicht abrufbar: ' + (d.freigaben_fehler || 'unbekannter Grund') + '.')
+    : `<div class="summary-grid">
+        <div class="s-card"><div class="lbl">Offene Freigaben</div><div class="val">${f.offen}</div>
+          <div class="sub">gültig und noch nicht verwendet</div></div>
+        <div class="s-card"><div class="lbl">Verwendet</div><div class="val">${f.verwendet}</div>
+          <div class="sub">von ${f.gesamt} insgesamt</div></div>
+        <div class="s-card"><div class="lbl">Letzte Anforderung</div><div class="val" style="font-size:16px">${esc(f.letzte ? fmtDT(f.letzte) : '–')}</div>
+          <div class="sub">${esc(f.letzte ? altersText(f.letzte) : 'keine')}</div></div>
+      </div>`;
+
   c.innerHTML = `
-    <div style="padding:20px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:24px">
-        <div style="font-size:16px;font-weight:700">Agents &amp; Automation</div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
-        <a href="https://app.bikobickel.de/n8n/" target="_blank" rel="noopener"
-           style="display:block;padding:20px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:inherit;transition:border-color .2s"
-           onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-          <div style="font-size:24px;margin-bottom:8px">⚡</div>
-          <div style="font-weight:600;margin-bottom:4px">n8n Workflow Automation</div>
-          <div style="font-size:13px;color:var(--muted)">Workflows erstellen, Webhooks verwalten, Automatisierungen konfigurieren</div>
-        </a>
-      </div>
-    </div>`;
+    <section class="card card-pad heute-block">
+      <div class="heute-kopf"><h2 class="heute-titel">Workflows in n8n</h2></div>
+      ${wfHtml}
+      <div class="agent-hinweis">Nur lesend. Aus dem Dashboard wird kein Workflow aktiviert
+        und keiner ausgeführt — das geschieht in n8n selbst.</div>
+    </section>
+
+    <section class="card card-pad heute-block">
+      <div class="heute-kopf"><h2 class="heute-titel">Ausführungen</h2></div>
+      ${laufHtml}
+    </section>
+
+    <section class="card card-pad heute-block">
+      <div class="heute-kopf"><h2 class="heute-titel">Freigaben im Dashboard</h2></div>
+      ${freigabeHtml}
+      <div class="agent-hinweis">Genehmigungen für ändernde Vorgänge in Fuhrpark, Immobilien
+        und Banking. Quelle: Tabelle <code>approval_tokens</code>.</div>
+    </section>
+
+    <section class="card card-pad heute-block">
+      <div class="heute-kopf"><h2 class="heute-titel">n8n öffnen</h2></div>
+      <a class="btn btn-primary agent-link" href="https://app.bikobickel.de/n8n/" target="_blank" rel="noopener">
+        n8n-Oberfläche öffnen ↗</a>
+      <div class="agent-hinweis">Workflows anlegen, Zeitpläne setzen und Läufe starten —
+        alles Ändernde geschieht dort, nicht hier.</div>
+    </section>`;
+
+  stamp();
+  setDatenstand([
+    { quelle: 'n8n (Automatisierung)', live: true,
+      zustand: wf ? 'erreichbar' : 'getrennt',
+      stand: d.abgerufen,
+      hinweis: wf
+        ? wf.length + ' Workflows, ' + wf.filter(w => w.aktiv).length + ' davon aktiv. '
+          + 'Lesender Abruf über die n8n-API.'
+        : 'Workflow-Liste nicht abrufbar.' },
+    { quelle: 'Freigaben (approval_tokens)', live: !!f,
+      zustand: f ? 'erreichbar' : 'getrennt',
+      stand: d.abgerufen,
+      hinweis: f ? f.offen + ' offene Freigaben.' : 'Nicht abrufbar.' },
+  ]);
 }
 
 async function loadPrivateEquity() {

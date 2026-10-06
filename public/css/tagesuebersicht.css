@@ -220,3 +220,17 @@
 .hu-spaeter summary::-webkit-details-marker { display: none; }
 .hu-spaeter summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
 .hu-spaeter[open] summary::before { transform: rotate(90deg); }
+
+/* ── Automatisierung (P2-10) ──────────────────────────────────────────────── */
+
+.agent-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.agent-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+.agent-hinweis {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-top: 14px;
+}
+
+.agent-link { display: inline-block; min-height: 44px; line-height: 28px; text-decoration: none; }

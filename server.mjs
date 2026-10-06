@@ -44,6 +44,11 @@ const M365_CLIENT_ID    = ENV.M365_CLIENT_ID    || '';
 const M365_CLIENT_SECRET= ENV.M365_CLIENT_SECRET|| '';
 const M365_USER         = ENV.M365_USER         || '';
 const INBOX_TOKEN       = ENV.INBOX_TOKEN       || '';
+/* P2-10: Der n8n-Schluessel bleibt SERVERSEITIG. Er darf nie in eine
+   Antwort an den Browser geraten — derselbe Grundsatz wie beim
+   CORE_SERVICE_TOKEN. Die Route unten liefert ausschliesslich
+   aufbereitete Felder, niemals die Rohantwort von n8n. */
+const N8N_API_KEY       = ENV.N8N_API_KEY       || '';
 
 // ── Postgres Pool (Sprint 3 — Instagram drafts) ─────────────────────────────
 const dbPool = ENV.POSTGRES_URL
@@ -2415,6 +2420,123 @@ app.get('/api/dashboard/status', auth, async (_req, res) => {
     }
     res.status(503).json({ error: e.message });
   }
+});
+
+// ── API: Agentenübersicht (P2-10, Owner-Entscheidung Nr. 5) ─────────────────
+//
+// Lesender Proxy auf die n8n-REST-API. Alles, was hier zurückkommt, ist
+// zusammengestellt — die Rohantwort von n8n geht NICHT an den Browser:
+// sie enthält die vollständigen Workflow-Definitionen samt Knotenparametern,
+// und dort können Zugangsdaten stehen.
+//
+// Kein Schreibzugriff: weder Aktivieren noch Ausführen. Kein GRANT auf die
+// n8n-Datenbank (die ist für den `openclaw`-User bewusst gesperrt).
+
+const N8N_BASIS = 'http://127.0.0.1:5678/api/v1';
+
+async function n8nLesen(pfad) {
+  if (!N8N_API_KEY) throw new Error('N8N_API_KEY ist nicht konfiguriert');
+  const r = await fetch(N8N_BASIS + pfad, {
+    headers: { 'X-N8N-API-KEY': N8N_API_KEY, 'Accept': 'application/json' },
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!r.ok) throw new Error('n8n antwortete mit ' + r.status);
+  return r.json();
+}
+
+/* Zeitplan eines Schedule-Trigger-Knotens in einen Satz übersetzen.
+   n8n legt die Regel als `rule.interval` ab; ohne `field` gilt „täglich". */
+function n8nZeitplanText(knoten) {
+  const regeln = [];
+  for (const n of knoten || []) {
+    if (!String(n.type || '').includes('scheduleTrigger')) continue;
+    for (const i of (n.parameters?.rule?.interval || [])) {
+      const stunde = i.triggerAtHour;
+      const minute = i.triggerAtMinute;
+      if (i.field === 'cronExpression' && i.expression) {
+        regeln.push('Zeitplan ' + i.expression);
+      } else if (stunde !== undefined) {
+        regeln.push('täglich ' + String(stunde).padStart(2, '0') + ':'
+          + String(minute || 0).padStart(2, '0'));
+      } else if (i.field) {
+        regeln.push('Intervall ' + i.field);
+      }
+    }
+  }
+  return regeln.length ? regeln.join(', ') : null;
+}
+
+app.get('/api/agents/workflows', auth, async (_req, res) => {
+  const antwort = {
+    workflows: null,
+    workflows_fehler: null,
+    ausfuehrungen: null,
+    ausfuehrungen_fehler: null,
+    freigaben: null,
+    freigaben_fehler: null,
+    abgerufen: new Date().toISOString(),
+  };
+
+  try {
+    const d = await n8nLesen('/workflows');
+    const liste = Array.isArray(d) ? d : (d.data || []);
+    antwort.workflows = liste.map(w => ({
+      id: w.id,
+      name: w.name,
+      aktiv: w.active === true,
+      archiviert: w.isArchived === true,
+      geaendert: w.updatedAt || null,
+      erstellt: w.createdAt || null,
+      /* `triggerCount` ist n8ns Zähler der AKTIVEN Trigger, nicht der Läufe. */
+      aktive_trigger: typeof w.triggerCount === 'number' ? w.triggerCount : null,
+      zeitplan: n8nZeitplanText(w.nodes),
+      knoten: Array.isArray(w.nodes) ? w.nodes.length : null,
+      marken: (w.tags || []).map(t => t.name || String(t)),
+    }));
+  } catch (e) {
+    antwort.workflows_fehler = e.message;
+  }
+
+  try {
+    const d = await n8nLesen('/executions?limit=20');
+    const liste = Array.isArray(d) ? d : (d.data || []);
+    antwort.ausfuehrungen = liste.map(a => ({
+      id: a.id,
+      workflow_id: a.workflowId ?? null,
+      status: a.status || null,
+      gestartet: a.startedAt || null,
+      beendet: a.stoppedAt || null,
+      modus: a.mode || null,
+    }));
+  } catch (e) {
+    antwort.ausfuehrungen_fehler = e.message;
+  }
+
+  /* Offene Freigaben kommen NICHT aus n8n, sondern aus der eigenen Tabelle
+     `approval_tokens`. Nur Zählwerte und Zeitpunkte — kein Token, kein Inhalt. */
+  if (dbPool) {
+    try {
+      const { rows } = await dbPool.query(
+        `SELECT count(*) FILTER (WHERE used_at IS NULL AND superseded_at IS NULL AND expires_at > now()) AS offen,
+                count(*) FILTER (WHERE used_at IS NOT NULL) AS verwendet,
+                count(*) AS gesamt,
+                max(created_at) AS letzte
+           FROM approval_tokens`);
+      const r = rows[0] || {};
+      antwort.freigaben = {
+        offen: Number(r.offen || 0),
+        verwendet: Number(r.verwendet || 0),
+        gesamt: Number(r.gesamt || 0),
+        letzte: r.letzte ? new Date(r.letzte).toISOString() : null,
+      };
+    } catch (e) {
+      antwort.freigaben_fehler = e.message;
+    }
+  } else {
+    antwort.freigaben_fehler = 'Keine Datenbankverbindung konfiguriert';
+  }
+
+  res.json(antwort);
 });
 
 // ── API: Tagesuebersicht — Umfeld (Standort, Sonne/Mond, Wetter) ────────────
