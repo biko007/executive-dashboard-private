@@ -2665,7 +2665,8 @@ function spDatei(roh) {
     id: roh.id != null ? String(roh.id) : '',
     name: roh.name || '',
     url: url,
-    ansichtUrl: spAnsichtUrl(url),
+    dokumentUrl: spDokumentUrl(url),
+    ordnerUrl: spOrdnerUrl(url),
     pfad: pfad,
     ordner: i > 0 ? pfad.slice(0, i) : '',
     geaendertAm: roh.last_modified_at || null,
@@ -2675,45 +2676,58 @@ function spDatei(roh) {
   };
 }
 
-/* Wandelt eine SharePoint-DATEI-Adresse in die Adresse der Browser-Ansicht um.
-   (CP1-Nachbesserung 05.10.2026)
+/* ── A5 (Phase 3): Dokumentadresse und Ordneradresse ─────────────────────────
 
-   Befund: "Öffnen ↗" loeste bei PDF einen Download aus. Grund ist die Form der
-   in `web_url` gespeicherten Adresse. Gemessen an 125 Dateien des Bestands:
+   BEFUND CHECKPOINT 2: Beim I83-Mietvertrag landete man im Ordner `12-I83`,
+   beim S28-Mietvertrag in `11-S28/Mietverträge` — also im Ordner, nicht im
+   Dokument.
 
-     123 Dateien  reine Datei-Adresse ohne Query
-                  .../Freigegebene%20Dokumente/12-I83/....pdf
-       2 Dateien  bereits eine Ansichts-Adresse (Office-Dokumente)
-                  .../_layouts/15/Doc.aspx?sourcedoc={GUID}&action=default
+   URSACHE: In der CP1-Nachbesserung wurde aus der gespeicherten Dateiadresse
+   eine Adresse der Form
+     <Site>/_layouts/15/Doc.aspx?sourcedoc=<Pfad>&action=default
+   gebaut. Drei Dinge daran sind falsch:
+     1. `Doc.aspx` ist der Einstieg der Office-Web-Anwendungen. Von den 12.089
+        Dateien im Index sind 5.733 PDF und 4.758 JPEG — fuer die ist er nicht
+        zustaendig.
+     2. Die 537 Adressen, die SharePoint SELBST als Ansichtsadresse geliefert
+        hat, tragen `sourcedoc={GUID}` UND `file=<Name>`. Die gebaute Adresse
+        hatte einen Pfad als `sourcedoc` und kein `file` — SharePoint kann das
+        Element damit nicht aufloesen und faellt auf den uebergeordneten Ordner
+        zurueck. Genau das hat der Owner gesehen.
+     3. Eine GUID liesse sich nicht nachbauen: `graph_item_id` ist im Index bei
+        12.088 von 12.089 Zeilen leer.
+   Die Messung, auf die sich die CP1-Nachbesserung berief, war ein curl-Aufruf
+   OHNE Anmeldung. Ein 403 mit `content-type: text/plain` ist dort die
+   Fehlerseite und sagt nichts ueber das Verhalten einer angemeldeten Sitzung.
 
-   Die reine Datei-Adresse ist ein Datei-Endpunkt — der Browser laedt herunter.
-   Nachgemessen mit `curl -D -` (unangemeldet, deshalb 403 bzw. 302, aber die
-   Art des Endpunkts ist eindeutig):
-
-     Datei-Adresse            -> HTTP 403, content-type text/plain
-     Datei-Adresse + ?web=1   -> HTTP 403, content-type text/plain  (keine Wirkung)
-     .../_layouts/15/Doc.aspx?sourcedoc=<Pfad>&action=default
-                              -> HTTP 302 nach .../_layouts/15/doc2.aspx?...
-                                 content-type text/html  = Viewer-Seite
-
-   Geprüft fuer pdf, jpg und mp4 — alle drei liefern den Viewer-Redirect.
-
-   Gebaut wird deshalb: <Site-Basis>/_layouts/15/Doc.aspx?sourcedoc=<serverrelativer
-   Pfad>&action=default. Die Site-Basis ist das erste Pfadsegmentpaar
-   (/sites/<name>, /teams/<name> oder /personal/<name>). Passt das Muster nicht
-   oder traegt die Adresse schon eine Query, bleibt sie unveraendert. */
-function spAnsichtUrl(webUrl) {
+   LOESUNG: Die vom Core gespeicherte `web_url` ist die Adresse, die Microsoft
+   Graph fuer DAS ELEMENT geliefert hat. Sie wird nicht mehr umgebaut:
+     - traegt sie schon eine Query (die 537 Office-Ansichtsadressen), bleibt sie
+       unveraendert;
+     - sonst wird `?web=1` angehaengt, der dokumentierte Hinweis „im Browser
+       oeffnen". Ignoriert SharePoint ihn, ist das Ergebnis dasselbe wie ohne —
+       in keinem Fall der falsche Ordner.
+   Zusaetzlich gibt es eine ausdrueckliche Aktion „Ordner oeffnen". */
+function spDokumentUrl(webUrl) {
   if (!spIstWebAdresse(webUrl)) return '';
   let u;
   try { u = new URL(String(webUrl)); } catch { return ''; }
-  // Bereits eine Ansichts-Adresse (Office-Dokumente) — nicht anfassen.
-  if (u.search) return webUrl;
-  const m = /^(\/(?:sites|teams|personal)\/[^/]+)\//.exec(u.pathname);
-  if (!m) return webUrl;
-  /* u.pathname ist bereits prozentkodiert; `sourcedoc` erwartet genau diese
-     Form. Dateinamen mit & # ? kommen im Bestand nicht vor (geprueft) und
-     wuerden hier auch kodiert ankommen. */
-  return u.origin + m[1] + '/_layouts/15/Doc.aspx?sourcedoc=' + u.pathname + '&action=default';
+  if (u.search) return webUrl;   // bereits eine Ansichtsadresse von SharePoint
+  u.searchParams.set('web', '1');
+  return u.toString();
+}
+
+/* Adresse des Ordners, in dem die Datei liegt: der Dateiname faellt weg.
+   Bei einer Ansichtsadresse mit Query ist der Ordner nicht ableitbar — dann
+   gibt es hier nichts, und die Aktion entfaellt. */
+function spOrdnerUrl(webUrl) {
+  if (!spIstWebAdresse(webUrl)) return '';
+  let u;
+  try { u = new URL(String(webUrl)); } catch { return ''; }
+  if (u.search) return '';
+  const i = u.pathname.lastIndexOf('/');
+  if (i <= 0) return '';
+  return u.origin + u.pathname.slice(0, i);
 }
 
 /* Nur echte Web-Adressen werden verlinkt. Alles andere — fehlender Wert oder
@@ -2729,19 +2743,27 @@ function spIstWebAdresse(url) {
   } catch { return false; }
 }
 
+/* A5: Zwei getrennte, ausdruecklich benannte Aktionen. „Dokument oeffnen"
+   fuehrt auf die von SharePoint gelieferte Adresse DES ELEMENTS, „Ordner
+   oeffnen" auf den uebergeordneten Ordner. Was nicht erreichbar ist, wird als
+   deaktivierte Aktion mit Grund dargestellt — nie als toter Link. */
 function spOeffnenAktion(url) {
   if (!spIstWebAdresse(url)) {
     const grund = url
       ? 'Die im Index gespeicherte Adresse ist keine Web-Adresse.'
-      : 'Für dieses Dokument ist im Index keine SharePoint-Adresse gespeichert.';
+      : 'Für diesen Eintrag ist im Index keine SharePoint-Adresse gespeichert.';
     return `<span class="sp-aktion-aus" title="${esc(grund)}">Kein Link verfügbar</span>`;
   }
-  /* Verlinkt die Browser-Ansicht, nicht den Datei-Endpunkt — sonst laedt der
-     Browser die Datei herunter statt sie anzuzeigen (CP1-Nachbesserung). */
-  const ziel = spAnsichtUrl(url) || url;
-  return `<a href="${esc(ziel)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
-     title="Öffnet die SharePoint-Ansicht im Browser"
-     style="color:var(--accent);font-size:13px">Öffnen ↗</a>`;
+  const dok = spDokumentUrl(url) || url;
+  const ordner = spOrdnerUrl(url);
+  return `<div class="sp-aktionen">
+    <a href="${esc(dok)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+       title="Öffnet das Dokument in SharePoint">Dokument öffnen ↗</a>`
+    + (ordner
+        ? `<a href="${esc(ordner)}" target="_blank" rel="noopener" onclick="event.stopPropagation()"
+       class="sp-aktion-zweit" title="Öffnet den Ordner, in dem das Dokument liegt">Ordner öffnen ↗</a>`
+        : '')
+    + `</div>`;
 }
 
 function spNameOderHinweis(eintrag) {
