@@ -1125,12 +1125,42 @@ function imgUrl(entityType, entityId) {
   return `/dashboard/api/images/${entityType}-${entityId}.jpg?token=${encodeURIComponent(TOKEN)}&_t=${Date.now()}`;
 }
 
+/* D4 (Phase 3): Kachel ohne Foto.
+   BEFUND CHECKPOINT 2: Objektkarten ohne Foto zeigten eine leere Flaeche von
+   rund 200 px — schmal 4:3 der Kachelbreite, ab 640 px feste 240 px. Darin
+   stand nur ein Kamerasymbol.
+   JETZT: Schlaegt das Laden fehl, bekommt die Flaeche die Klasse
+   `bild-leer`; die Stilvorlage macht daraus einen flachen Streifen von 48 px
+   mit Symbol und Beschriftung "Foto hinzufügen". Die Flaeche bleibt
+   anklickbar und erfuellt mit 48 px das Mindestmass von 44 px. */
+function bildFehlt(img) {
+  img.style.display = 'none';
+  const platzhalter = img.nextElementSibling;
+  if (platzhalter) platzhalter.style.display = 'flex';
+  const wrap = img.parentElement;
+  if (wrap) wrap.classList.add('bild-leer');
+}
+
+/* D4: Der Server antwortet auf ein FEHLENDES Bild mit HTTP 200 und einem
+   1x1 grossen, durchsichtigen PNG (nachgemessen: 67 Byte, image/png).
+   `onerror` wird dadurch NIE ausgeloest — deshalb erschien bisher nicht einmal
+   das Kamerasymbol, sondern eine vollstaendig leere Flaeche. Ein Bild mit
+   einem Pixel Kantenlaenge gilt hier deshalb als "kein Bild". */
+function bildVorhanden(img) {
+  if (img.naturalWidth <= 1 || img.naturalHeight <= 1) { bildFehlt(img); return; }
+  img.style.display = 'block';
+  const platzhalter = img.nextElementSibling;
+  if (platzhalter) platzhalter.style.display = 'none';
+  const wrap = img.parentElement;
+  if (wrap) wrap.classList.remove('bild-leer');
+}
+
 function entityImgHtml(entityType, entityId, cssClass) {
   const cls = cssClass || 'entity-img-wrap';
   const src = imgUrl(entityType, entityId);
   return `<div class="${cls}" onclick="triggerImgUpload(this,'${esc(entityType)}','${esc(entityId)}')">
-    <img src="${src}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" style="display:block">
-    <div class="img-placeholder" style="display:none">📷</div>
+    <img src="${src}" alt="" onerror="bildFehlt(this)" onload="bildVorhanden(this)" style="display:block">
+    <div class="img-placeholder" style="display:none"><span aria-hidden="true">📷</span><span class="img-platzhalter-text">Foto hinzufügen</span></div>
     <input type="file" accept="image/*" onchange="uploadImage(this,'${esc(entityType)}','${esc(entityId)}')">
   </div>`;
 }

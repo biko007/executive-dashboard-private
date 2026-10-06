@@ -83,6 +83,31 @@
 }
 .entity-tile__image input[type=file] { display: none; }
 
+/* ── D4 (Phase 3): Kachel ohne Foto ────────────────────────────────────────
+   Eine Kachel ohne Bild zeigte eine leere Flaeche von rund 200 px mit einem
+   Kamerasymbol darin. Fehlt das Bild, wird die Flaeche jetzt zu einem flachen
+   Streifen. 48 px halten das Mindestmass fuer Beruehrungsziele ein, weil die
+   Flaeche den Bild-Upload startet. */
+.entity-tile__image.bild-leer,
+.entity-img-wrap.bild-leer {
+  aspect-ratio: auto;
+  height: 48px;
+  min-height: 48px;
+}
+@media (min-width: 640px) {
+  .entity-tile__image.bild-leer { height: 48px; }
+}
+.bild-leer .img-placeholder {
+  font-size: 15px;
+  gap: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.img-platzhalter-text { font-size: 13px; }
+/* Nur im flachen Streifen steht der Text; in der grossen Flaeche (z. B. in
+   einer Detailansicht) bleibt das Symbol allein. */
+.img-placeholder .img-platzhalter-text { display: none; }
+.bild-leer .img-placeholder .img-platzhalter-text { display: inline; }
+
 /* ── Body ── */
 .entity-tile__body {
   padding: 14px 16px 16px;
