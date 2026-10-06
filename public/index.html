@@ -577,6 +577,19 @@ nav button { min-height: 44px; min-width: 44px; }
 
 /* A7 (Phase 3): Herkunft der Dienstezustände über der Tabelle. */
 .status-herkunft { font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.5; }
+/* C3 (Phase 3): Diagnose-Abschnitt — eingeklappt, technische Angaben gebündelt. */
+.diag { margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.diag summary {
+  list-style: none; cursor: pointer; font-size: 13px; color: var(--muted);
+  min-height: 44px; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+}
+.diag summary::-webkit-details-marker { display: none; }
+.diag summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
+.diag[open] summary::before { transform: rotate(90deg); }
+.diag-inhalt { padding: 0 14px 14px; }
+.diag-zeile { padding: 8px 0; border-top: 1px solid var(--border); }
+.diag-titel { font-size: 13px; font-weight: 600; }
+.diag-text { font-size: 13px; color: var(--muted); line-height: 1.55; overflow-wrap: anywhere; }
 .status-abrufzeit { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
 
 .bank-umsaetze { margin-top: 16px; }
@@ -3532,7 +3545,7 @@ async function loadInstagram() {
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:13px;font-weight:600"
-            title="Quelle: Core /api/system-status (Tabelle insta_tokens)">🔑 ${esc(tokenText)}</span>
+            title="Restlaufzeit des Meta-Zugangs. Quelle: Systemstatus.">🔑 ${esc(tokenText)}</span>
       <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:not-allowed"
               disabled title="Abgleich wird nicht aus dem Dashboard ausgelöst. Befehl /instasync im Telegram-Bot.">↻ Abgleich nur per /instasync</button>
     </div>
@@ -3620,12 +3633,12 @@ async function loadInstagram() {
 
       <div class="card card-pad" style="margin-bottom:16px">
         <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Top-Beiträge</div>
-        ${keineAktuellenDaten(medienStand, 'Eine Auswertung der Beitragsleistung gibt es erst nach einem neuen Abgleich (P2-7).')}
+        ${keineAktuellenDaten(medienStand, 'Eine Auswertung der Beitragsleistung gibt es erst nach einem neuen Abgleich.')}
       </div>
 
       <div class="card card-pad">
         <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Quick Insights</div>
-        ${keineAktuellenDaten(medienStand, 'Beste Posting-Zeit, Top-Format und Wachstum werden erst nach einem neuen Abgleich berechnet (P2-7).')}
+        ${keineAktuellenDaten(medienStand, 'Beste Zeit zum Veröffentlichen, bestes Format und Wachstum werden erst nach einem neuen Abgleich berechnet.')}
       </div>`;
   }
 
@@ -3728,7 +3741,7 @@ async function loadInstagram() {
       zustand: tokenZustand === 'getrennt' ? 'getrennt' : (tokenZustand === 'degradiert' ? 'degradiert' : 'aktuell'),
       stand: new Date().toISOString(),
       hinweis: metaToken
-        ? 'Restlaufzeit ' + metaToken.days_remaining + ' Tage — Quelle: Core, Tabelle insta_tokens.'
+        ? 'Restlaufzeit ' + metaToken.days_remaining + ' Tage. Quelle: Systemstatus.'
         : 'Restlaufzeit nicht ermittelbar — Status-Quelle nicht erreichbar.' },
   ]);
 }
@@ -4536,9 +4549,8 @@ async function loadAgents() {
       + (d.ausfuehrungen_fehler || 'unbekannter Grund') + '.');
   } else if (!laeufe.length) {
     laufHtml = zustandBlock('keine_daten',
-      'Keine Ausführungen aufgezeichnet. n8n führt derzeit keinen Workflow aus — '
-      + 'alle sind inaktiv (Owner-Entscheidung Nr. 1: n8n wird nicht reaktiviert). '
-      + 'Das ist keine Aussage darüber, dass alles in Ordnung ist.');
+      'Keine Ausführungen aufgezeichnet. Alle Workflows sind abgeschaltet und laufen '
+      + 'deshalb nicht. Das ist keine Aussage darüber, dass alles in Ordnung ist.');
   } else {
     laufHtml = `<table class="data-table" data-tabelle="karten">
       <thead><tr><th>Workflow</th><th>Ergebnis</th><th>Start</th><th>Ende</th></tr></thead>
@@ -4581,7 +4593,7 @@ async function loadAgents() {
       <div class="heute-kopf"><h2 class="heute-titel">Freigaben im Dashboard</h2></div>
       ${freigabeHtml}
       <div class="agent-hinweis">Genehmigungen für ändernde Vorgänge in Fuhrpark, Immobilien
-        und Banking. Quelle: Tabelle <code>approval_tokens</code>.</div>
+        und Banking.</div>
     </section>
 
     <section class="card card-pad heute-block">
@@ -4601,7 +4613,7 @@ async function loadAgents() {
         ? wf.length + ' Workflows, ' + wf.filter(w => w.aktiv).length + ' davon aktiv. '
           + 'Lesender Abruf über die n8n-API.'
         : 'Workflow-Liste nicht abrufbar.' },
-    { quelle: 'Freigaben (approval_tokens)', live: !!f,
+    { quelle: 'Freigaben im Dashboard', live: !!f,
       zustand: f ? 'erreichbar' : 'getrennt',
       stand: d.abgerufen,
       hinweis: f ? f.offen + ' offene Freigaben.' : 'Nicht abrufbar.' },
@@ -4878,6 +4890,68 @@ function fmtUptime(sec) {
   return h > 0 ? h + 'h ' + m + 'm' : m + 'm';
 }
 
+/* ── C3 (Phase 3): Abschnitt „Diagnose" ──────────────────────────────────────
+   BEFUND CHECKPOINT 2: Im Nutzerfluss standen Paketnummern ("P2-7"),
+   Entscheidungsnummern ("Owner-Entscheidung Nr. 1"), Tabellennamen
+   (insta_tokens, approval_tokens, Vorgangstabelle) und Erläuterungen darüber,
+   welche Speicherung fehlt. Das sind Angaben für die Fehlersuche, nicht für die
+   Arbeit mit der Anwendung.
+
+   Die Fachbereiche sagen jetzt in einem Satz, was gilt. Die technischen Angaben
+   stehen gebündelt hier — eingeklappt, damit die Statusseite nicht länger wird
+   als nötig. */
+function diagnoseAbschnitt(d) {
+  const zeile = (titel, text) =>
+    '<div class="diag-zeile"><div class="diag-titel">' + esc(titel) + '</div>'
+    + '<div class="diag-text">' + esc(text) + '</div></div>';
+
+  const dienste = (d.services || []);
+  const quellen = dienste.map(x =>
+    x.name + ': ' + (x.source === 'live' ? 'Live-Prüfung' : 'gespeicherter Zustand')
+  ).join(' · ');
+
+  return '<details class="diag">'
+    + '<summary>Diagnose — technische Angaben zur Fehlersuche</summary>'
+    + '<div class="diag-inhalt">'
+    + zeile('Wozu dieser Abschnitt',
+        'Hier stehen die Angaben, die bei einer Störung weiterhelfen. Für die normale '
+        + 'Arbeit mit dem Dashboard sind sie nicht nötig.')
+    + zeile('Herkunft der Dienstezustände', quellen || 'keine Dienste gemeldet')
+    + zeile('Zwischenspeicher Systemstatus',
+        'Höchstalter 30 Sekunden; aktuell ' + (d._cache_alter_s ?? '?') + ' s. '
+        + 'Abrufzeit ' + (d.timestamp ? fmtDT(d.timestamp) : 'unbekannt') + '.')
+    + zeile('Token-Laufzeit',
+        'Die Restlaufzeit des Meta-Zugangs kommt aus der Tabelle insta_tokens '
+        + 'über den Systemstatus des Core. Der Wert im Instagram-Kopf stammt aus '
+        + 'derselben Quelle.')
+    + zeile('Offene Vorgänge',
+        'Gezählt wird die Tabelle workflows im Core. Sie ist derzeit leer; eine 0 ist '
+        + 'deshalb keine Aussage über den Zustand von n8n.')
+    + zeile('Freigaben',
+        'Die Zahlen im Bereich Automatisierung kommen aus der Tabelle approval_tokens. '
+        + 'Angezeigt werden nur Zählwerte und Zeitpunkte, nie ein Token.')
+    + zeile('Automatischer Abgleich',
+        'Abgeschaltet (Owner-Entscheidung Nr. 1 vom 04.10.2026). Betroffen sind Banking, '
+        + 'SharePoint und Instagram. Der Abgleich läuft nur auf ausdrückliche Anforderung.')
+    + zeile('Instagram-Demodaten',
+        'Die früheren Beispielzahlen in „Top-Beiträge" und „Quick Insights" sind '
+        + 'ausgeblendet (Owner-Entscheidung Nr. 2). Eine echte Auswertung braucht einen '
+        + 'neuen Medienabgleich.')
+    + zeile('Mehrere Mieterdatensätze auf denselben Namen',
+        'Beabsichtigt (Owner-Entscheidung Nr. 4): der Eigentümer ist Hauptmieter temporär '
+        + 'vermieteter Wohnungen. Die Datensätze werden nicht zusammengeführt.')
+    + zeile('Änderungen seit dem letzten Besuch',
+        'Nicht umgesetzt. Es gibt weder eine Tabelle noch einen anderen Mechanismus, der '
+        + 'Besuche oder Unterschiede festhält; jede Umsetzung wäre eine neue Speicherung '
+        + 'und bedarf einer Entscheidung.')
+    + zeile('§556-Fristen',
+        'Die Tabelle nk_period_obligations ist leer, und der Core legt dort nichts '
+        + 'selbsttätig an (nur SELECT und UPDATE). Ein fehlender Eintrag ist deshalb kein '
+        + 'Nachweis, dass keine Abrechnungspflicht besteht.')
+    + zeile('Zeitzone', 'Alle Datums- und Uhrzeitangaben in Europe/Berlin.')
+    + '</div></details>';
+}
+
 async function loadStatus() {
   if (_statusRefresh) { clearInterval(_statusRefresh); _statusRefresh = null; }
   const c = document.getElementById('content');
@@ -4983,12 +5057,12 @@ async function loadStatus() {
         <div class="s-card">
           <div class="lbl">Token-Laufzeit</div>
           <div class="val" style="font-size:16px">${tokenHtml}</div>
-          <div class="sub">Quelle: Tabelle insta_tokens</div>
+          <div class="sub">Zugang zu Instagram über Meta</div>
         </div>
         <div class="s-card">
           <div class="lbl">Offene Vorgänge</div>
           <div class="val" style="font-size:16px">${wfCount}</div>
-          <div class="sub">${wfTypes || 'keine Einträge in der Vorgangstabelle — kein Hinweis auf den Zustand von n8n'}</div>
+          <div class="sub">${wfTypes || 'keine offenen Vorgänge erfasst — das sagt nichts über den Zustand der Automatisierung'}</div>
         </div>
       </div>
       ${d._stale
@@ -4997,6 +5071,7 @@ async function loadStatus() {
           + '<div class="ds-leer-sub">Angezeigt wird ein zwischengespeicherter Stand von vor '
           + esc(String(d._cache_alter_s ?? '?')) + ' Sekunden. Die Zustände sind nicht bestätigt.</div></div></div>'
         : ''}
+      ${diagnoseAbschnitt(d)}
     `;
     stamp();
     /* A7 (Phase 3): Die Leiste meldete "Live-Abruf" fuer die ganze Seite,

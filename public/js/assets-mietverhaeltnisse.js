@@ -213,15 +213,15 @@ function mietHauptmieterHtml(tenant, tenants, leases) {
     + '<div class="miet-hauptmieter-text">' + esc(
       'Zu „' + (tenant.name || '') + '" gibt es ' + (gleich.length + 1)
       + ' Mieterdatensätze mit derselben E-Mail, je einen pro Vertrag. '
-      + 'Das ist beabsichtigt: der Eigentümer ist Hauptmieter temporär vermieteter Wohnungen '
-      + 'und vermietet unter (Owner-Entscheidung Nr. 4 vom 04.10.2026). '
+      + 'Das ist beabsichtigt und vom Eigentümer bestätigt: er ist Hauptmieter temporär '
+      + 'vermieteter Wohnungen und vermietet unter. '
       + 'Kein Doppeleintrag — die Datensätze werden nicht zusammengeführt.'
       + (befristet ? ' ' + befristet + ' der Verträge sind als „Wohnung befristet" erfasst.' : ''))
     + '</div>'
     + '<div class="miet-hauptmieter-text">' + esc(
-      'Untermieter sind in den Daten nicht erfasst: die Verknüpfungstabelle kennt nur die '
-      + 'Rollen Vertragspartei, Bewohner und Bürge. Ein eigenes Untermietverhältnis zu '
-      + 'erfassen wäre eine Schemaänderung und damit eine Owner-Entscheidung.') + '</div>'
+      'Untermieter sind in den Daten nicht erfasst. Erfasst werden können nur die Rollen '
+      + 'Vertragspartei, Bewohner und Bürge; für ein eigenes Untermietverhältnis fehlt die '
+      + 'Rolle. Das lässt sich nicht in der Anzeige lösen.') + '</div>'
     + '</div>';
 }
 
@@ -436,8 +436,8 @@ async function mietKlaerungsbedarfRendern(zielId) {
             'Kennungen: ' + liste.map(t => t.tenant_code || '#' + t.id).join(', ')
             + '. Verträge: ' + (eindeutig.join(', ') || 'keine auffindbar') + '.') + '</div>'
           + '<div class="miet-eintrag-text">' + esc(
-            'Beabsichtigt: der Eigentümer ist Hauptmieter temporär vermieteter Wohnungen und '
-            + 'vermietet unter (Owner-Entscheidung Nr. 4). Nicht zusammenführen.') + '</div>'
+            'Beabsichtigt und bestätigt: der Eigentümer ist Hauptmieter temporär vermieteter '
+            + 'Wohnungen und vermietet unter. Nicht zusammenführen.') + '</div>'
           + '<button type="button" class="btn" onclick="assetsOpenTenantDrawer(' + erster.id + ')">'
           + 'Mieter öffnen</button></li>';
       }).join('') + '</ul>';

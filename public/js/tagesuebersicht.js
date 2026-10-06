@@ -605,7 +605,7 @@ async function loadHeute() {
     { quelle: 'Gesundheit (Oura, Withings)', stand: letzteHealthMessung, abgleich: letzteHealthMessung,
       schwelleTage: 2,
       zustand: Array.isArray(health) ? undefined : 'getrennt',
-      hinweis: 'Automatischer Abgleich ist abgeschaltet (Owner-Entscheidung Nr. 1).' },
+      hinweis: 'Ein automatischer Abgleich findet nicht statt.' },
     { quelle: 'Bankkonten (FinTS)', stand: letzterKontoAbgleich, abgleich: letzterKontoAbgleich,
       zustand: Array.isArray(konten) ? undefined : 'getrennt',
       /* A2 (Phase 3): Der Owner hielt den Verbindungsaufbau vom 05.10.2026 für
@@ -650,15 +650,15 @@ async function loadHeute() {
             + 'sondern eine nicht in Betrieb genommene Funktion.'
           : pflichtenGesamt + ' Pflichten erfasst.' },
     { titel: 'Änderungen seit dem letzten Besuch',
-      text: 'Nicht umgesetzt. Es gibt weder eine Tabelle noch einen Mechanismus, der Besuche '
-        + 'festhält; jede Umsetzung braucht eine neue Speicherung. Entscheidung liegt beim Owner.' },
+      text: 'Nicht umgesetzt. Dafür müsste festgehalten werden, wann Sie zuletzt hier waren — '
+        + 'eine solche Speicherung gibt es nicht und sie wurde noch nicht entschieden.' },
     { titel: 'Automatischer Abgleich',
-      text: 'Abgeschaltet (Owner-Entscheidung Nr. 1). Banking, SharePoint und Instagram werden '
-        + 'nicht selbsttätig aktualisiert; das Alter der Daten steht oben.' },
+      text: 'Abgeschaltet. Banking, SharePoint und Instagram werden nicht selbsttätig '
+        + 'aktualisiert; das Alter der Daten steht oben.' },
     { titel: 'Offene Vorgänge',
       text: status && status.workflows
-        ? 'Die Vorgangstabelle enthält ' + (status.workflows.pending || 0)
-          + ' Einträge. Das ist keine Aussage über den Zustand von n8n — siehe Bereich Agents.'
+        ? (status.workflows.pending || 0) + ' offene Vorgänge erfasst. Das ist keine Aussage '
+          + 'über den Zustand der Automatisierung — siehe Bereich Automatisierung.'
         : 'Nicht abrufbar.' },
   ];
 
