@@ -103,7 +103,10 @@ function composeUrl(endpointKey, pathParams) {
 function _assetsApiFetch(url, opts = {}) {
   const sep = url.includes('?') ? '&' : '?';
   const fullUrl = '/dashboard' + url + sep + 'token=' + encodeURIComponent(TOKEN);
-  return fetch(fullUrl, {
+  /* A1 (Phase 3): netzFetch begrenzt gleichzeitige Anfragen und wiederholt
+     einen reinen Netzfehler — aber nur bei GET/HEAD. Schreibwege werden nie
+     automatisch wiederholt. Siehe js/netz.js. */
+  return netzFetch(fullUrl, {
     credentials: 'include',
     ...opts,
   });
@@ -295,7 +298,7 @@ document.addEventListener('alpine:init', () => {
         this.close();
         if (this._resolve) this._resolve(result);
       } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
+        Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
         if (this._reject) this._reject(e);
       }
     },
@@ -466,7 +469,7 @@ document.addEventListener('alpine:init', () => {
 
         this.loading = false;
       } catch (e) {
-        this.error = e.message;
+        this.error = netzFehlerText(e);
         this.loading = false;
       }
     },
@@ -528,7 +531,7 @@ async function approvalMutation(endpointKey, httpMethod, pathParams, body, optio
 
     return result;
   } catch (e) {
-    toast.error('Fehler: ' + e.message);
+    toast.error('Fehler: ' + netzFehlerText(e));
     throw e;
   }
 }

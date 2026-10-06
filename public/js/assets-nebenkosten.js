@@ -12,6 +12,16 @@ function fmtOwnerType(raw) {
   return raw || '\u2013';
 }
 
+/* A1 (Phase 3): Verweis auf die laufende Nebenkosten-Komponente fuer die
+   Schaltflaeche "Erneut versuchen" in einem Fehlerblock. */
+let _nebenkostenTab = null;
+
+async function assetsNebenkostenErneut() {
+  if (!_nebenkostenTab) return;
+  await _nebenkostenTab.loadProperties();
+  if (!_nebenkostenTab.ladeFehlerText) _nebenkostenTab.renderContent();
+}
+
 document.addEventListener('alpine:init', () => {
 
   Alpine.data('nebenkostenTab', () => ({
@@ -19,6 +29,8 @@ document.addEventListener('alpine:init', () => {
     properties: [],
 
     async init() {
+      /* A1: Verweis fuer "Erneut versuchen" (siehe unten). */
+      _nebenkostenTab = this;
       if (this.loaded) return;
       this.loaded = true;
       await this.loadProperties();
@@ -30,11 +42,19 @@ document.addEventListener('alpine:init', () => {
 
     async loadProperties() {
       const csrf = Alpine.store('csrf');
+      this.ladeFehlerText = null;
       try {
         const res = await csrf.fetch('/api/assets/properties');
         this.properties = res.ok ? await res.json() : [];
       } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
+        /* A1 (Phase 3): Fehler im Bereich zeigen, nicht nur als Kurzmeldung. */
+        this.ladeFehlerText = 'Die Objekte sind nicht abrufbar: ' + netzFehlerText(e);
+        Alpine.store('toast').error(this.ladeFehlerText);
+        const target = this.$refs.nebenkostenContent;
+        if (target) {
+          target.innerHTML = zustandBlock('fehler', this.ladeFehlerText,
+            { aktion: netzWiederholenKnopf('assetsNebenkostenErneut()') });
+        }
       }
     },
 
@@ -251,7 +271,7 @@ async function nkLoadPreCheck() {
     target.innerHTML = '<div class="ds-leerzustand">'
       + '<span class="ds-leer-symbol" aria-hidden="true">⚠️</span><div>'
       + '<div class="ds-leer-titel">Prüfung konnte nicht geladen werden</div>'
-      + '<div class="ds-leer-sub">' + esc(e.message)
+      + '<div class="ds-leer-sub">' + esc(netzFehlerText(e))
       + ' — der Bereitschaftszustand ist damit unbekannt, nicht in Ordnung.</div>'
       + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="nkLoadPreCheck()">Erneut versuchen</button></div>'
@@ -367,7 +387,7 @@ async function nkLoadPreview() {
 
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Vorschau berechnen'; }
   }
@@ -478,7 +498,7 @@ async function nkLoadRuns() {
     html += '</tbody></table>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -551,7 +571,7 @@ async function nkShowRunDetail(runId) {
     html += '</div>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -636,7 +656,7 @@ async function nkToggleStatementItems(statementId) {
     html += '</tbody></table>';
     contentEl.innerHTML = html;
   } catch (e) {
-    contentEl.innerHTML = `<div class="alert alert-error" style="font-size:13px">${esc(e.message)}</div>`;
+    contentEl.innerHTML = `<div class="alert alert-error" style="font-size:13px">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -661,7 +681,7 @@ async function nkRerender(statementId) {
       setTimeout(() => nkShowRunDetail(nk.selectedRun.id), 2000);
     }
   } catch (e) {
-    Alpine.store('toast').error('Re-Render fehlgeschlagen: ' + e.message);
+    Alpine.store('toast').error('Re-Render fehlgeschlagen: ' + netzFehlerText(e));
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Re-Render'; }
   }
@@ -807,7 +827,7 @@ async function nkLoadObligationsForProperty() {
     target.innerHTML = '<div class="ds-leerzustand">'
       + '<span class="ds-leer-symbol" aria-hidden="true">\u26a0\ufe0f</span><div>'
       + '<div class="ds-leer-titel">\u00a7556-Fristen konnten nicht geladen werden</div>'
-      + '<div class="ds-leer-sub">' + esc(e.message)
+      + '<div class="ds-leer-sub">' + esc(netzFehlerText(e))
       + ' \u2014 der Pflichtenstand ist unbekannt, nicht unbedenklich.</div>'
       + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="nkLoadObligationsForProperty()">Erneut versuchen</button></div>'

@@ -132,7 +132,7 @@ document.addEventListener('alpine:init', () => {
         this.loading = false;
         this.$nextTick(() => this._renderList());
       } catch (e) {
-        this.error = e.message;
+        this.error = netzFehlerText(e);
         this.loading = false;
       }
     },

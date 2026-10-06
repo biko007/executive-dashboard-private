@@ -76,7 +76,7 @@ document.addEventListener('alpine:init', () => {
         const res = await csrf.fetch('/api/assets/properties');
         this.properties = res.ok ? await res.json() : [];
       } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
+        Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
       }
     },
 
@@ -196,7 +196,7 @@ async function loadNkReadiness() {
           <div class="nk-matrix-sub">${esc(ampel.lang)}</div>`;
       } catch (e) {
         /* Ladefehler ist nicht "bereit" und nicht "keine Befunde". */
-        cell.innerHTML = '<span class="nk-badge nk-badge-grau" title="' + esc(e.message || 'Abruf fehlgeschlagen')
+        cell.innerHTML = '<span class="nk-badge nk-badge-grau" title="' + esc(netzFehlerText(e))
           + '">Nicht abrufbar</span>';
       }
     }
@@ -241,7 +241,7 @@ async function showNkFindings(propertyId, year) {
     target.innerHTML = '<div class="card card-pad"><div class="ds-leerzustand">'
       + '<span class="ds-leer-symbol" aria-hidden="true">\u26a0\ufe0f</span><div>'
       + '<div class="ds-leer-titel">Befunde konnten nicht geladen werden</div>'
-      + '<div class="ds-leer-sub">' + esc(e.message)
+      + '<div class="ds-leer-sub">' + esc(netzFehlerText(e))
       + ' \u2014 der Bereitschaftszustand ist unbekannt, nicht in Ordnung.</div>'
       + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
       + ' onclick="showNkFindings(\'' + esc(propertyId) + '\', ' + Number(year) + ')">Erneut versuchen</button></div>'
@@ -313,6 +313,6 @@ async function loadAuditLog(append) {
       _auditOffset += entries.length;
     }
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }

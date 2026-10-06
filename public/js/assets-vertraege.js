@@ -4,6 +4,14 @@
    Sprint 5.5a-2 Stages c-e
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* A1 (Phase 3): Verweis auf die laufende Vertraege-Komponente fuer die
+   Schaltflaeche "Erneut versuchen" in einem Fehlerblock. */
+let _vertraegeTab = null;
+
+function assetsVertraegeErneut() {
+  if (_vertraegeTab) _vertraegeTab.loadData();
+}
+
 document.addEventListener('alpine:init', () => {
 
   Alpine.data('vertraegeTab', () => ({
@@ -18,6 +26,8 @@ document.addEventListener('alpine:init', () => {
     searchTenant: '',
 
     async init() {
+      /* A1: Verweis fuer "Erneut versuchen" (siehe unten). */
+      _vertraegeTab = this;
       if (this.loaded) return;
       this.loaded = true;
       await this.loadData();
@@ -36,7 +46,15 @@ document.addEventListener('alpine:init', () => {
         this.costCategories = catsRes.ok ? await catsRes.json() : [];
         this.renderContent();
       } catch (e) {
-        Alpine.store('toast').error('Fehler: ' + e.message);
+        /* A1 (Phase 3): vorher nur eine Kurzmeldung — der Bereich blieb leer
+           und sah wie "keine Daten" aus. */
+        const text = 'Vertraege, Objekte und Kostenarten sind nicht abrufbar: ' + netzFehlerText(e);
+        Alpine.store('toast').error(text);
+        const target = this.$refs.vertraegeContent;
+        if (target) {
+          target.innerHTML = zustandBlock('fehler', text,
+            { aktion: netzWiederholenKnopf('assetsVertraegeErneut()') });
+        }
       }
     },
 
@@ -430,7 +448,7 @@ async function assetsOpenLeaseDrawer(leaseId) {
 
     openDrawer(html);
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -602,7 +620,7 @@ async function loadExpenseBookings() {
     html += '</tbody></table>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -719,7 +737,7 @@ async function loadAllocationRules() {
 
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -735,7 +753,7 @@ async function loadAllocationShares(ruleId) {
     html += '</tbody></table></div>';
     Alpine.store('toast').info('Anteile geladen');
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -797,7 +815,7 @@ async function loadMeters() {
     html += '</tbody></table></div>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -976,7 +994,7 @@ async function loadBulkMeters() {
 
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 

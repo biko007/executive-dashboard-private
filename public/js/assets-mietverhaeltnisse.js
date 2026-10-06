@@ -53,7 +53,7 @@ async function mietDatenLaden(neuLaden) {
     MIET.tenants = tRes.ok ? await tRes.json() : [];
     MIET.fehler = null;
   } catch (e) {
-    MIET.fehler = e.message;
+    MIET.fehler = netzFehlerText(e);
   }
   MIET.geladen = true;
   return MIET;
@@ -300,7 +300,8 @@ async function mietKlaerungsbedarfRendern(zielId) {
   ziel.innerHTML = '<div class="spinner">Laden…</div>';
   const d = await mietDatenLaden(true);
   if (d.fehler) {
-    ziel.innerHTML = zustandBlock('fehler', 'Verträge und Mieter sind nicht abrufbar: ' + d.fehler);
+    ziel.innerHTML = zustandBlock('fehler', 'Verträge und Mieter sind nicht abrufbar: ' + d.fehler,
+      { aktion: netzWiederholenKnopf('mietKlaerungsbedarfRendern(\'' + zielId + '\')') });
     return;
   }
 

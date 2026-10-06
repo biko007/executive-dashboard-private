@@ -417,8 +417,8 @@ document.addEventListener('alpine:init', () => {
         if (acctRes.ok) this.accounts = await acctRes.json();
         this.meldeDatenstand();
       } catch (e) {
-        this.bankingError = e.message;
-        this.meldeDatenstand(e.message);
+        this.bankingError = netzFehlerText(e);
+        this.meldeDatenstand(netzFehlerText(e));
       }
       this.bankingLoading = false;
     },
@@ -1000,7 +1000,8 @@ async function bankingUmsaetzeRendern(konto, mehr) {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     zeilen = await res.json();
   } catch (e) {
-    ziel.innerHTML = zustandBlock('fehler', 'Die Umsätze sind nicht abrufbar: ' + e.message);
+    ziel.innerHTML = zustandBlock('fehler', 'Die Umsätze sind nicht abrufbar: ' + netzFehlerText(e),
+      { aktion: netzWiederholenKnopf('bankingUmsaetzeRendern(_bankUmsatzKonto, true)') });
     return;
   }
 

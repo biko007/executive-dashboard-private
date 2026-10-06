@@ -168,7 +168,7 @@ async function loadWizardEndMeters() {
     html += '</tbody></table>';
     target.innerHTML = html;
   } catch (e) {
-    target.innerHTML = `<div class="alert alert-error">${esc(e.message)}</div>`;
+    target.innerHTML = `<div class="alert alert-error">${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -556,7 +556,7 @@ async function commitChangeover() {
     Alpine.store('toast').success('Mieterwechsel erfolgreich abgeschlossen');
     showTab('assets');
   } catch (e) {
-    wiz.error = e.message || 'Fehler beim Mieterwechsel';
+    wiz.error = netzFehlerText(e) || 'Fehler beim Mieterwechsel';
     // Try to resolve error to affected step
     if (e.path) {
       if (e.path.includes('end_') || e.path.includes('termination') || e.path.includes('move_out')) wiz.errorStep = 1;

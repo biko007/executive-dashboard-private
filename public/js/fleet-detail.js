@@ -44,7 +44,7 @@ document.addEventListener('alpine:init', () => {
         this.loading = false;
         this.$nextTick(() => this._renderTab());
       } catch (e) {
-        this.error = e.message;
+        this.error = netzFehlerText(e);
         this.loading = false;
       }
     },
@@ -650,7 +650,7 @@ async function fleetSaveStammdaten(originalCode) {
       await _fleetReloadDetail();
     }
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -727,7 +727,7 @@ async function fleetSaveService(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -810,7 +810,7 @@ async function fleetSaveInsurance(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -888,7 +888,7 @@ async function fleetSaveTuev(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -960,7 +960,7 @@ async function fleetSaveTax(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -1035,7 +1035,7 @@ async function fleetSaveDocument(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }
@@ -1122,7 +1122,7 @@ async function fleetSaveTireSet(vehicleCode) {
     closeModal();
     await _fleetReloadDetail();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
     btn.disabled = false;
     btn.textContent = 'Speichern';
   }

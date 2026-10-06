@@ -738,6 +738,7 @@ pre, code { overflow-wrap: anywhere; }
 .summary-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 .insta-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 </style>
+<script defer src="/dashboard/js/netz.js"></script>
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
 <script defer src="/dashboard/js/begriffe.js"></script>
@@ -1006,10 +1007,13 @@ function zeigeAktivenTab(tab) {
   nav.scrollTo({ left: Math.max(0, links), behavior: 'smooth' });
 }
 
-/* ── Fetch helper ── */
+/* ── Fetch helper ──
+   A1 (Phase 3): Der eigentliche Abruf laeuft ueber netzFetch() — das begrenzt
+   gleichzeitige Anfragen und wiederholt einen reinen Netzfehler zweimal.
+   Siehe js/netz.js fuer den Befund und die belegte Ursache. */
 async function apiFetch(url, opts = {}) {
   const sep = url.includes('?') ? '&' : '?';
-  const res = await fetch('/dashboard' + url + sep + 'token=' + encodeURIComponent(TOKEN), opts);
+  const res = await netzFetch('/dashboard' + url + sep + 'token=' + encodeURIComponent(TOKEN), opts);
   if (res.status === 401) { logout(); throw new Error('401'); }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
@@ -1093,7 +1097,7 @@ async function uploadImage(input, entityType, entityId) {
       if (placeholder) placeholder.style.display = 'none';
     }
   } catch (e) {
-    meldung('Bild-Upload fehlgeschlagen: ' + e.message, 'error');
+    meldung('Bild-Upload fehlgeschlagen: ' + netzFehlerText(e), 'error');
     if (placeholder) { placeholder.textContent = '📷'; }
   }
   input.value = '';
@@ -1417,7 +1421,7 @@ async function loadTrips() {
     }
     c.innerHTML = html;
     stamp();
-  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 async function deleteTrip(id, name) {
@@ -1428,7 +1432,7 @@ async function deleteTrip(id, name) {
     if (!document.querySelector('.trip-card')) {
       document.getElementById('content').innerHTML = '<div class="empty">Keine Reisen.</div>';
     }
-  } catch(e) { meldung('Reise konnte nicht gelöscht werden: ' + e.message, 'error'); }
+  } catch(e) { meldung('Reise konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ── New trip ── */
@@ -1482,7 +1486,7 @@ async function createTrip() {
     closeModal();
     /* P2-8: landete vorher im Health-Bereich — jetzt dort, wo die neue Reise steht. */
     showTab('trips');
-  } catch(e) { dialogMeldung('Die Reise konnte nicht angelegt werden: ' + e.message); }
+  } catch(e) { dialogMeldung('Die Reise konnte nicht angelegt werden: ' + netzFehlerText(e)); }
 }
 
 /* ── Trip editing ── */
@@ -1543,7 +1547,7 @@ async function saveTrip(id) {
     });
     closeModal();
     showTab('health');
-  } catch(e) { dialogMeldung('Reise konnte nicht gespeichert werden: ' + e.message); }
+  } catch(e) { dialogMeldung('Reise konnte nicht gespeichert werden: ' + netzFehlerText(e)); }
 }
 
 function addSegmentModal(tripId) {
@@ -1604,7 +1608,7 @@ async function syncSegCal(tripId, segId) {
     const result = await apiFetch(`/api/trips/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(segId)}/calendar`, { method: 'POST' });
     if (result.skipped) { meldung('Kalendereintrag existiert bereits.', 'info'); }
     showTab('health');
-  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + e.message, 'error'); }
+  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + netzFehlerText(e), 'error'); }
 }
 
 async function syncAllSegCal(tripId) {
@@ -1613,7 +1617,7 @@ async function syncAllSegCal(tripId) {
     meldung(`Kalender-Abgleich: ${result.created} erstellt, ${result.skipped} vorhanden, ${result.failed} fehlgeschlagen.`,
             result.failed ? 'error' : 'success');
     showTab('health');
-  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + e.message, 'error'); }
+  } catch (e) { meldung('Kalender-Abgleich fehlgeschlagen: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -1761,7 +1765,7 @@ async function loadHealth() {
     if (hrvData.length >= 2) diagrammZeichnen('hrvChart', () => renderHrvChart(hrvData));
 
     stamp();
-  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 function renderWeightChart(data) {
@@ -1972,7 +1976,7 @@ async function loadDrafts() {
       <tbody>${rows}</tbody>
     </table></div><p style="color:var(--muted);font-size:13px;padding:4px 2px">Zeile klicken = Body einblenden</p>`;
     stamp();
-  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 function toggleDraft(id) {
@@ -2010,7 +2014,7 @@ async function saveDraft(id) {
     });
     closeModal();
     showTab('drafts');
-  } catch(e) { dialogMeldung('Entwurf konnte nicht gespeichert werden: ' + e.message); }
+  } catch(e) { dialogMeldung('Entwurf konnte nicht gespeichert werden: ' + netzFehlerText(e)); }
 }
 
 async function deleteDraft(id, subject) {
@@ -2018,7 +2022,7 @@ async function deleteDraft(id, subject) {
   try {
     await apiFetch(`/api/drafts/${encodeURIComponent(id)}`, { method: 'DELETE' });
     showTab('drafts');
-  } catch(e) { meldung('Entwurf konnte nicht gelöscht werden: ' + e.message, 'error'); }
+  } catch(e) { meldung('Entwurf konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2118,7 +2122,7 @@ async function loadCalendar() {
       hinweis: events.length + (events.length === 1 ? ' Termin' : ' Termine') + ' in den nächsten 7 Tagen.',
     }], { zeitzone: false });
   } catch(e) {
-    c.innerHTML = `<div class="empty">Kalender konnte nicht geladen werden: ${esc(e.message)}</div>`;
+    c.innerHTML = `<div class="empty">Kalender konnte nicht geladen werden: ${esc(netzFehlerText(e))}</div>`;
     setDatenstand([{ quelle: 'Kalender (Microsoft 365)', zustand: 'getrennt', stand: null, abgleich: null,
       hinweis: 'Abruf fehlgeschlagen — es fehlen Termine, die Liste ist nicht leer.' }], { zeitzone: false });
   }
@@ -2253,7 +2257,7 @@ async function createEvent() {
     closeModal();
     showTab('calendar');
   } catch(e) {
-    dialogMeldung('Termin konnte nicht angelegt werden: ' + e.message);
+    dialogMeldung('Termin konnte nicht angelegt werden: ' + netzFehlerText(e));
     btn.disabled = false; btn.textContent = '📅 Erstellen';
   }
 }
@@ -2309,7 +2313,7 @@ async function saveEvent(eventId) {
     closeModal();
     showTab('calendar');
   } catch(e) {
-    dialogMeldung('Termin konnte nicht gespeichert werden: ' + e.message);
+    dialogMeldung('Termin konnte nicht gespeichert werden: ' + netzFehlerText(e));
     btn.disabled = false; btn.textContent = '💾 Speichern';
   }
 }
@@ -2319,7 +2323,7 @@ async function deleteEvent(eventId, subject) {
   try {
     await apiFetch(`/api/calendar/${encodeURIComponent(eventId)}`, { method: 'DELETE' });
     showTab('calendar');
-  } catch (e) { meldung('Termin konnte nicht gelöscht werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Termin konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2358,7 +2362,7 @@ async function loadDocuments() {
 
     renderDocTable(docs, trips);
     stamp();
-  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 function renderDocTable(docs, trips) {
@@ -2468,7 +2472,7 @@ async function uploadDoc() {
     if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `HTTP ${res.status}`); }
     closeModal();
     showTab('documents');
-  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + e.message); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + netzFehlerText(e)); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 
 async function deleteDoc(docPath, name) {
@@ -2476,7 +2480,7 @@ async function deleteDoc(docPath, name) {
   try {
     await apiFetch(`/api/documents/${encodeURIComponent(docPath)}`, { method: 'DELETE' });
     showTab('documents');
-  } catch (e) { meldung('Dokument konnte nicht gelöscht werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Dokument konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2549,7 +2553,7 @@ async function loadSharePoint() {
         hinweis: 'Synchronisationszeitpunkt nicht abrufbar.',
       }]);
     }
-  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`; }
+  } catch (e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 async function spLoadDefault() {
@@ -2762,7 +2766,7 @@ async function spOpenSite(siteId) {
     const drives = await apiFetch(`/api/sharepoint/drives/${encodeURIComponent(siteId)}`);
     _spDrivesCache = drives;
     renderSPDrives(drives);
-  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 /* ── Bibliotheken ─────────────────────────────────────────────────────────── */
@@ -2807,7 +2811,7 @@ async function spOpenDrive(driveId, dateienImIndex, driveName) {
     const files = await apiFetch(url);
     _spFilesCache = files;
     renderSPFiles(files);
-  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(e.message)}</div>`; }
+  } catch (e) { wrap.innerHTML = `<div class="empty">Laden fehlgeschlagen: ${esc(netzFehlerText(e))}</div>`; }
 }
 
 function spSortIndicator(field) {
@@ -2899,7 +2903,8 @@ async function spSearch() {
   } catch (e) {
     /* P2-8: "Laden fehlgeschlagen" ist ein eigener Zustand — nicht derselbe
        Kasten wie ein leeres Ergebnis. */
-    wrap.innerHTML = zustandBlock('fehler', 'Die SharePoint-Suche ist fehlgeschlagen: ' + e.message);
+    wrap.innerHTML = zustandBlock('fehler', 'Die SharePoint-Suche ist fehlgeschlagen: ' + netzFehlerText(e),
+      { aktion: netzWiederholenKnopf('spSearch()') });
   }
 }
 
@@ -3000,7 +3005,7 @@ async function spUploadFile() {
     closeModal();
     // Aktuelle Bibliothek neu laden; Name und Umfang bleiben erhalten.
     spOpenDrive();
-  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + e.message); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
+  } catch (e) { dialogMeldung('Hochladen fehlgeschlagen: ' + netzFehlerText(e)); btn.disabled = false; btn.textContent = '⬆ Hochladen'; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3121,7 +3126,7 @@ async function unlinkDoc(linkId, entityType, entityId, refreshFn) {
   try {
     await apiFetch(`/api/links/${encodeURIComponent(linkId)}`, { method: 'DELETE' });
     if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
-  } catch (e) { meldung('Verknüpfung konnte nicht gelöst werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Verknüpfung konnte nicht gelöst werden: ' + netzFehlerText(e), 'error'); }
 }
 
 function linkDocModal(entityType, entityId, refreshFn) {
@@ -3166,7 +3171,7 @@ async function searchSpForLink() {
         <span style="color:var(--muted);font-size:13px">${fmtSize(r.size)}</span>
       </div>
     `).join('');
-  } catch (e) { container.innerHTML = `<span style="color:red">Fehler: ${esc(e.message)}</span>`; }
+  } catch (e) { container.innerHTML = `<span style="color:red">Fehler: ${esc(netzFehlerText(e))}</span>`; }
 }
 
 async function unlinkAndReload(linkId) {
@@ -3176,7 +3181,7 @@ async function unlinkAndReload(linkId) {
     // Reload current tab
     const activeTab = document.querySelector('.tab.active')?.dataset?.tab;
     if (activeTab) showTab(activeTab);
-  } catch (e) { meldung('Aktion fehlgeschlagen: ' + e.message, 'error'); }
+  } catch (e) { meldung('Aktion fehlgeschlagen: ' + netzFehlerText(e), 'error'); }
 }
 
 function loadTripsRefresh() { showTab('trips'); }
@@ -3198,7 +3203,7 @@ async function selectSpForLink(idx) {
     });
     closeModal();
     if (refreshFn && typeof window[refreshFn] === 'function') window[refreshFn](entityId);
-  } catch (e) { dialogMeldung('Verknüpfung konnte nicht gespeichert werden: ' + e.message); }
+  } catch (e) { dialogMeldung('Verknüpfung konnte nicht gespeichert werden: ' + netzFehlerText(e)); }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3795,7 +3800,7 @@ async function _instaLoadForensic() {
     if (!html) html = '<div class="card card-pad" style="text-align:center;color:var(--muted)">Keine Forensic-Daten vorhanden.</div>';
     wrap.innerHTML = html;
   } catch (e) {
-    wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -3840,7 +3845,7 @@ async function _instaDraftSaveEdit(id) {
     loadInstagram();
     _toast('Draft gespeichert');
   } catch (e) {
-    _toast('Fehler: ' + e.message);
+    _toast('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -3856,7 +3861,7 @@ async function _instaDraftPost(id) {
     loadInstagram();
     _toast('Draft freigegeben — poste mit /instapost ' + id);
   } catch (e) {
-    _toast('Fehler: ' + e.message);
+    _toast('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -3868,7 +3873,7 @@ async function _instaDraftDelete(id) {
     loadInstagram();
     _toast('Draft gelöscht');
   } catch (e) {
-    _toast('Fehler: ' + e.message);
+    _toast('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -3993,7 +3998,7 @@ async function _instaRawDetail(sessionId) {
       <table><thead><tr><th>Name</th><th>Typ</th><th>Größe</th><th>Geändert</th></tr></thead><tbody>${fileRows}</tbody></table>
     </div>`;
   } catch (e) {
-    wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(e.message)}</div>`;
+    wrap.innerHTML = `<div class="card card-pad" style="color:var(--red)">Fehler: ${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -4019,7 +4024,7 @@ async function _instaCreateRawSession() {
     _rawDetailSession = null;
     loadInstagram();
   } catch (e) {
-    dialogMeldung('Session konnte nicht angelegt werden: ' + e.message);
+    dialogMeldung('Session konnte nicht angelegt werden: ' + netzFehlerText(e));
   }
 }
 
@@ -4054,7 +4059,7 @@ async function _instaRawDelete(sessionId) {
     _rawDetailSession = null;
     loadInstagram();
   } catch (e) {
-    meldung('Session konnte nicht gelöscht werden: ' + e.message, 'error');
+    meldung('Session konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error');
   }
 }
 
@@ -4308,14 +4313,14 @@ async function tradingAddWatch() {
   try {
     await apiFetch('/api/trading/watchlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbol, exchange, currency }) });
     loadTrading();
-  } catch (e) { meldung('Watchlist-Eintrag konnte nicht angelegt werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Watchlist-Eintrag konnte nicht angelegt werden: ' + netzFehlerText(e), 'error'); }
 }
 
 async function tradingRemoveWatch(symbol) {
   try {
     await apiFetch('/api/trading/watchlist/' + encodeURIComponent(symbol), { method: 'DELETE' });
     loadTrading();
-  } catch (e) { meldung('Watchlist-Eintrag konnte nicht entfernt werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Watchlist-Eintrag konnte nicht entfernt werden: ' + netzFehlerText(e), 'error'); }
 }
 
 async function toggleUniverseIndex(name, enabled) {
@@ -4326,7 +4331,7 @@ async function toggleUniverseIndex(name, enabled) {
       body: JSON.stringify({ indices: { [name]: { enabled } } }),
     });
     loadTrading();
-  } catch (e) { meldung('Index konnte nicht umgeschaltet werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Index konnte nicht umgeschaltet werden: ' + netzFehlerText(e), 'error'); }
 }
 
 async function triggerUniverseScan() {
@@ -4337,7 +4342,7 @@ async function triggerUniverseScan() {
     if (result) meldung(`Suchlauf fertig: ${result.universe} Symbole, ${result.momentum} nach Momentum, ${result.meanReversion} nach Rückkehr zum Mittel.`, 'success');
     loadTrading();
   } catch (e) {
-    meldung('Suchlauf fehlgeschlagen: ' + e.message, 'error');
+    meldung('Suchlauf fehlgeschlagen: ' + netzFehlerText(e), 'error');
     if (btn) { btn.disabled = false; btn.textContent = 'Suchlauf starten'; }
   }
 }
@@ -4362,7 +4367,7 @@ async function loadAgents() {
   const c = document.getElementById('content');
   let d = null;
   let fehler = null;
-  try { d = await apiFetch('/api/agents/workflows'); } catch (e) { fehler = e.message; }
+  try { d = await apiFetch('/api/agents/workflows'); } catch (e) { fehler = netzFehlerText(e); }
 
   if (fehler) {
     c.innerHTML = zustandBlock('fehler',
@@ -4556,7 +4561,7 @@ async function loadPrivateEquity() {
       <div class="grid">${cards}</div>`;
     stamp();
   } catch (e) {
-    c.innerHTML = `<div class="empty">Fehler beim Laden: ${esc(e.message)}</div>`;
+    c.innerHTML = `<div class="empty">Fehler beim Laden: ${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -4633,7 +4638,7 @@ async function peShowDetail(id) {
     </div>
     ${valHtml}`;
   } catch (e) {
-    c.innerHTML = `<div class="empty">Fehler: ${esc(e.message)}</div>`;
+    c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`;
   }
 }
 
@@ -4678,7 +4683,7 @@ async function peCreate() {
     await apiFetch('/api/pe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ company, sector, investedAmount: amount, shares, totalShares, investmentDate, valuationMethod, contactPerson, notes }) });
     closeModal();
     loadPrivateEquity();
-  } catch (e) { dialogMeldung('Beteiligung konnte nicht angelegt werden: ' + e.message); }
+  } catch (e) { dialogMeldung('Beteiligung konnte nicht angelegt werden: ' + netzFehlerText(e)); }
 }
 
 function peEditModal(id) {
@@ -4722,7 +4727,7 @@ async function peSaveEdit(id) {
     await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     closeModal();
     peShowDetail(id);
-  } catch (e) { dialogMeldung('Beteiligung konnte nicht gespeichert werden: ' + e.message); }
+  } catch (e) { dialogMeldung('Beteiligung konnte nicht gespeichert werden: ' + netzFehlerText(e)); }
 }
 
 function peValuationModal(id) {
@@ -4748,7 +4753,7 @@ async function peSaveValuation(id) {
     await apiFetch('/api/pe/' + encodeURIComponent(id) + '/valuation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ amount, method, notes }) });
     closeModal();
     peShowDetail(id);
-  } catch (e) { dialogMeldung('Bewertung konnte nicht gespeichert werden: ' + e.message); }
+  } catch (e) { dialogMeldung('Bewertung konnte nicht gespeichert werden: ' + netzFehlerText(e)); }
 }
 
 async function peDelete(id) {
@@ -4756,7 +4761,7 @@ async function peDelete(id) {
   try {
     await apiFetch('/api/pe/' + encodeURIComponent(id), { method: 'DELETE' });
     loadPrivateEquity();
-  } catch (e) { meldung('Beteiligung konnte nicht gelöscht werden: ' + e.message, 'error'); }
+  } catch (e) { meldung('Beteiligung konnte nicht gelöscht werden: ' + netzFehlerText(e), 'error'); }
 }
 
 /* ── Status Widget ── */
@@ -4876,7 +4881,7 @@ async function loadStatus() {
       if (currentTab === 'status') loadStatus();
     }, 60_000);
   } catch (e) {
-    c.innerHTML = '<div class="empty">Fehler: ' + esc(e.message) + '</div>';
+    c.innerHTML = '<div class="empty">Fehler: ' + esc(netzFehlerText(e)) + '</div>';
   }
 }
 

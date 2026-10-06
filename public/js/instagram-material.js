@@ -275,7 +275,8 @@ async function instaRawListeLaden() {
     const d = await apiFetch('/api/instagram/raw?' + p.toString());
     ziel.innerHTML = instaRawTrefferHtml(d);
   } catch (e) {
-    ziel.innerHTML = zustandBlock('fehler', 'Rohmaterial nicht abrufbar: ' + e.message);
+    ziel.innerHTML = zustandBlock('fehler', 'Rohmaterial nicht abrufbar: ' + netzFehlerText(e),
+      { aktion: netzWiederholenKnopf('instaRawListeLaden()') });
   }
 }
 

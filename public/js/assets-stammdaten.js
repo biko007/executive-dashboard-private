@@ -3,6 +3,15 @@
    Sprint 5.5a-2 Stage b
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* A1 (Phase 3): Verweis auf die laufende Stammdaten-Komponente, damit die
+   Schaltflaeche "Erneut versuchen" in einem Fehlerblock den Abruf erneut
+   anstossen kann. */
+let _stammdatenTab = null;
+
+function assetsStammdatenErneut(methode) {
+  if (_stammdatenTab && typeof _stammdatenTab[methode] === 'function') _stammdatenTab[methode]();
+}
+
 document.addEventListener('alpine:init', () => {
 
   // ── Stammdaten Tab Container ────────────────────────────────────────────
@@ -16,9 +25,26 @@ document.addEventListener('alpine:init', () => {
     selectedUnit: null,
 
     async init() {
+      /* A1: Verweis fuer die Schaltflaeche "Erneut versuchen" in der
+         Fehlerdarstellung. Alpine-Komponenten sind aus einem onclick-Attribut
+         sonst nicht erreichbar. */
+      _stammdatenTab = this;
       if (this.loaded) return;
       this.loaded = true;
       await this.loadProperties();
+    },
+
+    /* A1 (Phase 3): Ein Ladefehler erzeugte nur eine Kurzmeldung und liess den
+       Bereich LEER zurueck — am Telefon sah das wie "keine Daten" aus. Jetzt
+       steht der Fehler im Bereich selbst, mit einer Schaltflaeche zum erneuten
+       Versuch. */
+    ladeFehler(text, methode) {
+      const target = this.$refs.stammdatenContent;
+      Alpine.store('toast').error(text);
+      if (target) {
+        target.innerHTML = zustandBlock('fehler', text,
+          { aktion: netzWiederholenKnopf('assetsStammdatenErneut(\'' + methode + '\')') });
+      }
     },
 
     async loadProperties() {
@@ -29,7 +55,7 @@ document.addEventListener('alpine:init', () => {
         this.properties = await res.json();
         this.renderPropertiesList();
       } catch (e) {
-        Alpine.store('toast').error('Fehler beim Laden: ' + e.message);
+        this.ladeFehler('Die Objekte sind nicht abrufbar: ' + netzFehlerText(e), 'loadProperties');
       }
     },
 
@@ -41,7 +67,7 @@ document.addEventListener('alpine:init', () => {
         this.tenants = await res.json();
         this.renderTenantsList();
       } catch (e) {
-        Alpine.store('toast').error('Fehler beim Laden: ' + e.message);
+        this.ladeFehler('Die Mieter sind nicht abrufbar: ' + netzFehlerText(e), 'loadTenants');
       }
     },
 
@@ -359,7 +385,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
     openDrawer(html);
     assetsCheckHeatingConflict();
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -532,7 +558,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
 
     openDrawer(html);
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
   }
 }
 
@@ -696,7 +722,7 @@ async function assetsOpenTenantDrawer(tenantId) {
       ${mietHtml}
     `);
   } catch (e) {
-    Alpine.store('toast').error('Fehler: ' + e.message);
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
   }
 }
 

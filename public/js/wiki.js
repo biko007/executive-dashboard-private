@@ -135,7 +135,7 @@ async function loadWiki() {
     const data = await apiFetch('/api/wiki/pages');
     wikiState.pages = data.pages || [];
   } catch (e) {
-    container.innerHTML = '<div class="empty">Wiki nicht erreichbar: ' + esc(e.message) + '</div>';
+    container.innerHTML = '<div class="empty">Wiki nicht erreichbar: ' + esc(netzFehlerText(e)) + '</div>';
     return;
   }
 
@@ -167,7 +167,7 @@ async function wikiOpenPage(slug) {
     wikiState.mode = 'page';
     wikiRender();
   } catch (e) {
-    container.innerHTML = '<div class="empty">Seite nicht lesbar: ' + esc(e.message) + '</div>'
+    container.innerHTML = '<div class="empty">Seite nicht lesbar: ' + esc(netzFehlerText(e)) + '</div>'
       + '<div style="margin-top:12px"><button onclick="wikiBackToOverview()">Zur Übersicht</button></div>';
   }
 }
@@ -198,7 +198,7 @@ async function wikiOpenRevision(rev) {
     wikiState.mode = 'revision';
     wikiRender();
   } catch (e) {
-    meldung('Revision nicht lesbar: ' + e.message, 'error');
+    meldung('Revision nicht lesbar: ' + netzFehlerText(e), 'error');
   }
 }
 
@@ -218,7 +218,7 @@ async function wikiSearch() {
     wikiState.searchHits = data.hits || [];
   } catch (e) {
     wikiState.searchHits = [];
-    meldung('Suche fehlgeschlagen: ' + e.message, 'error');
+    meldung('Suche fehlgeschlagen: ' + netzFehlerText(e), 'error');
   }
   wikiRender();
 }
@@ -256,7 +256,7 @@ async function wikiSave() {
     wikiState.pages = data.pages || [];
     await wikiOpenPage(slug);
   } catch (e) {
-    meldung('Speichern fehlgeschlagen: ' + e.message, 'error');
+    meldung('Speichern fehlgeschlagen: ' + netzFehlerText(e), 'error');
   } finally {
     wikiState.busy = false;
   }
@@ -279,7 +279,7 @@ async function wikiCreate() {
     wikiState.pages = data.pages || [];
     await wikiOpenPage(page.slug);
   } catch (e) {
-    meldung('Anlegen fehlgeschlagen: ' + e.message, 'error');
+    meldung('Anlegen fehlgeschlagen: ' + netzFehlerText(e), 'error');
   } finally {
     wikiState.busy = false;
   }
@@ -294,7 +294,7 @@ async function wikiChangeCategory(select) {
     const data = await apiFetch('/api/wiki/pages');
     wikiState.pages = data.pages || [];
   } catch (e) {
-    meldung('Kategorie nicht geändert: ' + e.message, 'error');
+    meldung('Kategorie nicht geändert: ' + netzFehlerText(e), 'error');
   }
 }
 
@@ -325,7 +325,7 @@ async function wikiUploadAttachment(input) {
     await wikiOpenPage(slug);
   } catch (e) {
     if (status) status.textContent = '';
-    meldung('Upload fehlgeschlagen: ' + e.message, 'error');
+    meldung('Upload fehlgeschlagen: ' + netzFehlerText(e), 'error');
   } finally {
     input.value = '';
   }
