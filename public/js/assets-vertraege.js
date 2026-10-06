@@ -1071,12 +1071,13 @@ function bulkCalcDiff(input, lastVal) {
 
   if (newVal != null && lastVal != null) {
     const diff = newVal - lastVal;
-    diffCell.textContent = diff.toFixed(3);
+    /* D1 (Phase 3): deutsches Zahlenformat. */
+    diffCell.textContent = fmtZahl(diff, 3);
     if (diff < 0) {
       const estimated = row.querySelector('.bulk-estimated');
       const readingType = document.getElementById('bulk-type')?.value;
       if (!estimated?.checked && readingType !== 'meter_reset') {
-        diffCell.innerHTML = `<span style="color:var(--red)">${diff.toFixed(3)}</span><br><span style="color:var(--red);font-size:13px">Rückläufig!</span>`;
+        diffCell.innerHTML = `<span class="zahl" style="color:var(--red)">${fmtZahl(diff, 3)}</span><br><span style="color:var(--red);font-size:13px">Rückläufig!</span>`;
       }
     }
   } else {

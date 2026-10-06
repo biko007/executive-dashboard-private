@@ -146,7 +146,9 @@ document.addEventListener('alpine:init', () => {
       const sorted = records.slice().sort((a, b) => (b.date || b.service_date || '').localeCompare(a.date || a.service_date || ''));
       for (const s of sorted) {
         const skm = s.mileage_km != null ? Number(s.mileage_km).toLocaleString('de-DE') + ' km' : (s.mileage != null ? Number(s.mileage).toLocaleString('de-DE') + ' km' : '&ndash;');
-        const cost = s.cost != null ? Number(s.cost).toLocaleString('de-DE') + ' &euro;' : '&ndash;';
+        /* D1 (Phase 3): zwei Nachkommastellen und nowrap wie bei allen
+           anderen Geldbetraegen. */
+        const cost = s.cost != null ? fmtEur(s.cost) : '&ndash;';
         const rid = s.id || '';
         html += '<tr>';
         html += '<td style="white-space:nowrap">' + fmtDate(s.service_date || s.date) + '</td>';

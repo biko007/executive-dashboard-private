@@ -576,6 +576,11 @@ nav button { min-height: 44px; min-width: 44px; }
 .bank-stand-hinweis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); }
 
 /* A7 (Phase 3): Herkunft der Dienstezustände über der Tabelle. */
+/* D1 (Phase 3): Zahlen und Geldbeträge brechen nicht um. Zwischen Zahl und
+   Einheit steht ohnehin ein geschütztes Leerzeichen; nowrap hält zusätzlich
+   Vorzeichen, Tausenderpunkte und Währungszeichen zusammen. */
+.zahl { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
 .status-herkunft { font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.5; }
 /* C3 (Phase 3): Diagnose-Abschnitt — eingeklappt, technische Angaben gebündelt. */
 .diag { margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
@@ -1186,10 +1191,12 @@ async function uploadImage(input, entityType, entityId) {
 }
 
 const DOC_CAT_LABELS = { vertraege: 'Verträge', rechnungen: 'Rechnungen', notizen: 'Notizen', sonstiges: 'Sonstiges' };
+/* D1 (Phase 3): "1.5 KB" -> "1,5 KB", mit geschuetztem Leerzeichen. */
 function fmtSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  if (bytes == null) return '–';
+  if (bytes < 1024) return fmtMit(bytes, 'B', 0);
+  if (bytes < 1024 * 1024) return fmtMit(bytes / 1024, 'KB', 1);
+  return fmtMit(bytes / (1024 * 1024), 'MB', 1);
 }
 
 /* Kopfzeile: Zeitpunkt des Seitenabrufs. Ausdruecklich NICHT das Alter der
@@ -1761,19 +1768,21 @@ async function loadHealth() {
     if (wt) {
       const col = wt.change <= 0 ? 'var(--green)' : 'var(--red)';
       const arrow = wt.direction === 'up' ? '📈' : wt.direction === 'down' ? '📉' : '➡️';
-      trendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht-Trend 30 T', 'Trend Gewicht')}</div><div class="val" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${wt.change} kg</div><div class="sub">Ø ${wt.avg} kg (${wt.dataPoints} Messungen)</div></div>`;
+      /* D1 (Phase 3): deutsches Zahlenformat, geschuetztes Leerzeichen vor der
+         Einheit. Vorher stand hier "86.05 kg". */
+      trendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht-Trend 30 T', 'Trend Gewicht')}</div><div class="val zahl" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${fmtMit(wt.change, 'kg', 2)}</div><div class="sub">Ø ${fmtMit(wt.avg, 'kg', 2)} (${fmtZahl(wt.dataPoints, 0)} Messungen)</div></div>`;
     }
 
     const st = trends.sleep;
     let sleepTrendHtml = '';
     if (st) {
-      sleepTrendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf-Trend 30 T', 'Trend Schlaf')}</div><div class="val" style="font-size:22px">Ø ${st.avgDuration}h</div><div class="sub">${st.minDuration}–${st.maxDuration}h${st.avgQuality ? ' | Score '+st.avgQuality+'%' : ''}</div></div>`;
+      sleepTrendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf-Trend 30 T', 'Trend Schlaf')}</div><div class="val zahl" style="font-size:22px">Ø ${fmtMit(st.avgDuration, 'h', 1)}</div><div class="sub">${fmtZahl(st.minDuration, 1)}–${fmtMit(st.maxDuration, 'h', 1)}${st.avgQuality ? ' · Score ' + fmtProzent(st.avgQuality, 0) : ''}</div></div>`;
     }
 
     const hr = trends.heartrate;
     let hrHtml = '';
     if (hr) {
-      hrHtml = `<div class="s-card"><div class="lbl">${kpiLabel('❤️ Ruheherzfrequenz', '❤️ Ruhepuls')}</div><div class="val">${hr.current} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${hr.avg} bpm (30 T, ${hr.dataPoints} Messungen)</div></div>`;
+      hrHtml = `<div class="s-card"><div class="lbl">${kpiLabel('❤️ Ruheherzfrequenz', '❤️ Ruhepuls')}</div><div class="val zahl">${fmtZahl(hr.current, 0)} <small style="font-size:16px">bpm</small></div><div class="sub">Ø ${fmtMit(hr.avg, 'bpm', 0)} (30 Tage, ${fmtZahl(hr.dataPoints, 0)} Messungen)</div></div>`;
     }
 
     // HRV summary card
@@ -1786,7 +1795,7 @@ async function loadHealth() {
          Bedeutung. Jetzt steht die Quelle (Oura) dabei und was der Wert
          bedeutet — ohne medizinische Bewertung und ohne Schwelle, weil es im
          Code keine gibt. */
-      hrvHtml = `<div class="s-card"><div class="lbl">💓 HRV (Herzratenvariabilität)</div><div class="val">${hrvTrend.current} <small style="font-size:16px">ms</small></div><div class="sub" style="color:${hrvCol}">${hrvArrow} Ø ${hrvTrend.avg} ms über 30 Tage (${hrvTrend.dataPoints} Messungen)</div><div class="sub">Quelle: Oura, nachts gemessen. Höhere Werte stehen für mehr Erholung; der eigene Durchschnitt ist der Maßstab, nicht ein fester Zielwert.</div></div>`;
+      hrvHtml = `<div class="s-card"><div class="lbl">💓 HRV (Herzratenvariabilität)</div><div class="val zahl">${fmtZahl(hrvTrend.current, 0)} <small style="font-size:16px">ms</small></div><div class="sub" style="color:${hrvCol}">${hrvArrow} Ø ${fmtMit(hrvTrend.avg, 'ms', 0)} über 30 Tage (${fmtZahl(hrvTrend.dataPoints, 0)} Messungen)</div><div class="sub">Quelle: Oura, nachts gemessen. Höhere Werte stehen für mehr Erholung; der eigene Durchschnitt ist der Maßstab, nicht ein fester Zielwert.</div></div>`;
     }
 
     // Readiness summary card
@@ -1799,13 +1808,13 @@ async function loadHealth() {
          Einteilung dieser Anzeige, keine Vorgabe von Oura. */
       const rdCol = score >= 85 ? 'var(--green)' : score >= 70 ? 'var(--yellow)' : 'var(--red)';
       const rdText = score >= 85 ? 'gut erholt' : score >= 70 ? 'eingeschränkt erholt' : 'wenig erholt';
-      readinessHtml = `<div class="s-card"><div class="lbl">🎯 Erholung (Readiness)</div><div class="val" style="color:${rdCol}">${score} <small style="font-size:16px">von 100</small></div><div class="sub">${esc(rdText)} · gemessen ${fmtDate(lastReadiness.timestamp)}</div><div class="sub">Quelle: Oura. Einteilung dieser Anzeige: ab 85 gut, ab 70 eingeschränkt, darunter wenig erholt.</div></div>`;
+      readinessHtml = `<div class="s-card"><div class="lbl">🎯 Erholung (Readiness)</div><div class="val zahl" style="color:${rdCol}">${fmtZahl(score, 0)} <small style="font-size:16px">von 100</small></div><div class="sub">${esc(rdText)} · gemessen ${fmtDate(lastReadiness.timestamp)}</div><div class="sub">Quelle: Oura. Einteilung dieser Anzeige: ab 85 gut, ab 70 eingeschränkt, darunter wenig erholt.</div></div>`;
     }
 
     const summaryGrid = `<div class="summary-grid">
-      ${lastW ? `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht (aktuell)', 'Gewicht')}</div><div class="val">${lastW.value} <small style="font-size:16px">${lastW.unit||'kg'}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
+      ${lastW ? `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht (aktuell)', 'Gewicht')}</div><div class="val zahl">${fmtZahl(lastW.value, 2)} <small style="font-size:16px">${esc(lastW.unit||'kg')}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
-      ${lastSleep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val">${lastSleep.value} <small style="font-size:16px">${lastSleep.unit||'h'}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' | Score '+lastSleep.quality : ''}</div></div>` : `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val zahl">${fmtZahl(lastSleep.value, 1)} <small style="font-size:16px">${esc(lastSleep.unit||'h')}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' · Score ' + fmtZahl(lastSleep.quality, 0) : ''}</div></div>` : `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
       ${sleepTrendHtml}
       ${hrHtml}
       ${hrvHtml}
@@ -3328,7 +3337,7 @@ async function selectSpForLink(idx) {
 /* P2-8: Zwischen Betrag und Währungszeichen steht ein GESCHÜTZTES
    Leerzeichen (U+00A0). Vorher konnte der Zeilenumbruch den Betrag von
    seinem Zeichen trennen — schmal passierte das in den PE-Kacheln. */
-function fmtEur(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€' : '–'; }
+function fmtEur(n) { return n != null ? '<span class="zahl">' + Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€</span>' : '–'; }
 
 async function loadAssets() {
   const c = document.getElementById('content');
@@ -3626,7 +3635,7 @@ async function loadInstagram() {
     body = `
       <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
         ${kpi('Follower', hasInsights ? Number(ins.followers_count).toLocaleString('de-DE') : '–', null, insightsSub, '')}
-        ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? Number(ins.engagement_rate) + '%' : '–', null, insightsSub, '')}
+        ${kpi('Engagement', hasInsights && ins.engagement_rate != null ? fmtProzent(ins.engagement_rate, 2) : '–', null, insightsSub, '')}
         ${kpi('Ø Likes', hasInsights && ins.recent_avg_likes != null ? Math.round(Number(ins.recent_avg_likes)).toLocaleString('de-DE') : '–', null, 'pro Beitrag · ' + insightsSub, '')}
         ${kpi('Beiträge', hasInsights && ins.media_count != null ? Number(ins.media_count).toLocaleString('de-DE') : '–', null, 'gesamt · ' + insightsSub, '')}
       </div>` + liveFeed + `
@@ -4059,10 +4068,9 @@ async function _instaDraftManualToggle(id) {
   wrap.innerHTML = html;
 }
 
+/* D1 (Phase 3): deutsches Zahlenformat. */
 function _fmtFileSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  return fmtSize(bytes);
 }
 
 let _rawDetailSession = null;
@@ -4230,7 +4238,7 @@ async function loadBanking() {
 
 /* ── Trading ── */
 let _tradingRefresh = null;
-function fmtUsd(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0$' : '–'; }
+function fmtUsd(n) { return n != null ? '<span class="zahl">' + Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0$</span>' : '–'; }
 function pnlColor(n) { return n > 0 ? 'var(--green)' : n < 0 ? 'var(--red)' : 'var(--muted)'; }
 function pnlPrefix(n) { return n > 0 ? '+' : ''; }
 
@@ -4375,7 +4383,7 @@ async function loadTrading() {
         const topRows = topItems.map(r => `<tr>
           <td><strong>${esc(r.symbol)}</strong></td>
           <td>${esc(r.signal)}</td>
-          <td style="text-align:right">${Number(r.strength).toFixed(1)}</td>
+          <td style="text-align:right" class="zahl">${fmtZahl(r.strength, 1)}</td>
           <td>${r.timestamp ? r.timestamp.slice(11, 19) : ''}</td>
         </tr>`).join('');
         topHtml = `<div style="overflow-x:auto;margin-top:12px"><table class="data-table" style="width:100%">
@@ -4640,7 +4648,7 @@ async function loadPrivateEquity() {
     const summaryHtml = `<div class="summary-grid">
       <div class="s-card"><div class="lbl">Total investiert</div><div class="val" style="font-size:20px">${fmtEur(totalInvested)}</div></div>
       <div class="s-card"><div class="lbl">Aktuelle Bewertung</div><div class="val" style="font-size:20px">${fmtEur(totalValuation)}</div></div>
-      <div class="s-card"><div class="lbl">Gesamt-IRR</div><div class="val" style="font-size:20px;color:${totalIRR >= 0 ? 'var(--green)' : 'var(--red)'}">${totalIRR.toFixed(1)}%</div></div>
+      <div class="s-card"><div class="lbl">Gesamt-IRR</div><div class="val" style="font-size:20px;color:${totalIRR >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtProzent(totalIRR, 2)}</div></div>
       <div class="s-card"><div class="lbl">Beteiligungen</div><div class="val">${investments.length}</div><div class="sub">${active} aktiv</div></div>
     </div>`;
 
@@ -4658,10 +4666,10 @@ async function loadPrivateEquity() {
           ${statusBadge}
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-top:12px">
-          <div><span class="fl">Anteil</span> ${inv.ownershipPct}%</div>
+          <div><span class="fl">Anteil</span> ${fmtProzent(inv.ownershipPct, 2)}</div>
           <div><span class="fl">Investiert</span> ${fmtEur(inv.investedAmount)}</div>
           <div><span class="fl">Bewertung</span> ${fmtEur(inv.currentValuation)}</div>
-          <div><span class="fl">IRR</span> <span style="color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</span></div>
+          <div><span class="fl">IRR</span> <span class="zahl" style="color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtProzent(irr, 2)}</span></div>
         </div>
         <div style="font-size:13px;color:var(--muted);margin-top:8px">ID: ${esc(inv.id)} | Bewertung: ${inv.valuationDate || '–'}</div>
       </div>`;
@@ -4738,11 +4746,11 @@ async function peShowDetail(id) {
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;font-size:14px">
         <div><span class="fl">Investiert</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.investedAmount)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.investmentDate)}</div></div>
         <div><span class="fl">Aktuelle Bewertung</span><div style="font-size:18px;font-weight:700">${fmtEur(inv.currentValuation)}</div><div style="font-size:13px;color:var(--muted)">${esc(inv.valuationDate)} (${esc(inv.valuationMethod)})</div></div>
-        <div><span class="fl">IRR</span><div style="font-size:18px;font-weight:700;color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${irr.toFixed(1)}%</div></div>
+        <div><span class="fl">IRR</span><div class="zahl" style="font-size:18px;font-weight:700;color:${irr >= 0 ? 'var(--green)' : 'var(--red)'}">${fmtProzent(irr, 2)}</div></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:16px;font-size:14px;margin-top:16px">
         <div><span class="fl">Anteile</span> ${Number(inv.shares).toLocaleString('de-DE')} / ${Number(inv.totalShares).toLocaleString('de-DE')}</div>
-        <div><span class="fl">Anteil</span> ${inv.ownershipPct}%</div>
+        <div><span class="fl">Anteil</span> ${fmtProzent(inv.ownershipPct, 2)}</div>
         <div><span class="fl">Kontakt</span> ${esc(inv.contactPerson || '–')}</div>
       </div>
       ${inv.notes ? `<div style="margin-top:16px;font-size:13px;color:var(--muted)"><span class="fl">Notizen</span> ${esc(inv.notes)}</div>` : ''}

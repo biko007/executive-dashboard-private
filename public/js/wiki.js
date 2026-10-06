@@ -86,10 +86,11 @@ function wikiFileUrl(kind, slug, filename) {
 
 function wikiFormatBytes(bytes) {
   const value = Number(bytes || 0);
-  if (value >= 1024 * 1024 * 1024) return (value / 1024 / 1024 / 1024).toFixed(1) + ' GB';
-  if (value >= 1024 * 1024) return (value / 1024 / 1024).toFixed(1) + ' MB';
-  if (value >= 1024) return Math.round(value / 1024) + ' kB';
-  return value + ' B';
+  /* D1 (Phase 3): deutsches Zahlenformat mit geschuetztem Leerzeichen. */
+  if (value >= 1024 * 1024 * 1024) return fmtMit(value / 1024 / 1024 / 1024, 'GB', 1);
+  if (value >= 1024 * 1024) return fmtMit(value / 1024 / 1024, 'MB', 1);
+  if (value >= 1024) return fmtMit(Math.round(value / 1024), 'kB', 0);
+  return fmtMit(value, 'B', 0);
 }
 
 function wikiIsImage(mime) {

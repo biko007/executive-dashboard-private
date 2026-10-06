@@ -241,6 +241,40 @@ const BEGRIFF_OPTIONEN = {
   role:           ['contract_party', 'occupant', 'guarantor'],
 };
 
+/* ── D1 (Phase 3): Zahlenformate ─────────────────────────────────────────────
+   BEFUND CHECKPOINT 2: Zahlen standen in englischer Schreibweise und ohne
+   gesicherten Abstand zur Einheit — „86.05 kg", „6.1h", „1.58%". Deutsch
+   gehört das Komma als Dezimaltrennzeichen und ein Leerzeichen vor die
+   Einheit; vor dem Prozentzeichen steht nach DIN 5008 ebenfalls eines.
+
+   Die drei Funktionen hier sind die EINE Stelle dafür. Zwischen Zahl und
+   Einheit steht ein GESCHÜTZTES Leerzeichen (U+00A0), damit kein
+   Zeilenumbruch die Zahl von ihrer Einheit trennt — dasselbe Muster, das
+   fmtEur() für Geldbeträge benutzt.
+
+   `dez` ist die Anzahl der Nachkommastellen. Ohne Angabe wird der Wert so
+   gezeigt, wie er ankommt (bis zu drei Stellen) — eine erfundene Genauigkeit
+   wäre schlimmer als eine unregelmäßige.  */
+function fmtZahl(wert, dez) {
+  if (wert === null || wert === undefined || wert === '') return '–';
+  const n = Number(wert);
+  if (!Number.isFinite(n)) return String(wert);
+  return n.toLocaleString('de-DE', typeof dez === 'number'
+    ? { minimumFractionDigits: dez, maximumFractionDigits: dez }
+    : { maximumFractionDigits: 3 });
+}
+
+/* Zahl mit Einheit: "86,05 kg", "6,1 h", "42 ms". */
+function fmtMit(wert, einheit, dez) {
+  if (wert === null || wert === undefined || wert === '') return '–';
+  return fmtZahl(wert, dez) + (einheit ? '\u00a0' + einheit : '');
+}
+
+/* Prozentwert: "1,58 %". */
+function fmtProzent(wert, dez) {
+  return fmtMit(wert, '%', typeof dez === 'number' ? dez : 1);
+}
+
 /* Einen Rohwert übersetzen. Unbekannte Werte kommen unverändert zurück —
    siehe Regel am Dateianfang. Ohne Wert steht ein Gedankenstrich. */
 function begriff(gruppe, wert) {
