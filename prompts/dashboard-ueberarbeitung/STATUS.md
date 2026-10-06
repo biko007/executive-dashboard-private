@@ -32,7 +32,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
 | P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `PLATZHALTER_P2_6` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
+| P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `b68057f` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-7 | Instagram-Planung und Rohmaterial (J) | M | offen | — | — |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
 | P2-9 | Banking-Übersicht (K) | S | offen | — | — |
@@ -1350,7 +1350,7 @@ ist weniger schlimm als ein verschluckter Satz.
 - Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
 - Rückweg: `git revert <commit>`. Keine Wiki-Mutation, deshalb kein Datenrückweg.
 
-**Commit:** `PLATZHALTER_P2_6` · kein Dienst-Restart nötig
+**Commit:** `b68057f` · kein Dienst-Restart nötig
 
 ---
 
