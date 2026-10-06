@@ -89,11 +89,11 @@ document.addEventListener('alpine:init', () => {
             <option value=""${selected(!this.filterStatus)}>Alle Status</option>
             <option value="active"${selected(this.filterStatus === 'active')}>Aktiv</option>
             <option value="ended"${selected(this.filterStatus === 'ended')}>Beendet</option>
-            <option value="future"${selected(this.filterStatus === 'future')}>Zukuenftig</option>
+            <option value="future"${selected(this.filterStatus === 'future')}>Zuk&#252;nftig</option>
           </select>
-          <input class="search-input" placeholder="Mieter, Objekt oder Einheit suchen..." id="vt-search-tenant"
-                 value="${esc(this.searchTenant)}" oninput="vertraegeFilter()" aria-label="Mietvertraege durchsuchen">
-          <button class="btn btn-ghost" onclick="vertraegeFilterReset()" id="vt-filter-reset">Filter zuruecksetzen</button>
+          <input class="search-input" placeholder="Mieter, Objekt oder Einheit suchen\u2026" id="vt-search-tenant"
+                 value="${esc(this.searchTenant)}" oninput="vertraegeFilter()" aria-label="Mietverträge durchsuchen">
+          <button class="btn btn-ghost" onclick="vertraegeFilterReset()" id="vt-filter-reset">Filter zur\u00fccksetzen</button>
         </div>
         <div class="treffer-zeile" id="vt-treffer">${esc(this._trefferText())}</div>
         <div id="vt-leases-list">${this._renderLeasesListe()}</div>`;
@@ -163,10 +163,10 @@ document.addEventListener('alpine:init', () => {
     _trefferText() {
       const gesamt = this.leases.length;
       if (!this._filterAktiv()) {
-        return gesamt + ' ' + (gesamt === 1 ? 'Vertrag' : 'Vertraege');
+        return gesamt + ' ' + (gesamt === 1 ? 'Vertrag' : 'Verträge');
       }
       const n = this._filteredLeases().length;
-      return n + ' von ' + gesamt + ' Vertraegen · ' + this._filterBeschreibung();
+      return n + ' von ' + gesamt + ' Verträgen · ' + this._filterBeschreibung();
     },
 
     /* Benennt die aktive Einschraenkung im Klartext — damit null Treffer nicht
@@ -178,8 +178,7 @@ document.addEventListener('alpine:init', () => {
         teile.push('Objekt ' + (p ? (p.name || p.code) : this.filterProperty));
       }
       if (this.filterStatus) {
-        const m = { active: 'Aktiv', ended: 'Beendet', future: 'Zukuenftig' };
-        teile.push('Status ' + (m[this.filterStatus] || this.filterStatus));
+        teile.push('Status ' + begriff('lease_status', this.filterStatus));
       }
       const suche = (this.searchTenant || '').trim();
       if (suche) teile.push('Suche "' + suche + '"');
@@ -187,31 +186,27 @@ document.addEventListener('alpine:init', () => {
     },
 
     _leerzustandLeases() {
+      /* P2-8: die fuenf Zustaende (datenstand.js) statt zweier .empty-Kaesten.
+         "Keine Daten" und "Keine Treffer" sind verschiedene Aussagen. */
       if (!this.leases.length) {
-        return '<div class="empty">'
-          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Mietvertraege erfasst</div>'
-          + '<div style="font-size:13px">Es ist noch kein Mietvertrag angelegt.</div>'
-          + '</div>';
+        return zustandBlock('keine_daten', 'Es ist noch kein Mietvertrag angelegt.');
       }
-      return '<div class="empty">'
-        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Treffer</div>'
-        + '<div style="font-size:13px;margin-bottom:14px">Kein Mietvertrag passt zu: '
-        + esc(this._filterBeschreibung()) + '. Insgesamt sind ' + this.leases.length
-        + ' Vertraege erfasst.</div>'
-        + '<button class="btn btn-primary" onclick="vertraegeFilterReset()">Filter zuruecksetzen</button>'
-        + '</div>';
+      return zustandBlock('keine_treffer',
+        'Kein Mietvertrag passt zu: ' + this._filterBeschreibung() + '. Insgesamt sind '
+        + this.leases.length + ' Vertr\u00e4ge erfasst.',
+        { aktion: '<button class="btn btn-primary" onclick="vertraegeFilterReset()">Filter zur\u00fccksetzen</button>' });
     },
 
     _renderExpenses() {
       return `
         <div class="filters-row">
           <select class="filter-select" id="exp-filter-prop" onchange="loadExpenseBookings()">
-            <option value="">Objekt waehlen...</option>
+            <option value="">Objekt wählen...</option>
             ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
           <input class="form-input" type="number" id="exp-filter-year" value="${new Date().getFullYear()}" style="width:100px" onchange="loadExpenseBookings()">
         </div>
-        <div id="expense-bookings-list" class="card"><div class="empty">Objekt waehlen</div></div>
+        <div id="expense-bookings-list" class="card"><div class="empty">Objekt wählen</div></div>
       `;
     },
 
@@ -219,11 +214,11 @@ document.addEventListener('alpine:init', () => {
       return `
         <div class="filters-row">
           <select class="filter-select" id="alloc-filter-prop" onchange="loadAllocationRules()">
-            <option value="">Objekt waehlen...</option>
+            <option value="">Objekt wählen...</option>
             ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
         </div>
-        <div id="allocation-rules-list"><div class="empty">Objekt waehlen</div></div>
+        <div id="allocation-rules-list"><div class="empty">Objekt wählen</div></div>
       `;
     },
 
@@ -231,12 +226,12 @@ document.addEventListener('alpine:init', () => {
       return `
         <div class="filters-row">
           <select class="filter-select" id="meters-filter-prop" onchange="loadMeters()">
-            <option value="">Objekt waehlen...</option>
+            <option value="">Objekt wählen...</option>
             ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
-          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddMeter()">+ Zaehler</button>
+          <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddMeter()">+ Zähler</button>
         </div>
-        <div id="meters-list"><div class="empty">Objekt waehlen</div></div>
+        <div id="meters-list"><div class="empty">Objekt wählen</div></div>
       `;
     },
 
@@ -244,7 +239,7 @@ document.addEventListener('alpine:init', () => {
       return `
         <div class="filters-row">
           <select class="filter-select" id="bulk-prop" onchange="loadBulkMeters()">
-            <option value="">Objekt waehlen...</option>
+            <option value="">Objekt wählen...</option>
             ${this.properties.map(p => `<option value="${esc(p.code)}">${esc(p.name || p.code || 'ID ' + p.id)}</option>`).join('')}
           </select>
           <input class="form-input" type="date" id="bulk-date" value="${new Date().toISOString().slice(0,10)}" style="width:160px">
@@ -253,10 +248,10 @@ document.addEventListener('alpine:init', () => {
             <option value="periodic">Periodisch</option>
             <option value="move_in">Einzug</option>
             <option value="move_out">Auszug</option>
-            <option value="meter_reset">Zaehlerreset</option>
+            <option value="meter_reset">Zählerreset</option>
           </select>
         </div>
-        <div id="bulk-readings-form"><div class="empty">Objekt waehlen</div></div>
+        <div id="bulk-readings-form"><div class="empty">Objekt wählen</div></div>
       `;
     },
   }));
@@ -361,14 +356,13 @@ async function assetsOpenLeaseDrawer(leaseId) {
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Tatsaechlicher Auszug</label>
+            <label class="form-label">Tatsächlicher Auszug</label>
             <input class="form-input" type="date" id="ld-moveout" value="${lease.actual_move_out || ''}">
           </div>
           <div class="form-group">
             <label class="form-label">Zahlungsweise</label>
             <select class="form-select" id="ld-payment">
-              <option value="bank_transfer" ${lease.payment_method === 'bank_transfer' ? 'selected' : ''}>Ueberweisung</option>
-              <option value="direct_debit" ${lease.payment_method === 'direct_debit' ? 'selected' : ''}>Lastschrift</option>
+              ${begriffOptionen('payment_method', lease.payment_method, lease.payment_method)}
             </select>
           </div>
         </div>
@@ -436,17 +430,17 @@ async function assetsEndLease(leaseId) {
       <input class="form-input" type="date" id="le-end-date">
     </div>
     <div class="form-group">
-      <label class="form-label">Kuendigungsgrund</label>
+      <label class="form-label">Kündigungsgrund</label>
       <select class="form-select" id="le-reason">
-        <option value="tenant_notice">Kuendigung Mieter</option>
-        <option value="landlord_notice">Kuendigung Vermieter</option>
+        <option value="tenant_notice">Kündigung Mieter</option>
+        <option value="landlord_notice">Kündigung Vermieter</option>
         <option value="mutual_agreement">Aufhebungsvertrag</option>
         <option value="expiry">Befristungsablauf</option>
       </select>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="assetsConfirmEndLease(${leaseId})">Bestaetigen</button>
+      <button class="btn btn-primary" onclick="assetsConfirmEndLease(${leaseId})">Bestätigen</button>
     </div>
   `);
 }
@@ -474,14 +468,14 @@ async function assetsRevokeEndLease(leaseId) {
 
 async function assetsMoveOut(leaseId) {
   openModal(`
-    <h3>Tatsaechlichen Auszug eintragen</h3>
+    <h3>Tatsächlichen Auszug eintragen</h3>
     <div class="form-group">
       <label class="form-label">Auszugsdatum</label>
       <input class="form-input" type="date" id="le-moveout-date">
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">Abbrechen</button>
-      <button class="btn btn-primary" onclick="assetsConfirmMoveOut(${leaseId})">Bestaetigen</button>
+      <button class="btn btn-primary" onclick="assetsConfirmMoveOut(${leaseId})">Bestätigen</button>
     </div>
   `);
 }
@@ -499,7 +493,7 @@ async function assetsConfirmMoveOut(leaseId) {
 
 async function assetsAddCharge(leaseId) {
   openModal(`
-    <h3>Mietbestandteil hinzufuegen</h3>
+    <h3>Mietbestandteil hinzufügen</h3>
     <div class="form-group">
       <label class="form-label">Typ</label>
       <select class="form-select" id="ac-type">
@@ -516,11 +510,11 @@ async function assetsAddCharge(leaseId) {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Gueltig ab</label>
+        <label class="form-label">Gültig ab</label>
         <input class="form-input" type="date" id="ac-from">
       </div>
       <div class="form-group">
-        <label class="form-label">Gueltig bis (leer = offen)</label>
+        <label class="form-label">Gültig bis (leer = offen)</label>
         <input class="form-input" type="date" id="ac-until">
       </div>
     </div>
@@ -566,7 +560,7 @@ async function loadExpenseBookings() {
     }
 
     let html = `<table class="assets-table">
-      <thead><tr><th>Kostenkategorie</th><th>Betrag</th><th>Leistungszeitraum</th><th>Umlagefaehig</th><th>Typ</th><th></th></tr></thead>
+      <thead><tr><th>Kostenkategorie</th><th>Betrag</th><th>Leistungszeitraum</th><th>Umlagefähig</th><th>Typ</th><th></th></tr></thead>
       <tbody>`;
 
     for (const b of bookings) {
@@ -613,7 +607,7 @@ async function assetsEditExpense(bookingId) {
     <div class="form-group">
       <label class="form-checkbox">
         <input type="checkbox" id="eb-umlage" ${b.umlagefaehig ? 'checked' : ''}>
-        Umlagefaehig
+        Umlagefähig
       </label>
       <div class="form-hint">Auf Mieter umlegbare Kosten gem. BetrkV</div>
     </div>
@@ -661,7 +655,7 @@ async function loadAllocationRules() {
     const rules = res.ok ? await res.json() : [];
 
     if (!rules.length) {
-      target.innerHTML = '<div class="empty">Keine Verteilungsschluessel</div>';
+      target.innerHTML = '<div class="empty">Keine Verteilungsschlüssel</div>';
       return;
     }
 
@@ -745,12 +739,12 @@ async function loadMeters() {
     const meters = res.ok ? await res.json() : [];
 
     if (!meters.length) {
-      target.innerHTML = '<div class="empty">Keine Zaehler</div>';
+      target.innerHTML = '<div class="empty">Keine Zähler</div>';
       return;
     }
 
     let html = `<div class="card"><table class="assets-table">
-      <thead><tr><th>Nummer</th><th>Medium</th><th>Zweck</th><th>Bereich</th><th>Hauptzaehler</th><th>Eichung bis</th><th>Eingebaut</th></tr></thead>
+      <thead><tr><th>Nummer</th><th>Medium</th><th>Zweck</th><th>Bereich</th><th>Hauptzähler</th><th>Eichung bis</th><th>Eingebaut</th></tr></thead>
       <tbody>`;
 
     for (const m of meters) {
@@ -793,9 +787,9 @@ async function assetsAddMeter() {
   const unitOpts = units.map(u => `<option value="${u.id}">${esc(u.label || 'ID ' + u.id)}</option>`).join('');
 
   openModal(`
-    <h3>Zaehler hinzufuegen</h3>
+    <h3>Zähler hinzufügen</h3>
     <div class="form-group">
-      <label class="form-label">Zaehlernummer</label>
+      <label class="form-label">Zählernummer</label>
       <input class="form-input" id="nm-number">
     </div>
     <div class="form-row">
@@ -804,7 +798,7 @@ async function assetsAddMeter() {
         <select class="form-select" id="nm-medium" onchange="assetsCheckSubmeteringRequired()">
           <option value="cold_water">Kaltwasser</option>
           <option value="warm_water">Warmwasser</option>
-          <option value="heat">Waerme</option>
+          <option value="heat">Wärme</option>
           <option value="electricity">Strom</option>
           <option value="gas">Gas</option>
         </select>
@@ -812,10 +806,10 @@ async function assetsAddMeter() {
       <div class="form-group" id="nm-purpose-group" style="display:none">
         <label class="form-label">Erfassungszweck</label>
         <select class="form-select" id="nm-purpose">
-          <option value="space_heating_heat">Raumwaerme</option>
-          <option value="warm_water_heat">Warmwasser (Waerme)</option>
+          <option value="space_heating_heat">Raumwärme</option>
+          <option value="warm_water_heat">Warmwasser (Wärme)</option>
           <option value="warm_water_volume">Warmwasser (Volumen)</option>
-          <option value="main_heat">Hauptwaerme</option>
+          <option value="main_heat">Hauptwärme</option>
         </select>
       </div>
     </div>
@@ -824,13 +818,13 @@ async function assetsAddMeter() {
         <label class="form-label">Bereich</label>
         <select class="form-select" id="nm-scope">
           <option value="unit">Einheit</option>
-          <option value="property">Gebaeude</option>
+          <option value="property">Gebäude</option>
         </select>
       </div>
       <div class="form-group">
         <label class="form-label">Einheit</label>
         <select class="form-select" id="nm-unit">
-          <option value="">– (bei Gebaeuezaehler)</option>
+          <option value="">– (bei Gebäudezähler)</option>
           ${unitOpts}
         </select>
       </div>
@@ -838,7 +832,7 @@ async function assetsAddMeter() {
     <div class="form-group">
       <label class="form-checkbox">
         <input type="checkbox" id="nm-main">
-        Hauptzaehler
+        Hauptzähler
       </label>
     </div>
     <div class="form-row">
@@ -847,7 +841,7 @@ async function assetsAddMeter() {
         <input class="form-input" type="date" id="nm-installed">
       </div>
       <div class="form-group">
-        <label class="form-label">Eichung gueltig bis</label>
+        <label class="form-label">Eichung gültig bis</label>
         <input class="form-input" type="date" id="nm-calibration">
       </div>
     </div>
@@ -924,8 +918,8 @@ async function loadBulkMeters() {
 
     let html = `<div class="card"><table class="assets-table" id="bulk-table">
       <thead><tr>
-        <th>Zaehler</th><th>Medium</th><th>Einheit</th><th>Letzter Stand</th>
-        <th>Neuer Wert</th><th>Diff</th><th>Geschaetzt</th><th>Notizen</th>
+        <th>Zähler</th><th>Medium</th><th>Einheit</th><th>Letzter Stand</th>
+        <th>Neuer Wert</th><th>Diff</th><th>Geschätzt</th><th>Notizen</th>
       </tr></thead><tbody>`;
 
     for (const m of meters) {
@@ -973,7 +967,7 @@ function bulkCalcDiff(input, lastVal) {
       const estimated = row.querySelector('.bulk-estimated');
       const readingType = document.getElementById('bulk-type')?.value;
       if (!estimated?.checked && readingType !== 'meter_reset') {
-        diffCell.innerHTML = `<span style="color:var(--red)">${diff.toFixed(3)}</span><br><span style="color:var(--red);font-size:13px">Ruecklaeufig!</span>`;
+        diffCell.innerHTML = `<span style="color:var(--red)">${diff.toFixed(3)}</span><br><span style="color:var(--red);font-size:13px">Rückläufig!</span>`;
       }
     }
   } else {

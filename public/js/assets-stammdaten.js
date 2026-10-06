@@ -199,7 +199,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
         <h4>Objektdaten</h4>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Strasse</label>
+            <label class="form-label">Straße</label>
             <input class="form-input" id="pd-street" value="${esc(prop.street || '')}">
           </div>
           <div class="form-group">
@@ -214,22 +214,25 @@ async function assetsOpenPropertyDrawer(propertyCode) {
           </div>
           <div class="form-group">
             <label class="form-label">Objekttyp</label>
+            <!-- P2-8: Die Auswahl bot nur zwei der vorkommenden Objektarten an;
+                 im Bestand steht auch industrial. begriffOptionen() haengt
+                 einen Bestandswert an, der nicht in der Liste steht, damit
+                 Speichern ihn nicht stillschweigend ersetzt. -->
             <select class="form-select" id="pd-type">
-              <option value="residential" ${prop.property_type === 'residential' ? 'selected' : ''}>Wohngebaeude</option>
-              <option value="commercial" ${prop.property_type === 'commercial' ? 'selected' : ''}>Gewerbe</option>
+              ${begriffOptionen('property_type', prop.property_type, prop.property_type)}
             </select>
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Eigentuemer</label>
+            <label class="form-label">Eigentümer</label>
             <select class="form-select" id="pd-owner">
               <option value="personal" ${prop.owner === 'personal' ? 'selected' : ''}>Privat</option>
               <option value="laperlgmbh" ${prop.owner === 'laperlgmbh' ? 'selected' : ''}>Laperl GmbH</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">Wohnflaeche (qm)</label>
+            <label class="form-label">Wohnfläche (qm)</label>
             <input class="form-input" type="number" id="pd-area" value="${prop.total_living_area_qm || ''}">
           </div>
         </div>
@@ -259,7 +262,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
             <input class="form-input" type="number" min="1800" max="2100" id="pd-construction-year" value="${prop.construction_year || ''}">
           </div>
           <div class="form-group">
-            <label class="form-label">Primaerenergiebedarf</label>
+            <label class="form-label">Primärenergiebedarf</label>
             <div style="display:flex;align-items:center;gap:4px">
               <input class="form-input" type="number" step="0.1" min="0" id="pd-energy" value="${prop.primary_energy_kwh_m2 || ''}" style="flex:1">
               <span style="color:var(--muted);font-size:13px">kWh/m&sup2;</span>
@@ -299,8 +302,8 @@ async function assetsOpenPropertyDrawer(propertyCode) {
         <div class="form-group">
           <label class="form-label">Warmwasser-Methode</label>
           <select class="form-select" id="pd-ww-method" onchange="assetsCheckHeatingConflict()">
-            <option value="A_volume_meter" ${heatingConfig?.warmwater_method === 'A_volume_meter' ? 'selected' : ''}>A: Volumenzaehler</option>
-            <option value="B_heat_meter" ${heatingConfig?.warmwater_method === 'B_heat_meter' ? 'selected' : ''}>B: Waermezaehler</option>
+            <option value="A_volume_meter" ${heatingConfig?.warmwater_method === 'A_volume_meter' ? 'selected' : ''}>A: Volumenzähler</option>
+            <option value="B_heat_meter" ${heatingConfig?.warmwater_method === 'B_heat_meter' ? 'selected' : ''}>B: Wärmezähler</option>
             <option value="shared_no_separation" ${heatingConfig?.warmwater_method === 'shared_no_separation' ? 'selected' : ''}>Keine Trennung</option>
           </select>
         </div>
@@ -329,7 +332,7 @@ async function assetsOpenPropertyDrawer(propertyCode) {
           <button class="btn btn-primary" style="font-size:13px" onclick="assetsAddUnit('${esc(prop.code)}')">+ Einheit</button>
         </div>
         <table class="assets-table">
-          <thead><tr><th>Bezeichnung</th><th>Etage</th><th>Flaeche</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Bezeichnung</th><th>Etage</th><th>Fläche</th><th>Status</th><th></th></tr></thead>
           <tbody>
     `;
 
@@ -446,7 +449,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
             <input class="form-input" id="ud-floor" value="${esc(unit.floor || '')}">
           </div>
           <div class="form-group">
-            <label class="form-label">Flaeche (qm)</label>
+            <label class="form-label">Fläche (qm)</label>
             <input class="form-input" type="number" id="ud-area" value="${unit.living_area_qm || ''}">
           </div>
         </div>
@@ -468,7 +471,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
     for (const r of residents) {
       html += `<tr>
         <td>${fmtDate(r.valid_from)}</td>
-        <td title="einschliesslich">${r.valid_until ? fmtDate(r.valid_until) : '–'}</td>
+        <td title="einschließlich">${r.valid_until ? fmtDate(r.valid_until) : '–'}</td>
         <td>${r.resident_count}</td>
         <td style="color:var(--muted);font-size:13px">${esc(r.notes || '')}</td>
       </tr>`;
@@ -478,24 +481,24 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
 
       <!-- Active Leases -->
       <div class="drawer-section">
-        <h4>Aktive Mietvertraege</h4>`;
+        <h4>Aktive Mietverträge</h4>`;
 
     if (leases.length) {
       for (const l of leases) {
         html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
-          <strong>${l.lease_type || '–'}</strong> · ${l.status || '–'}
+          <strong>${esc(begriff('lease_type', l.lease_type))}</strong> · ${begriffBadge('lease_status', l.status)}
           <br><span style="color:var(--muted)">Von ${fmtDate(l.start_date)} ${l.end_date ? 'bis ' + fmtDate(l.end_date) : '(unbefristet)'}</span>
         </div>`;
       }
     } else {
-      html += '<div style="color:var(--muted);font-size:13px">Keine aktiven Vertraege</div>';
+      html += '<div style="color:var(--muted);font-size:13px">Keine aktiven Verträge</div>';
     }
 
     html += `</div>
 
       <!-- Meters -->
       <div class="drawer-section">
-        <h4>Zaehler (${meters.length})</h4>`;
+        <h4>Zähler (${meters.length})</h4>`;
     if (meters.length) {
       html += '<table class="assets-table"><thead><tr><th>Nummer</th><th>Medium</th><th>Eichung bis</th></tr></thead><tbody>';
       for (const m of meters) {
@@ -508,7 +511,7 @@ async function assetsOpenUnitDrawer(unitCode, propertyCode) {
       }
       html += '</tbody></table>';
     } else {
-      html += '<div style="color:var(--muted);font-size:13px">Keine Zaehler</div>';
+      html += '<div style="color:var(--muted);font-size:13px">Keine Zähler</div>';
     }
 
     html += `</div>
@@ -540,7 +543,7 @@ async function assetsSaveUnit(unitCode, propertyCode) {
 
 async function assetsAddUnit(propertyCode) {
   openModal(`
-    <h3>Einheit hinzufuegen</h3>
+    <h3>Einheit hinzufügen</h3>
     <div class="form-group">
       <label class="form-label">Code (z.B. EG, OG, 1.OG)</label>
       <input class="form-input" id="au-code" placeholder="z.B. EG">
@@ -551,7 +554,7 @@ async function assetsAddUnit(propertyCode) {
         <input class="form-input" id="au-floor" placeholder="z.B. EG">
       </div>
       <div class="form-group">
-        <label class="form-label">Flaeche (qm)</label>
+        <label class="form-label">Fläche (qm)</label>
         <input class="form-input" type="number" id="au-area">
       </div>
     </div>
@@ -580,13 +583,13 @@ async function assetsSaveNewUnit(propertyCode) {
 
 async function assetsAddResident(unitCode, propertyCode) {
   openModal(`
-    <h3>Personen-Eintrag hinzufuegen</h3>
+    <h3>Personen-Eintrag hinzufügen</h3>
     <div class="form-group">
-      <label class="form-label">Gueltig ab</label>
+      <label class="form-label">Gültig ab</label>
       <input class="form-input" type="date" id="ar-from">
     </div>
     <div class="form-group">
-      <label class="form-label">Gueltig bis (einschliesslich, leer = offen)</label>
+      <label class="form-label">Gültig bis (einschließlich, leer = offen)</label>
       <input class="form-input" type="date" id="ar-until">
     </div>
     <div class="form-group">
@@ -657,7 +660,7 @@ async function assetsOpenTenantDrawer(tenantId) {
           <div class="form-hint">IBAN wird maskiert angezeigt</div>
         </div>
         <div class="form-group">
-          <label class="form-label">Strasse</label>
+          <label class="form-label">Straße</label>
           <input class="form-input" id="td-street" value="${esc(tenant.address_street || '')}">
         </div>
         <div class="form-row">
@@ -674,6 +677,7 @@ async function assetsOpenTenantDrawer(tenantId) {
           <button class="btn btn-primary" onclick="assetsSaveTenant(${tenant.id})">Speichern</button>
         </div>
       </div>
+      ${mietHtml}
     `);
   } catch (e) {
     Alpine.store('toast').error('Fehler: ' + e.message);
@@ -722,14 +726,14 @@ function assetsAddProperty() {
       <div class="form-group">
         <label class="form-label">Objekttyp</label>
         <select class="form-select" id="np-type">
-          <option value="residential">Wohngebaeude</option>
+          <option value="residential">Wohngebäude</option>
           <option value="commercial">Gewerbe</option>
           <option value="industrial">Industrie</option>
         </select>
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Strasse</label>
+      <label class="form-label">Straße</label>
       <input class="form-input" id="np-street" placeholder="z.B. Musterstr. 1">
     </div>
     <div class="form-row">
@@ -744,7 +748,7 @@ function assetsAddProperty() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Eigentuemer</label>
+        <label class="form-label">Eigentümer</label>
         <select class="form-select" id="np-owner">
           <option value="personal">Privat</option>
           <option value="la_perla_gmbh">Laperl GmbH</option>
@@ -825,7 +829,7 @@ function assetsAddTenant() {
       <input class="form-input" id="nt-iban" placeholder="DE...">
     </div>
     <div class="form-group">
-      <label class="form-label">Strasse</label>
+      <label class="form-label">Straße</label>
       <input class="form-input" id="nt-street">
     </div>
     <div class="form-row">

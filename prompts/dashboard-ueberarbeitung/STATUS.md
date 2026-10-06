@@ -2,10 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 09:25 UTC
+**Letzte Aktualisierung:** 06.10.2026, 09:15 UTC
 **Aktuelle Phase:** **Phase 2 läuft** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
-Hetzner-Snapshot liegt vor. **P2-1 bis P2-7 sind erledigt.**
-**Nächster Schritt: P2-8** (Begriffe, Formate, Barrierefreiheit).
+Hetzner-Snapshot liegt vor. **P2-1 bis P2-10 sind erledigt.**
+**Nächster Schritt: P2-11** (Immobilien- und Mieterdaten).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)

@@ -90,9 +90,9 @@ document.addEventListener('alpine:init', () => {
     _renderSubSubTabs() {
       const nk = Alpine.store('nk');
       return `<div class="filters-row" style="margin-bottom:16px">
-        <button class="btn ${nk.activeSubTab === 'precheck' ? 'btn-primary' : ''}" onclick="nkSwitchSection('precheck')">Pre-Check</button>
+        <button class="btn ${nk.activeSubTab === 'precheck' ? 'btn-primary' : ''}" onclick="nkSwitchSection('precheck')">Vorpr\u00fcfung</button>
         <button class="btn ${nk.activeSubTab === 'preview' ? 'btn-primary' : ''}" onclick="nkSwitchSection('preview')">Vorschau</button>
-        <button class="btn ${nk.activeSubTab === 'runs' ? 'btn-primary' : ''}" onclick="nkSwitchSection('runs')">Runs &amp; Statements</button>
+        <button class="btn ${nk.activeSubTab === 'runs' ? 'btn-primary' : ''}" onclick="nkSwitchSection('runs')">Abrechnungsl\u00e4ufe</button>
         <button class="btn ${nk.activeSubTab === 'obligations' ? 'btn-primary' : ''}" onclick="nkSwitchSection('obligations')">\u00a7556-Pflichten</button>
       </div>`;
     },
@@ -102,7 +102,7 @@ document.addEventListener('alpine:init', () => {
     _renderPreCheck() {
       return `<div class="card card-pad">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-          <h3 style="font-size:15px;margin:0">NK Pre-Check</h3>
+          <h3 style="font-size:15px;margin:0">Vorpr\u00fcfung der Abrechnung</h3>
           <button class="btn" onclick="nkLoadPreCheck()" id="nk-precheck-refresh">Aktualisieren</button>
         </div>
         <div id="nk-precheck-result"><div class="spinner">Laden...</div></div>
@@ -117,9 +117,9 @@ document.addEventListener('alpine:init', () => {
       return `<div class="card card-pad">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
           <h3 style="font-size:15px;margin:0">NK-Vorschau</h3>
-          <button class="btn btn-primary" onclick="nkLoadPreview()" id="nk-preview-btn"${blocked ? ' disabled title="Pre-Check hat Blocker"' : ''}>Vorschau berechnen</button>
+          <button class="btn btn-primary" onclick="nkLoadPreview()" id="nk-preview-btn"${blocked ? ' disabled title="Die Vorprüfung hat blockierende Befunde"' : ''}>Vorschau berechnen</button>
         </div>
-        ${blocked ? '<div class="alert alert-error" style="margin-bottom:12px">Pre-Check hat Blocker. Bitte erst alle Blocker beheben.</div>' : ''}
+        ${blocked ? '<div class="alert alert-error" style="margin-bottom:12px">Die Vorprüfung hat blockierende Befunde. Sie müssen zuerst geklärt werden.</div>' : ''}
         ${!nk.preCheck ? '<div class="empty" style="margin-bottom:12px">Pre-Check noch nicht durchgef\u00fchrt. <a href="#" onclick="event.preventDefault();nkSwitchSection(\'precheck\')">Jetzt pr\u00fcfen</a></div>' : ''}
         <div id="nk-preview-result"></div>
       </div>`;
@@ -129,7 +129,7 @@ document.addEventListener('alpine:init', () => {
 
     _renderRuns() {
       return `<div class="card card-pad">
-        <h3 style="font-size:15px;margin-bottom:16px">Runs &amp; Statements</h3>
+        <h3 style="font-size:15px;margin-bottom:16px">Abrechnungsl\u00e4ufe und Abrechnungen</h3>
         <div id="nk-runs-list"><div class="spinner">Laden...</div></div>
       </div>
       <div id="nk-run-detail" style="margin-top:16px"></div>`;
@@ -241,7 +241,7 @@ async function nkLoadPreCheck() {
     } else {
       html += '<div class="empty">'
         + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Befunde</div>'
-        + '<div style="font-size:13px">Die Pruefung lief durch und hat nichts beanstandet.</div>'
+        + '<div style="font-size:13px">Die Prüfung lief durch und hat nichts beanstandet.</div>'
         + '</div>';
     }
 
@@ -250,7 +250,7 @@ async function nkLoadPreCheck() {
     /* Ein Ladefehler darf nicht wie "alles in Ordnung" aussehen (Spec §4 G). */
     target.innerHTML = '<div class="ds-leerzustand">'
       + '<span class="ds-leer-symbol" aria-hidden="true">⚠️</span><div>'
-      + '<div class="ds-leer-titel">Pruefung konnte nicht geladen werden</div>'
+      + '<div class="ds-leer-titel">Prüfung konnte nicht geladen werden</div>'
       + '<div class="ds-leer-sub">' + esc(e.message)
       + ' — der Bereitschaftszustand ist damit unbekannt, nicht in Ordnung.</div>'
       + '<div style="margin-top:12px"><button class="btn btn-primary" style="font-size:13px"'
@@ -451,12 +451,17 @@ async function nkLoadRuns() {
     nk.runs = runs;
 
     if (!runs.length) {
-      target.innerHTML = '<div class="empty">Noch keine Runs f\u00fcr diese Property/Jahr</div>';
+      /* P2-8: "Runs", "Property" und ein Leerzustand, der nicht sagt, was gilt.
+         Jetzt der Zustand "Keine Daten" mit Objekt und Jahr im Klartext. */
+      target.innerHTML = zustandBlock('keine_daten',
+        'F\u00fcr Objekt ' + (nk.selectedPropertyCode || '(nicht gew\u00e4hlt)')
+        + ' ist f\u00fcr ' + nk.selectedYear + ' noch kein Abrechnungslauf angelegt. Ein Lauf entsteht \u00fcber '
+        + '"Vorschau" und das anschlie\u00dfende Festschreiben.');
       return;
     }
 
     let html = `<table class="assets-table">
-      <thead><tr><th>Run-ID</th><th>Version</th><th>Status</th><th>Erstellt</th><th>Finalisiert</th><th>Statements</th><th>Snapshot</th></tr></thead>
+      <thead><tr><th>Lauf</th><th>Version</th><th>Status</th><th>Erstellt</th><th>Festgeschrieben</th><th>Abrechnungen</th><th>Pr\u00fcfsumme</th></tr></thead>
       <tbody>`;
     for (const r of runs) {
       const snapshot = r.snapshot_sha ? r.snapshot_sha.slice(0, 8) : '\u2013';
@@ -517,7 +522,7 @@ async function nkShowRunDetail(runId) {
     // Statements table
     const statements = run.statements || [];
     if (statements.length) {
-      html += `<h4 style="font-size:13px;margin-bottom:8px">Statements</h4>
+      html += `<h4 style="font-size:13px;margin-bottom:8px">Abrechnungen</h4>
         <table class="assets-table" id="nk-statements-table">
         <thead><tr><th>Mieter</th><th>Einheit</th><th style="text-align:right">Saldo</th><th>PDF</th><th>Zugestellt</th><th>Aktionen</th></tr></thead>
         <tbody>`;
@@ -791,7 +796,7 @@ async function nkLoadObligationsForProperty() {
         <td>${o.year || (o.period_end ? o.period_end.slice(0, 4) : '\u2013')}</td>
         <td>${fmtDate(o.service_deadline_at)}</td>
         <td><span class="badge ${statusClass}">${statusLabel}</span></td>
-        <td>${daysRemaining != null ? (daysRemaining >= 0 ? daysRemaining + ' Tage' : '<span style="color:var(--red)">Ueberfaellig</span>') : '\u2013'}</td>
+        <td>${daysRemaining != null ? (daysRemaining >= 0 ? daysRemaining + ' Tage' : '<span style="color:var(--red)">Überfällig</span>') : '\u2013'}</td>
         <td>${actions}</td>
       </tr>`;
     }

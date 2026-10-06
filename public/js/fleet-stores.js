@@ -212,28 +212,25 @@ document.addEventListener('alpine:init', () => {
 
     /* Leerzustand benennt den aktiven Filter. Vorher stand hier nur
        "Keine Fahrzeuge gefunden." — nicht unterscheidbar von einem leeren
-       Bestand (Spec §4 C, §4 M "keine Daten" vs. "keine Treffer"). */
+       Bestand (Spec §4 C, §4 M "keine Daten" vs. "keine Treffer").
+       P2-8: jetzt über den gemeinsamen Baustein zustandBlock(), damit die
+       fünf Zustände in allen Bereichen gleich aussehen. */
     _leerzustand() {
+      const zuruecksetzen = { aktion: '<button class="btn btn-primary" '
+        + 'onclick="fleetSetzeFilter(\'all\')">Filter zurücksetzen</button>' };
       if (this.statusFilter === 'archived') {
-        return '<div class="empty">'
-          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine archivierten Fahrzeuge</div>'
-          + '<div style="font-size:13px;margin-bottom:14px">Der Filter &bdquo;Archiviert&ldquo; ist aktiv. '
-          + 'Es ist derzeit kein Fahrzeug archiviert &mdash; &bdquo;Alle&ldquo; zeigt den vollstaendigen Bestand.</div>'
-          + '<button class="btn btn-primary" onclick="fleetSetzeFilter(\'all\')">Filter zuruecksetzen</button>'
-          + '</div>';
+        return zustandBlock('keine_treffer',
+          'Der Filter „Archiviert" ist aktiv. Es ist derzeit kein Fahrzeug archiviert — '
+          + '„Alle" zeigt den vollständigen Bestand.',
+          { titel: 'Keine archivierten Fahrzeuge', aktion: zuruecksetzen.aktion });
       }
       if (this.statusFilter === 'active') {
-        return '<div class="empty">'
-          + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine aktiven Fahrzeuge</div>'
-          + '<div style="font-size:13px;margin-bottom:14px">Der Filter &bdquo;Aktiv&ldquo; ist aktiv. '
-          + '&bdquo;Alle&ldquo; zeigt auch archivierte Fahrzeuge.</div>'
-          + '<button class="btn btn-primary" onclick="fleetSetzeFilter(\'all\')">Filter zuruecksetzen</button>'
-          + '</div>';
+        return zustandBlock('keine_treffer',
+          'Der Filter „Aktiv" ist aktiv. „Alle" zeigt auch archivierte Fahrzeuge.',
+          { titel: 'Keine aktiven Fahrzeuge', aktion: zuruecksetzen.aktion });
       }
-      return '<div class="empty">'
-        + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Fahrzeuge erfasst</div>'
-        + '<div style="font-size:13px">Im Fuhrpark ist noch kein Fahrzeug angelegt.</div>'
-        + '</div>';
+      return zustandBlock('keine_daten', 'Im Fuhrpark ist noch kein Fahrzeug angelegt.',
+        { titel: 'Keine Fahrzeuge erfasst' });
     },
 
     _renderList() {
@@ -250,7 +247,6 @@ document.addEventListener('alpine:init', () => {
         return;
       }
 
-      const _fuelMap = {gasoline:'Benzin',diesel:'Diesel',electric:'Elektro',hybrid:'Hybrid',plugin_hybrid:'Plug-in-Hybrid',lpg:'LPG',cng:'CNG',hydrogen:'Wasserstoff'};
       const _kmFmt = new Intl.NumberFormat('de-DE');
       const _eurFmt = new Intl.NumberFormat('de-DE', {style:'currency',currency:'EUR',maximumFractionDigits:0});
 
@@ -259,7 +255,8 @@ document.addEventListener('alpine:init', () => {
         const code = esc(v.vehicleCode || v.id);
         const isArchived = v.status === 'archived';
         const t = fleetTuevInfo(v.tuevNextDueDate || v.tuevDate);
-        const fuelLabel = _fuelMap[v.fuelType] || (v.fuelType ? esc(v.fuelType) : '\u2014');
+        /* P2-8: Bezeichnung aus der gemeinsamen Tabelle begriffe.js. */
+        const fuelLabel = v.fuelType ? esc(begriff('fuel_type', v.fuelType)) : '\u2014';
         const km = v.mileage != null ? _kmFmt.format(v.mileage) + ' km' : '\u2014';
         const tuevVal = (v.tuevNextDueDate || v.tuevDate) ? '<span class="' + t.cls + '">' + esc(t.text) + '</span>' : '\u2014';
         const ins = v.activeInsurancePremium != null ? _eurFmt.format(v.activeInsurancePremium) : '\u2014';
@@ -275,7 +272,7 @@ document.addEventListener('alpine:init', () => {
         html += '<span class="label">Erstzulassung</span><span class="value">' + (v.year || '\u2014') + '</span>';
         html += '<span class="label">Kraftstoff</span><span class="value">' + fuelLabel + '</span>';
         html += '<span class="label">KM-Stand</span><span class="value">' + km + '</span>';
-        html += '<span class="label">TUeV bis</span><span class="value">' + tuevVal + '</span>';
+        html += '<span class="label">TÜV bis</span><span class="value">' + tuevVal + '</span>';
         html += '<span class="label">Versicherung/J</span><span class="value">' + ins + '</span>';
         html += '<span class="label">Kfz-Steuer/J</span><span class="value">' + tax + '</span>';
         html += '</div></div></div>';

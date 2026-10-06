@@ -1129,13 +1129,52 @@ app.get('/api/trips', auth, (req, res) => {
   }
 });
 
+/* Reise-Kennung nach Projektkonvention: YYMMDD-trip-<ort>.
+   Dasselbe Muster wie `makeReadableFleetId` im Fuhrpark-Abschnitt — nur mit
+   dem Datumspräfix, das CLAUDE.md für alle Kennungen vorschreibt. Kollisionen
+   werden durchnummeriert.
+
+   Der Slug wird hier selbst gebildet und nicht aus dem Fuhrpark-Abschnitt
+   geholt: die beiden Bereiche sollen nicht übereinander stolpern, und der
+   Ausdruck ist eine Zeile.
+
+   P2-8: Vorher war die Kennung PFLICHTEINGABE im Formular („ID (Slug, z.B.
+   tokyo-2026-05)"). Das verlangte vom Owner eine technische Entscheidung und
+   wich von der Konvention ab. */
+function slugifyTrip(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+}
+
+function makeReadableTripId(ort, start) {
+  const d = (start && /^\d{4}-\d{2}-\d{2}/.test(String(start))) ? new Date(start) : new Date();
+  const praefix = String(d.getFullYear()).slice(2)
+    + String(d.getMonth() + 1).padStart(2, '0')
+    + String(d.getDate()).padStart(2, '0');
+  const slug = slugifyTrip(ort).slice(0, 14).replace(/-$/, '') || 'reise';
+  const basis = `${praefix}-trip-${slug}`;
+  const belegt = (k) => fs.existsSync(path.join(TRAVEL_DIR, `${k}.json`));
+  if (!belegt(basis)) return basis;
+  for (let n = 2; n <= 50; n++) {
+    if (!belegt(`${basis}-${n}`)) return `${basis}-${n}`;
+  }
+  return `${basis}-${Date.now().toString(36).slice(-4)}`;
+}
+
 app.post('/api/trips', auth, async (req, res) => {
   try {
     const { id, name, destination, start_date, end_date, climate, activities } = req.body;
-    if (!id || !name || !start_date || !end_date) {
-      return res.status(400).json({ error: 'id, name, start_date and end_date are required' });
+    if (!name || !start_date || !end_date) {
+      return res.status(400).json({ error: 'name, start_date and end_date are required' });
     }
-    const safeId = String(id).replace(/[^a-z0-9\-_]/gi, '');
+    /* Kennung nur erzeugen, wenn keine mitgeliefert wurde — eine vorgegebene
+       Kennung bleibt gültig (Rückwärtskompatibilität des Endpunkts). */
+    const safeId = id
+      ? String(id).replace(/[^a-z0-9\-_]/gi, '')
+      : makeReadableTripId(destination || name, start_date);
     if (!safeId) return res.status(400).json({ error: 'Invalid trip id' });
     const filePath = path.join(TRAVEL_DIR, `${safeId}.json`);
     if (!filePath.startsWith(TRAVEL_DIR + path.sep)) {

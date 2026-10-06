@@ -71,8 +71,8 @@ function renderChangeoverWizard() {
 
   html += `
     <div class="wizard-footer">
-      ${wiz.step > 1 ? `<button class="btn" onclick="wizardPrev()">Zurueck</button>` : '<div></div>'}
-      ${wiz.step < 5 ? `<button class="btn btn-primary" onclick="wizardNext()">Weiter</button>` : `<button class="btn btn-primary" onclick="commitChangeover()">Mieterwechsel abschliessen</button>`}
+      ${wiz.step > 1 ? `<button class="btn" onclick="wizardPrev()">Zurück</button>` : '<div></div>'}
+      ${wiz.step < 5 ? `<button class="btn btn-primary" onclick="wizardNext()">Weiter</button>` : `<button class="btn btn-primary" onclick="commitChangeover()">Mieterwechsel abschließen</button>`}
     </div>
   `;
 
@@ -91,23 +91,23 @@ function renderWizardStep1() {
         <input class="form-input" type="date" id="wz-end-date" value="${wiz.end_date}" onchange="Alpine.store('wizard').end_date=this.value">
       </div>
       <div class="form-group">
-        <label class="form-label">Tatsaechlicher Auszug</label>
+        <label class="form-label">Tatsächlicher Auszug</label>
         <input class="form-input" type="date" id="wz-moveout" value="${wiz.actual_move_out}" onchange="Alpine.store('wizard').actual_move_out=this.value">
         <div class="form-hint">Falls Auszug vor Vertragsende: end_date wird automatisch angepasst</div>
       </div>
     </div>
     <div class="form-group">
-      <label class="form-label">Kuendigungsgrund</label>
+      <label class="form-label">Kündigungsgrund</label>
       <select class="form-select" id="wz-reason" onchange="Alpine.store('wizard').termination_reason=this.value">
-        <option value="" ${!wiz.termination_reason ? 'selected' : ''}>-- waehlen --</option>
-        <option value="tenant_notice" ${wiz.termination_reason === 'tenant_notice' ? 'selected' : ''}>Kuendigung Mieter</option>
-        <option value="landlord_notice" ${wiz.termination_reason === 'landlord_notice' ? 'selected' : ''}>Kuendigung Vermieter</option>
+        <option value="" ${!wiz.termination_reason ? 'selected' : ''}>-- wählen --</option>
+        <option value="tenant_notice" ${wiz.termination_reason === 'tenant_notice' ? 'selected' : ''}>Kündigung Mieter</option>
+        <option value="landlord_notice" ${wiz.termination_reason === 'landlord_notice' ? 'selected' : ''}>Kündigung Vermieter</option>
         <option value="mutual_agreement" ${wiz.termination_reason === 'mutual_agreement' ? 'selected' : ''}>Aufhebungsvertrag</option>
         <option value="expiry" ${wiz.termination_reason === 'expiry' ? 'selected' : ''}>Befristungsablauf</option>
       </select>
     </div>
     <div class="form-group">
-      <label class="form-label">Uebergabenotiz</label>
+      <label class="form-label">Übergabenotiz</label>
       <input class="form-input" id="wz-handover-note" value="${esc(wiz.handover_note)}" onchange="Alpine.store('wizard').handover_note=this.value">
     </div>
   `;
@@ -120,14 +120,14 @@ function renderWizardStep2() {
   return `
     <h4 style="font-size:14px;margin-bottom:16px">End-Ablesungen</h4>
     <div class="alert alert-info">
-      Ablesungen der Zaehler der betroffenen Einheit sowie relevanter Hauptzaehler (§9b HeizkostenV).
-      Datum wird auf den tatsaechlichen Auszug voreingestellt.
+      Ablesungen der Zähler der betroffenen Einheit sowie relevanter Hauptzähler (§9b HeizkostenV).
+      Datum wird auf den tatsächlichen Auszug voreingestellt.
     </div>
     <div class="form-group">
       <label class="form-label">Ablesedatum</label>
       <input class="form-input" type="date" id="wz-reading-date" value="${wiz.actual_move_out || ''}" style="width:200px">
     </div>
-    <div id="wz-end-readings-list"><div class="spinner">Zaehler werden geladen...</div></div>
+    <div id="wz-end-readings-list"><div class="spinner">Zähler werden geladen...</div></div>
     <script>loadWizardEndMeters()</script>
   `;
 }
@@ -149,11 +149,11 @@ async function loadWizardEndMeters() {
     const allMeters = [...meters, ...mainMeters.filter(mm => !meters.find(m => m.id === mm.id))];
 
     if (!allMeters.length) {
-      target.innerHTML = '<div class="empty">Keine aktiven Zaehler gefunden</div>';
+      target.innerHTML = '<div class="empty">Keine aktiven Zähler gefunden</div>';
       return;
     }
 
-    let html = '<table class="assets-table"><thead><tr><th>Zaehler</th><th>Medium</th><th>Wert</th><th>Geschaetzt</th><th>Grund</th></tr></thead><tbody>';
+    let html = '<table class="assets-table"><thead><tr><th>Zähler</th><th>Medium</th><th>Wert</th><th>Geschätzt</th><th>Grund</th></tr></thead><tbody>';
     for (const m of allMeters) {
       const idx = wiz.end_readings.findIndex(r => r.meter_id === m.id);
       const existing = idx >= 0 ? wiz.end_readings[idx] : {};
@@ -162,7 +162,7 @@ async function loadWizardEndMeters() {
         <td>${esc(m.medium || '')}</td>
         <td><input class="form-input wz-end-val" type="number" step="0.001" data-meter-id="${m.id}" value="${existing.value || ''}" style="width:120px"></td>
         <td><label class="form-checkbox"><input type="checkbox" class="wz-end-est" data-meter-id="${m.id}" ${existing.is_estimated ? 'checked' : ''}></label></td>
-        <td><input class="form-input wz-end-reason" data-meter-id="${m.id}" value="${esc(existing.estimation_reason || '')}" style="width:120px;font-size:13px" placeholder="Schaetzgrund"></td>
+        <td><input class="form-input wz-end-reason" data-meter-id="${m.id}" value="${esc(existing.estimation_reason || '')}" style="width:120px;font-size:13px" placeholder="Schätzgrund"></td>
       </tr>`;
     }
     html += '</tbody></table>';
@@ -249,12 +249,12 @@ function renderWizardStep3() {
     `}
 
     <div style="margin-top:12px">
-      <button class="btn btn-primary" onclick="wizardAddTenant()">Mieter hinzufuegen</button>
+      <button class="btn btn-primary" onclick="wizardAddTenant()">Mieter hinzufügen</button>
     </div>
 
     <hr style="border-color:var(--border);margin:20px 0">
 
-    <h4 style="font-size:14px;margin-bottom:16px">Personenzahl (fuer NK-Umlageschluessel)</h4>
+    <h4 style="font-size:14px;margin-bottom:16px">Personenzahl (fuer NK-Umlageschlüssel)</h4>
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Personenzahl</label>
@@ -262,7 +262,7 @@ function renderWizardStep3() {
         ${wiz.new_unit_residents.resident_count === 0 || wiz.new_unit_residents.resident_count === '' ? '<div class="alert alert-warning" style="margin-top:4px">Personenzahl ist 0 oder leer</div>' : ''}
       </div>
       <div class="form-group">
-        <label class="form-label">Gueltig ab</label>
+        <label class="form-label">Gültig ab</label>
         <input class="form-input" type="date" id="wz-resident-from" value="${wiz.new_unit_residents.valid_from || wiz.new_lease?.handover_at || ''}" onchange="Alpine.store('wizard').new_unit_residents.valid_from=this.value">
       </div>
     </div>
@@ -324,10 +324,14 @@ function renderWizardStep4() {
     <div class="form-row">
       <div class="form-group">
         <label class="form-label">Vertragstyp</label>
+        <!-- P2-8: Die Auswahl bot residential_permanent und
+             residential_temporary an. Die Datenbank laesst in dieser Spalte
+             nur residential, temporary, commercial, garage und storage zu
+             (CHECK leases_lease_type_check) — ein Mieterwechsel mit den alten
+             Werten waere beim Schreiben abgewiesen worden. Die Liste kommt
+             jetzt aus public/js/begriffe.js und haelt sich an die Bedingung. -->
         <select class="form-select" id="wz-lease-type" onchange="Alpine.store('wizard').new_lease.lease_type=this.value">
-          <option value="residential_permanent" ${nl.lease_type === 'residential_permanent' ? 'selected' : ''}>Wohnung unbefristet</option>
-          <option value="residential_temporary" ${nl.lease_type === 'residential_temporary' ? 'selected' : ''}>Wohnung befristet</option>
-          <option value="commercial" ${nl.lease_type === 'commercial' ? 'selected' : ''}>Gewerbe</option>
+          ${begriffOptionen('lease_type', nl.lease_type, null)}
         </select>
       </div>
       <div class="form-group">
@@ -337,11 +341,11 @@ function renderWizardStep4() {
     </div>
     <div class="form-row">
       <div class="form-group">
-        <label class="form-label">Uebergabe am</label>
+        <label class="form-label">Übergabe am</label>
         <input class="form-input" type="date" id="wz-lease-handover" value="${nl.handover_at}" onchange="Alpine.store('wizard').new_lease.handover_at=this.value">
       </div>
       <div class="form-group">
-        <label class="form-label">Miete faellig am (Tag)</label>
+        <label class="form-label">Miete fällig am (Tag)</label>
         <input class="form-input" type="number" min="1" max="28" id="wz-lease-due" value="${nl.rent_due_day}" onchange="Alpine.store('wizard').new_lease.rent_due_day=Number(this.value)">
       </div>
     </div>
@@ -369,7 +373,7 @@ function renderWizardStep4() {
       <div class="form-group">
         <label class="form-label">Zahlungsweise</label>
         <select class="form-select" id="wz-lease-payment" onchange="Alpine.store('wizard').new_lease.payment_method=this.value">
-          <option value="bank_transfer" ${nl.payment_method === 'bank_transfer' ? 'selected' : ''}>Ueberweisung</option>
+          <option value="bank_transfer" ${nl.payment_method === 'bank_transfer' ? 'selected' : ''}>Überweisung</option>
           <option value="direct_debit" ${nl.payment_method === 'direct_debit' ? 'selected' : ''}>Lastschrift</option>
         </select>
       </div>
@@ -431,7 +435,7 @@ function renderWizardStep5() {
     </div>
 
     <div class="alert alert-warning">
-      Nach Bestaetigung wird der Mieterwechsel atomar durchgefuehrt.
+      Nach Bestätigung wird der Mieterwechsel atomar durchgeführt.
       Alle Schritte werden zusammen gespeichert oder verworfen.
     </div>
   `;

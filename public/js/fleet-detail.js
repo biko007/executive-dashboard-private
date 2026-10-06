@@ -113,12 +113,11 @@ document.addEventListener('alpine:init', () => {
       if (v.plate) html += '<tr><td style="color:var(--muted)">Kennzeichen</td><td><span class="badge badge-blue">' + esc(v.plate) + '</span></td></tr>';
       if (v.vin) html += '<tr><td style="color:var(--muted)">FIN</td><td style="font-family:monospace">' + esc(v.vin) + '</td></tr>';
       if (v.color) html += '<tr><td style="color:var(--muted)">Farbe</td><td>' + esc(v.color) + '</td></tr>';
-      const _fuelLabels = {gasoline:'Benzin',diesel:'Diesel',electric:'Elektro',hybrid:'Hybrid',plugin_hybrid:'Plug-in-Hybrid',lpg:'LPG',cng:'CNG',hydrogen:'Wasserstoff'};
-      if (v.fuelType) html += '<tr><td style="color:var(--muted)">Kraftstoff</td><td>' + esc(_fuelLabels[v.fuelType] || v.fuelType) + '</td></tr>';
+      if (v.fuelType) html += '<tr><td style="color:var(--muted)">Kraftstoff</td><td>' + esc(begriff('fuel_type', v.fuelType)) + '</td></tr>';
       html += '<tr><td style="color:var(--muted)">km-Stand</td><td>' + km + '</td></tr>';
       if (v.holder) html += '<tr><td style="color:var(--muted)">Halter</td><td>' + esc(v.holder) + '</td></tr>';
       if (v.purchasePrice != null) html += '<tr><td style="color:var(--muted)">Kaufpreis</td><td>' + Number(v.purchasePrice).toLocaleString('de-DE') + ' &euro;</td></tr>';
-      html += '<tr><td style="color:var(--muted)">TUeV</td><td><span class="' + t.cls + '">' + esc(t.text) + '</span></td></tr>';
+      html += '<tr><td style="color:var(--muted)">TÜV</td><td><span class="' + t.cls + '">' + esc(t.text) + '</span></td></tr>';
       html += '<tr><td style="color:var(--muted)">Status</td><td>' + (v.status === 'active' ? '<span class="badge badge-green">aktiv</span>' : '<span class="badge badge-muted">archiviert</span>') + '</td></tr>';
       if (v.notes) html += '<tr><td style="color:var(--muted)">Notizen</td><td>' + esc(v.notes) + '</td></tr>';
       html += '</tbody></table></div>';
@@ -139,7 +138,7 @@ document.addEventListener('alpine:init', () => {
       html += '</div>';
 
       if (!records.length) {
-        html += '<div class="empty">Keine Service-Eintraege vorhanden.</div>';
+        html += '<div class="empty">Keine Service-Einträge vorhanden.</div>';
         return html;
       }
 
@@ -158,7 +157,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td style="color:var(--muted);font-size:13px">' + esc(s.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteServiceRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="Service-Eintrag löschen" title="Service-Eintrag löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteServiceRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -183,7 +182,7 @@ document.addEventListener('alpine:init', () => {
         return html;
       }
 
-      html += '<table class="assets-table"><thead><tr><th>Anbieter</th><th>Typ</th><th>Policen-Nr</th><th>Gueltig ab</th><th>Gueltig bis</th><th>Jahrespraemie</th><th></th></tr></thead><tbody>';
+      html += '<table class="assets-table"><thead><tr><th>Anbieter</th><th>Typ</th><th>Policen-Nr</th><th>Gültig ab</th><th>Gültig bis</th><th>Jahresprämie</th><th></th></tr></thead><tbody>';
       for (const p of policies) {
         const rid = p.id || '';
         html += '<tr>';
@@ -195,7 +194,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + (p.annual_premium != null ? Number(p.annual_premium).toLocaleString('de-DE') + ' &euro;' : (p.annualCost != null ? Number(p.annualCost).toLocaleString('de-DE') + ' &euro;' : '&ndash;')) + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteInsurancePolicy(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="Versicherung löschen" title="Versicherung löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteInsurancePolicy(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -213,25 +212,24 @@ document.addEventListener('alpine:init', () => {
       // Legacy banner check
       let legacyBanner = '';
       if (v.sourcePayload && v.sourcePayload.tuev_next_due_legacy_no_inspection) {
-        legacyBanner = '<div class="legacy-banner">Legacy-Marker: TUeV-Faelligkeit wurde aus Altdaten uebernommen, ohne dass ein Pruefbericht vorliegt. Bitte aktuellen TUeV-Bericht hinzufuegen.</div>';
+        legacyBanner = '<div class="legacy-banner">Legacy-Marker: TÜV-Fälligkeit wurde aus Altdaten übernommen, ohne dass ein Prüfbericht vorliegt. Bitte aktuellen TÜV-Bericht hinzufügen.</div>';
       }
 
       let html = legacyBanner;
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
-      html += '<h3 style="font-size:15px;font-weight:600">TUeV-Pruefungen (' + records.length + ')</h3>';
-      html += '<button class="btn btn-primary" onclick="fleetAddTuevModal(\'' + code + '\')">+ TUeV-Eintrag</button>';
+      html += '<h3 style="font-size:15px;font-weight:600">TÜV-Prüfungen (' + records.length + ')</h3>';
+      html += '<button class="btn btn-primary" onclick="fleetAddTuevModal(\'' + code + '\')">+ TÜV-Eintrag</button>';
       html += '</div>';
 
       if (!records.length) {
-        html += '<div class="empty">Keine TUeV-Eintraege vorhanden.</div>';
+        html += '<div class="empty">Keine TÜV-Einträge vorhanden.</div>';
         return html;
       }
 
-      html += '<table class="assets-table"><thead><tr><th>Pruefung</th><th>Ergebnis</th><th>Naechster Termin</th><th>km</th><th>Notiz</th><th></th></tr></thead><tbody>';
+      html += '<table class="assets-table"><thead><tr><th>Prüfung</th><th>Ergebnis</th><th>Nächster Termin</th><th>km</th><th>Notiz</th><th></th></tr></thead><tbody>';
       const sorted = records.slice().sort((a, b) => (b.inspection_date || b.inspectionDate || '').localeCompare(a.inspection_date || a.inspectionDate || ''));
       for (const r of sorted) {
-        const resultMap = { pass: 'Bestanden', conditional: 'Bedingt', fail: 'Nicht bestanden' };
-        const result = resultMap[r.result] || esc(r.result || '&ndash;');
+        const result = esc(begriff('tuev_result', r.result));
         const rid = r.id || '';
         const mkm = r.mileage_km != null ? Number(r.mileage_km).toLocaleString('de-DE') + ' km' : (r.mileageKm != null ? Number(r.mileageKm).toLocaleString('de-DE') + ' km' : '&ndash;');
         html += '<tr>';
@@ -242,7 +240,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td style="color:var(--muted);font-size:13px">' + esc(r.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTuevRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="TÜV-Eintrag löschen" title="TÜV-Eintrag löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTuevRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -260,7 +258,7 @@ document.addEventListener('alpine:init', () => {
       // Legacy banner check
       let legacyBanner = '';
       if (v.sourcePayload && v.sourcePayload.tax_amount_legacy_no_year) {
-        legacyBanner = '<div class="legacy-banner">Legacy-Marker: KFZ-Steuer wurde aus Altdaten ohne Jahresangabe uebernommen. Bitte Steuerbescheid mit Jahr erfassen.</div>';
+        legacyBanner = '<div class="legacy-banner">Legacy-Marker: KFZ-Steuer wurde aus Altdaten ohne Jahresangabe übernommen. Bitte Steuerbescheid mit Jahr erfassen.</div>';
       }
 
       let html = legacyBanner;
@@ -285,7 +283,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td style="color:var(--muted);font-size:13px">' + esc(r.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTaxRecord(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="Steuereintrag löschen" title="Steuereintrag löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTaxRecord(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -321,7 +319,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td>' + fmtDate(d.created_at || d.createdAt) + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteDocument(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="Dokument löschen" title="Dokument löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteDocument(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -339,12 +337,12 @@ document.addEventListener('alpine:init', () => {
       const typeLabels = { summer: 'Sommer', winter: 'Winter', all_season: 'Ganzjahr', spike: 'Spike' };
 
       let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">';
-      html += '<h3 style="font-size:15px;font-weight:600">Reifensaetze (' + sets.length + ')</h3>';
+      html += '<h3 style="font-size:15px;font-weight:600">Reifensätze (' + sets.length + ')</h3>';
       html += '<button class="btn btn-primary" onclick="fleetAddTireSetModal(\'' + code + '\')">+ Reifensatz</button>';
       html += '</div>';
 
       if (!sets.length) {
-        html += '<div class="empty">Keine Reifensaetze hinterlegt.</div>';
+        html += '<div class="empty">Keine Reifensätze hinterlegt.</div>';
         return html;
       }
 
@@ -370,7 +368,7 @@ document.addEventListener('alpine:init', () => {
         html += '<td style="color:var(--muted);font-size:13px">' + esc(t.notes || '') + '</td>';
         html += '<td>';
         if (rid) {
-          html += '<button class="btn btn-danger" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTireSet(' + rid + ')">X</button>';
+          html += '<button class="btn btn-danger" aria-label="Reifensatz löschen" title="Reifensatz löschen" style="font-size:13px;padding:3px 8px" onclick="fleetDeleteTireSet(' + rid + ')">X</button>';
         }
         html += '</td></tr>';
       }
@@ -523,7 +521,7 @@ function fleetEditStammdaten(code) {
     '<h3>Fahrzeug bearbeiten</h3>'
     + '<label>Fahrzeugcode</label>'
     + '<input id="fev-code" value="' + esc(v.vehicleCode || v.id || '') + '">'
-    + '<small style="color:var(--muted)">Aenderung erfordert Genehmigung</small>'
+    + '<small style="color:var(--muted)">Änderung erfordert Genehmigung</small>'
     + '<label>Anzeigename</label>'
     + '<input id="fev-name" value="' + esc(v.name || '') + '">'
     + '<label>Hersteller</label>'
@@ -532,10 +530,10 @@ function fleetEditStammdaten(code) {
     + '<input id="fev-model" value="' + esc(v.model || '') + '">'
     + '<label>Kennzeichen</label>'
     + '<input id="fev-plate" value="' + esc(v.plate || '') + '">'
-    + '<small style="color:var(--muted)">Aenderung erfordert Genehmigung</small>'
+    + '<small style="color:var(--muted)">Änderung erfordert Genehmigung</small>'
     + '<label>FIN</label>'
     + '<input id="fev-vin" value="' + esc(v.vin || '') + '">'
-    + '<small style="color:var(--muted)">Aenderung erfordert Genehmigung</small>'
+    + '<small style="color:var(--muted)">Änderung erfordert Genehmigung</small>'
     + '<label>Halter</label>'
     + '<input id="fev-holder" value="' + esc(v.holder || '') + '">'
     + '<label>km-Stand</label>'
@@ -547,14 +545,10 @@ function fleetEditStammdaten(code) {
     + '<label>Kraftstoff</label>'
     + '<select id="fev-fuel">'
     + '<option value="">— (nicht angegeben)</option>'
-    + '<option value="gasoline"' + (v.fuelType === 'gasoline' ? ' selected' : '') + '>Benzin</option>'
-    + '<option value="diesel"' + (v.fuelType === 'diesel' ? ' selected' : '') + '>Diesel</option>'
-    + '<option value="electric"' + (v.fuelType === 'electric' ? ' selected' : '') + '>Elektro</option>'
-    + '<option value="hybrid"' + (v.fuelType === 'hybrid' ? ' selected' : '') + '>Hybrid</option>'
-    + '<option value="plugin_hybrid"' + (v.fuelType === 'plugin_hybrid' ? ' selected' : '') + '>Plug-in-Hybrid</option>'
-    + '<option value="lpg"' + (v.fuelType === 'lpg' ? ' selected' : '') + '>LPG</option>'
-    + '<option value="cng"' + (v.fuelType === 'cng' ? ' selected' : '') + '>CNG</option>'
-    + '<option value="hydrogen"' + (v.fuelType === 'hydrogen' ? ' selected' : '') + '>Wasserstoff</option>'
+    /* P2-8: Die Kraftstoffarten standen hier als acht Einzelzeilen und ein
+       zweites Mal als Anzeigetabelle _fuelLabels weiter oben. Jetzt kommen
+       Reihenfolge und Bezeichnungen aus public/js/begriffe.js. */
+    + begriffOptionen('fuel_type', v.fuelType, v.fuelType)
     + '</select>'
     + '<label>Notizen</label>'
     + '<input id="fev-notes" value="' + esc(v.notes || '') + '">'
@@ -676,7 +670,7 @@ function fleetAddServiceModal(vehicleCode) {
     + '<option value="Oelwechsel">Oelwechsel</option>'
     + '<option value="Reifenwechsel">Reifenwechsel</option>'
     + '<option value="Reparatur">Reparatur</option>'
-    + '<option value="TUeV/HU">TUeV/HU</option>'
+    + '<option value="TUeV/HU">TÜV/HU</option>'
     + '<option value="Sonstiges">Sonstiges</option>'
     + '</select>'
     + '<label>km-Stand (optional)</label>'
@@ -754,18 +748,18 @@ async function fleetDeleteServiceRecord(recordId) {
 
 function fleetAddInsuranceModal(vehicleCode) {
   openModal(
-    '<h3>Versicherung hinzufuegen</h3>'
+    '<h3>Versicherung hinzufügen</h3>'
     + '<label>Anbieter</label>'
     + '<input id="fins-company" placeholder="z.B. HUK-COBURG">'
     + '<label>Typ</label>'
     + '<input id="fins-type" placeholder="z.B. Haftpflicht, Vollkasko">'
     + '<label>Policen-Nr (optional)</label>'
     + '<input id="fins-policy" placeholder="">'
-    + '<label>Jahrespraemie &euro; (optional)</label>'
+    + '<label>Jahresprämie &euro; (optional)</label>'
     + '<input id="fins-premium" type="number" min="0" step="0.01">'
-    + '<label>Gueltig ab (optional)</label>'
+    + '<label>Gültig ab (optional)</label>'
     + '<input id="fins-from" type="date">'
-    + '<label>Gueltig bis (optional)</label>'
+    + '<label>Gültig bis (optional)</label>'
     + '<input id="fins-to" type="date">'
     + '<label>Notiz (optional)</label>'
     + '<input id="fins-notes" placeholder="">'
@@ -838,8 +832,8 @@ async function fleetDeleteInsurancePolicy(recordId) {
 function fleetAddTuevModal(vehicleCode) {
   const today = new Date().toISOString().slice(0, 10);
   openModal(
-    '<h3>TUeV-Eintrag</h3>'
-    + '<label>Pruefungsdatum</label>'
+    '<h3>TÜV-Eintrag</h3>'
+    + '<label>Prüfungsdatum</label>'
     + '<input id="ftuev-date" type="date" value="' + today + '">'
     + '<label>Ergebnis</label>'
     + '<select id="ftuev-result">'
@@ -847,7 +841,7 @@ function fleetAddTuevModal(vehicleCode) {
     + '<option value="conditional">Bedingt bestanden</option>'
     + '<option value="fail">Nicht bestanden</option>'
     + '</select>'
-    + '<label>Naechster Termin</label>'
+    + '<label>Nächster Termin</label>'
     + '<input id="ftuev-next" type="date">'
     + '<label>km-Stand (optional)</label>'
     + '<input id="ftuev-km" type="number" min="0">'
@@ -991,7 +985,7 @@ function fleetAddDocumentModal(vehicleCode) {
   ).join('');
 
   openModal(
-    '<h3>Dokument hinzufuegen</h3>'
+    '<h3>Dokument hinzufügen</h3>'
     + '<label>Dokumenttyp</label>'
     + '<select id="fdoc-type">' + typeOptions + '</select>'
     + '<label>Titel</label>'
@@ -1063,7 +1057,7 @@ async function fleetDeleteDocument(recordId) {
 function fleetAddTireSetModal(vehicleCode) {
   const today = new Date().toISOString().slice(0, 10);
   openModal(
-    '<h3>Reifensatz hinzufuegen</h3>'
+    '<h3>Reifensatz hinzufügen</h3>'
     + '<label>Typ</label>'
     + '<select id="ftire-type">'
     + '<option value="summer">Sommer</option>'

@@ -331,6 +331,8 @@ body.dialog-offen { overflow:hidden; }
    Feldpaare stehen schmal untereinander und erst ab 768 px nebeneinander —
    zwei Datums- oder Zeitfelder nebeneinander lassen bei 360 px je rund
    140 px, was fuer die vom Browser gezeichneten Waehler zu wenig ist. */
+/* Erklaerende Zeile unter einem Eingabefeld (P2-8). */
+.formular-hinweis { color:var(--muted); font-size:13px; margin-top:5px; line-height:1.45; }
 .formular-paar { display:grid; grid-template-columns:1fr; gap:12px; }
 @media (min-width: 768px) {
   .formular-paar { grid-template-columns:1fr 1fr; }
@@ -697,6 +699,7 @@ pre, code { overflow-wrap: anywhere; }
 </style>
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
+<script defer src="/dashboard/js/begriffe.js"></script>
 <script defer src="/dashboard/js/responsiv.js"></script>
 <script defer src="/dashboard/js/tagesuebersicht.js"></script>
 <script defer src="/dashboard/js/instagram-material.js"></script>
@@ -740,21 +743,28 @@ pre, code { overflow-wrap: anywhere; }
        gesamte Dokument auf rund 1.260 px auf.
        Jede Schaltflaeche traegt Symbol UND Text; unter 640 px zeigt die
        Leiste die Kurzform (.nav-kurz), der Text entfaellt aber nie.
-       Kein Hamburger-Menue (Owner-Entscheidung). -->
+       Kein Hamburger-Menue (Owner-Entscheidung).
+
+       P2-8: Die Beschriftungen sind deutsch, wo es ein natuerliches deutsches
+       Wort gibt (Gesundheit, Reisen, Immobilien, Automatisierung). Die
+       Bereichskennungen in data-tab und ?tab= bleiben UNVERAENDERT — jeder
+       vorhandene Deeplink gilt weiter. Eigennamen und im Deutschen
+       gebraeuchliche Begriffe (Kalender, Fuhrpark, Trading, Banking, Private
+       Equity, Instagram, SharePoint, Wiki, Status) bleiben stehen. -->
   <nav aria-label="Hauptbereiche">
     <button onclick="showTab('heute')" class="active" data-tab="heute"><span aria-hidden="true">🌅</span><span class="nav-lang">Heute</span><span class="nav-kurz">Heute</span></button>
-    <button onclick="showTab('health')" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Health</span><span class="nav-kurz">Health</span></button>
-    <button onclick="showTab('trips')"        data-tab="trips"><span aria-hidden="true">✈️</span><span class="nav-lang">Trips</span><span class="nav-kurz">Trips</span></button>
+    <button onclick="showTab('health')" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Gesundheit</span><span class="nav-kurz">Gesundheit</span></button>
+    <button onclick="showTab('trips')"        data-tab="trips"><span aria-hidden="true">✈️</span><span class="nav-lang">Reisen</span><span class="nav-kurz">Reisen</span></button>
     <button onclick="showTab('calendar')"     data-tab="calendar"><span aria-hidden="true">📅</span><span class="nav-lang">Kalender</span><span class="nav-kurz">Kalender</span></button>
     <button onclick="showTab('fleet')"        data-tab="fleet"><span aria-hidden="true">🚗</span><span class="nav-lang">Fuhrpark</span><span class="nav-kurz">Fuhrpark</span></button>
-    <button onclick="showTab('assets')"       data-tab="assets"><span aria-hidden="true">🏠</span><span class="nav-lang">Assets</span><span class="nav-kurz">Assets</span></button>
+    <button onclick="showTab('assets')"       data-tab="assets"><span aria-hidden="true">🏠</span><span class="nav-lang">Immobilien</span><span class="nav-kurz">Immobilien</span></button>
     <button onclick="showTab('trading')"      data-tab="trading"><span aria-hidden="true">📈</span><span class="nav-lang">Trading</span><span class="nav-kurz">Trading</span></button>
     <button onclick="showTab('banking')"      data-tab="banking"><span aria-hidden="true">🏦</span><span class="nav-lang">Banking</span><span class="nav-kurz">Banking</span></button>
     <button onclick="showTab('pe')"           data-tab="pe"><span aria-hidden="true">💼</span><span class="nav-lang">Private Equity</span><span class="nav-kurz">PE</span></button>
     <button onclick="showTab('instagram')"    data-tab="instagram"><span aria-hidden="true">📷</span><span class="nav-lang">Instagram</span><span class="nav-kurz">Insta</span></button>
     <button onclick="showTab('sharepoint')"   data-tab="sharepoint"><span aria-hidden="true">📂</span><span class="nav-lang">SharePoint</span><span class="nav-kurz">SP</span></button>
     <button onclick="showTab('wiki')"         data-tab="wiki"><span aria-hidden="true">📚</span><span class="nav-lang">Wiki</span><span class="nav-kurz">Wiki</span></button>
-    <button onclick="showTab('agents')"       data-tab="agents"><span aria-hidden="true">🤖</span><span class="nav-lang">Agents</span><span class="nav-kurz">Agents</span></button>
+    <button onclick="showTab('agents')"       data-tab="agents"><span aria-hidden="true">🤖</span><span class="nav-lang">Automatisierung</span><span class="nav-kurz">Automatik</span></button>
     <button onclick="showTab('status')"       data-tab="status"><span aria-hidden="true">🔌</span><span class="nav-lang">Status</span><span class="nav-kurz">Status</span></button>
   </nav>
   <div id="datenstandLeiste" class="ds-leiste" hidden></div>
@@ -927,15 +937,15 @@ function showTab(tab, opt) {
      eine umsortierte Leiste markierte sonst den falschen Bereich. */
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
   /* Schmal scrollt die Leiste: den aktiven Bereich in den sichtbaren Teil
-     holen, sonst steht er ausserhalb (Spec §6 "aktiver Bereich erkennbar"). */
+     holen, sonst steht er außerhalb (Spec §6 "aktiver Bereich erkennbar"). */
   zeigeAktivenTab(tab);
   document.getElementById('lastUpdate').textContent = '';
   leereDatenstand();
   /* Diagramme des verlassenen Bereichs abmelden (P2-3). */
   diagrammeLeeren();
-  /* CP1-Nachbesserung: Schubfaecher und Dialoge gehoeren zum verlassenen
+  /* CP1-Nachbesserung: Schubfächer und Dialoge gehören zum verlassenen
      Bereich. Das Objekt-Schubfach der Assets blieb beim Bereichswechsel offen
-     und lag dann ueber dem neuen Inhalt. */
+     und lag dann über dem neuen Inhalt. */
   if (typeof closeDrawer === 'function') closeDrawer();
   closeModal();
   document.getElementById('content').innerHTML = '<div class="spinner">Laden…</div>';
@@ -975,6 +985,7 @@ const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').repl
 const fmtDate = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric'}).format(new Date(iso)) : '–';
 const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}).format(new Date(iso)) : '–';
 const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso)) : '–';
+
 
 /* ── Image upload helpers ── */
 function imgUrl(entityType, entityId) {
@@ -1055,8 +1066,13 @@ function fmtSize(bytes) {
 
 /* Kopfzeile: Zeitpunkt des Seitenabrufs. Ausdruecklich NICHT das Alter der
    angezeigten Daten — das steht in der Datenstand-Leiste (datenstand.js). */
+/* P2-8: Spec §4 M verlangt, dass die Zeitzone dort genannt wird, wo Uhrzeiten
+   stehen. Sie steht jetzt EINMAL im Seitenkopf — und damit in jedem Bereich,
+   auch in denen ohne Datenstand-Leiste. In der Leiste ist der Satz dafür
+   entfallen; zweimal dasselbe auf einer Seite ist Rauschen (vgl. P2-3). */
 function stamp() {
-  document.getElementById('lastUpdate').textContent = seitenabrufText();
+  document.getElementById('lastUpdate').textContent =
+    seitenabrufText() + ' · alle Zeiten in Europe/Berlin';
 }
 
 /* ── Modal helpers ── */
@@ -1326,11 +1342,14 @@ async function loadTrips() {
         <div class="trip-top">
           <div>
             <h3>${esc(t.name)} ${badge}</h3>
-            <div class="trip-dates">📅 ${esc(t.start_date)} → ${esc(t.end_date)} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
+            <!-- P2-8: Hier standen die rohen ISO-Datumsangaben (2026-02-24). -->
+            <div class="trip-dates">📅 ${esc(fmtDate(t.start_date))} → ${esc(fmtDate(t.end_date))} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
           </div>
-          <div style="display:flex;gap:6px">
+          <!-- P2-8: flex-wrap, sonst wird die letzte Schaltflaeche bei 360 px
+               abgeschnitten statt umzubrechen. -->
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button aria-label="Dokument mit der Reise verknüpfen" title="Dokument mit der Reise verknüpfen" class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
-            <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Sync</button>
+            <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Mit Kalender abgleichen</button>
             <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
             <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
           </div>
@@ -1374,8 +1393,6 @@ async function deleteTrip(id, name) {
 function newTrip() {
   openModal(`
     <h3>+ Neue Reise anlegen</h3>
-    <label>ID (Slug, z.B. tokyo-2026-05)</label>
-    <input id="mn-id" placeholder="tokyo-2026-05">
     <label>Name</label>
     <input id="mn-name" placeholder="Tokyo Mai 2026">
     <label>Ziel</label>
@@ -1388,6 +1405,12 @@ function newTrip() {
     <input id="mn-climate" placeholder="z.B. warm, sonnig">
     <label>Aktivitäten (optional, kommagetrennt)</label>
     <input id="mn-activities" placeholder="z.B. Sightseeing, Kulinarik">
+    <!-- P2-8: Die Kennung ist keine Pflichteingabe mehr. Der Server erzeugt sie
+         nach der Projektkonvention YYMMDD-trip-<ort>; das Feld bleibt fuer den
+         Fall, dass eine bestimmte Kennung gewuenscht ist. -->
+    <label for="mn-id">Kennung (optional)</label>
+    <input id="mn-id" placeholder="wird automatisch erzeugt: 260415-trip-barcelona">
+    <div class="formular-hinweis">Leer lassen — die Kennung entsteht aus Datum und Ziel.</div>
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal()">Abbrechen</button>
       <button class="btn btn-primary" onclick="createTrip()">✈️ Erstellen</button>
@@ -1404,7 +1427,6 @@ async function createTrip() {
   const climate    = document.getElementById('mn-climate').value.trim();
   const activities = document.getElementById('mn-activities').value.split(',').map(s=>s.trim()).filter(Boolean);
   feldFehlerLeeren(['mn-id', 'mn-name', 'mn-start', 'mn-end']);
-  if (!id)         return feldFehler('mn-id', 'Die Kennung ist ein Pflichtfeld.');
   if (!name)       return feldFehler('mn-name', 'Der Name ist ein Pflichtfeld.');
   if (!start_date) return feldFehler('mn-start', 'Das Startdatum ist ein Pflichtfeld.');
   if (!end_date)   return feldFehler('mn-end', 'Das Enddatum ist ein Pflichtfeld.');
@@ -1412,11 +1434,13 @@ async function createTrip() {
     await apiFetch('/api/trips', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, name, destination, start_date, end_date, climate, activities })
+      /* Ohne `id` erzeugt der Server die Kennung nach Konvention. */
+      body: JSON.stringify({ id: id || undefined, name, destination, start_date, end_date, climate, activities })
     });
     closeModal();
-    showTab('health');
-  } catch(e) { dialogMeldung('Segment konnte nicht gespeichert werden: ' + e.message); }
+    /* P2-8: landete vorher im Health-Bereich — jetzt dort, wo die neue Reise steht. */
+    showTab('trips');
+  } catch(e) { dialogMeldung('Die Reise konnte nicht angelegt werden: ' + e.message); }
 }
 
 /* ── Trip editing ── */
@@ -1621,7 +1645,11 @@ async function loadHealth() {
     if (hrvTrend) {
       const hrvCol = hrvTrend.direction === 'up' ? 'var(--green)' : hrvTrend.direction === 'down' ? 'var(--red)' : 'var(--accent)';
       const hrvArrow = hrvTrend.direction === 'up' ? '📈' : hrvTrend.direction === 'down' ? '📉' : '➡️';
-      hrvHtml = `<div class="s-card"><div class="lbl">💓 HRV</div><div class="val">${hrvTrend.current} <small style="font-size:16px">ms</small></div><div class="sub" style="color:${hrvCol}">${hrvArrow} Ø ${hrvTrend.avg} ms (${hrvTrend.dataPoints} Messungen)</div></div>`;
+      /* P2-8: Die Kachel zeigte "💓 HRV 42 ms" ohne Skala, Quelle oder
+         Bedeutung. Jetzt steht die Quelle (Oura) dabei und was der Wert
+         bedeutet — ohne medizinische Bewertung und ohne Schwelle, weil es im
+         Code keine gibt. */
+      hrvHtml = `<div class="s-card"><div class="lbl">💓 HRV (Herzratenvariabilität)</div><div class="val">${hrvTrend.current} <small style="font-size:16px">ms</small></div><div class="sub" style="color:${hrvCol}">${hrvArrow} Ø ${hrvTrend.avg} ms über 30 Tage (${hrvTrend.dataPoints} Messungen)</div><div class="sub">Quelle: Oura, nachts gemessen. Höhere Werte stehen für mehr Erholung; der eigene Durchschnitt ist der Maßstab, nicht ein fester Zielwert.</div></div>`;
     }
 
     // Readiness summary card
@@ -1629,8 +1657,12 @@ async function loadHealth() {
     let readinessHtml = '';
     if (lastReadiness) {
       const score = Number(lastReadiness.value) || 0;
+      /* P2-8: Die Schwellen 85 und 70 standen ohne Erläuterung im Code. Sie
+         sind jetzt benannt — und als das gekennzeichnet, was sie sind: die
+         Einteilung dieser Anzeige, keine Vorgabe von Oura. */
       const rdCol = score >= 85 ? 'var(--green)' : score >= 70 ? 'var(--yellow)' : 'var(--red)';
-      readinessHtml = `<div class="s-card"><div class="lbl">🎯 Readiness</div><div class="val" style="color:${rdCol}">${score}</div><div class="sub">${fmtDate(lastReadiness.timestamp)}</div></div>`;
+      const rdText = score >= 85 ? 'gut erholt' : score >= 70 ? 'eingeschränkt erholt' : 'wenig erholt';
+      readinessHtml = `<div class="s-card"><div class="lbl">🎯 Erholung (Readiness)</div><div class="val" style="color:${rdCol}">${score} <small style="font-size:16px">von 100</small></div><div class="sub">${esc(rdText)} · gemessen ${fmtDate(lastReadiness.timestamp)}</div><div class="sub">Quelle: Oura. Einteilung dieser Anzeige: ab 85 gut, ab 70 eingeschränkt, darunter wenig erholt.</div></div>`;
     }
 
     const summaryGrid = `<div class="summary-grid">
@@ -1741,7 +1773,7 @@ function renderWeightChart(data) {
 
   // Dots
   data.forEach((d, i) => {
-    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--accent)" opacity="0.8"><title>${d.date}: ${d.value} kg</title></circle>`;
+    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--accent)" opacity="0.8"><title>${esc(fmtDate(d.date))}: ${d.value} kg</title></circle>`;
   });
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -1777,7 +1809,7 @@ function renderSleepChart(data) {
     const barH = (d.duration / maxH) * ch;
     const y = pad.t + ch - barH;
     const color = d.duration < 6 ? 'var(--red)' : d.duration < 7 ? 'var(--yellow)' : 'var(--green)';
-    svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.9" rx="2"><title>${d.date}: ${d.duration}h${d.quality ? ' (Score: '+d.quality+'%)' : ''}</title></rect>`;
+    svgContent += `<rect x="${x}" y="${y}" width="${barW}" height="${barH}" fill="${color}" opacity="0.9" rx="2"><title>${esc(fmtDate(d.date))}: ${d.duration} h${d.quality ? ' (Schlafscore ' + d.quality + ' %)' : ''}</title></rect>`;
   });
 
   /* Beschriftung nach verfuegbarem Platz, der juengste Wert immer dabei. */
@@ -1791,7 +1823,7 @@ function renderSleepChart(data) {
   const y6 = yScale(6);
   svgContent += `<line x1="${pad.l}" y1="${y6}" x2="${W-pad.r}" y2="${y6}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4,4" opacity="0.8"/>`;
   /* Die Beschriftung sass rechts NEBEN dem Zeichenbereich und wurde schmal
-     abgeschnitten. Jetzt steht sie innen am rechten Rand — links waere sie
+     abgeschnitten. Jetzt steht sie innen am rechten Rand — links wäre sie
      direkt neben der gleichnamigen Achsenbeschriftung gelandet. */
   svgContent += `<text x="${W - pad.r - 2}" y="${y6 - 4}" fill="var(--red)" font-size="11" text-anchor="end">6h</text>`;
 
@@ -1850,7 +1882,7 @@ function renderHrvChart(data) {
 
   // Dots
   data.forEach((d, i) => {
-    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--violet)"><title>${d.date}: ${d.value} ms</title></circle>`;
+    svgContent += `<circle cx="${xScale(i).toFixed(1)}" cy="${yScale(d.value).toFixed(1)}" r="3" fill="var(--violet)"><title>${esc(fmtDate(d.date))}: ${d.value} ms</title></circle>`;
   });
 
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
@@ -2442,8 +2474,10 @@ async function loadSharePoint() {
           style="color:var(--accent);font-size:13px;white-space:nowrap">Öffnen ↗</a>
       </div>
       <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+        <!-- P2-8: min-height 44px — das Feld war 36 px hoch. -->
         <input type="text" id="sp-search-input" placeholder="Volltextsuche in SharePoint…"
-          style="flex:1;min-width:200px;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:9px 12px;color:var(--text);font-size:14px;font-family:var(--font)"
+          aria-label="Volltextsuche in SharePoint"
+          style="flex:1;min-width:200px;min-height:44px;box-sizing:border-box;background:var(--surface);border:1px solid var(--border-strong);border-radius:6px;padding:10px 12px;color:var(--text);font-size:14px;font-family:var(--font)"
           onkeypress="if(event.key==='Enter')spSearch()">
         <button class="btn btn-primary" onclick="spSearch()">🔍 Suchen</button>
       </div>
@@ -2588,7 +2622,7 @@ function spDatei(roh) {
                               -> HTTP 302 nach .../_layouts/15/doc2.aspx?...
                                  content-type text/html  = Viewer-Seite
 
-   Geprueft fuer pdf, jpg und mp4 — alle drei liefern den Viewer-Redirect.
+   Geprüft fuer pdf, jpg und mp4 — alle drei liefern den Viewer-Redirect.
 
    Gebaut wird deshalb: <Site-Basis>/_layouts/15/Doc.aspx?sourcedoc=<serverrelativer
    Pfad>&action=default. Die Site-Basis ist das erste Pfadsegmentpaar
@@ -2820,7 +2854,11 @@ async function spSearch() {
     _spSearchHits = await apiFetch(`/api/sharepoint/search?q=${encodeURIComponent(q)}`);
     _spSearchBegriff = q;
     renderSPSearchHits();
-  } catch (e) { wrap.innerHTML = `<div class="empty">Suche fehlgeschlagen: ${esc(e.message)}</div>`; }
+  } catch (e) {
+    /* P2-8: "Laden fehlgeschlagen" ist ein eigener Zustand — nicht derselbe
+       Kasten wie ein leeres Ergebnis. */
+    wrap.innerHTML = zustandBlock('fehler', 'Die SharePoint-Suche ist fehlgeschlagen: ' + e.message);
+  }
 }
 
 function renderSPSearchHits() {
@@ -2829,7 +2867,9 @@ function renderSPSearchHits() {
     Suche nach „${esc(_spSearchBegriff)}"
   </div>`;
   if (!_spSearchHits.length) {
-    wrap.innerHTML = kopf + '<div class="empty">Keine Ergebnisse.</div>';
+    wrap.innerHTML = kopf + zustandBlock('keine_treffer',
+      'Keine Datei im Dokumentenindex enthält „' + _spSearchBegriff + '". '
+      + 'Der Index ist so alt wie der letzte Abgleich — siehe Datenstand oben.');
     return;
   }
 
@@ -2959,7 +2999,7 @@ async function loadFleet() {
     // Detail view (vehicle selected)
     + '<template x-if="zeigtDetail()"><div>'
     + '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px">'
-    + '<button class="btn-ghost" @click="backToList()">&#x2190; Zurueck</button>'
+    + '<button class="btn-ghost" @click="backToList()">&#x2190; Zurück</button>'
     + '</div>'
     + '<div x-data="fleetDetailView" x-init="init()">'
     + '<template x-if="loading"><div class="spinner">Laden...</div></template>'
@@ -2969,7 +3009,7 @@ async function loadFleet() {
     + '<button class="subtab-btn" :class="isTab(\'stammdaten\') && \'active\'" @click="switchTab(\'stammdaten\')">Stammdaten</button>'
     + '<button class="subtab-btn" :class="isTab(\'service\') && \'active\'" @click="switchTab(\'service\')">Service</button>'
     + '<button class="subtab-btn" :class="isTab(\'insurance\') && \'active\'" @click="switchTab(\'insurance\')">Versicherung</button>'
-    + '<button class="subtab-btn" :class="isTab(\'tuev\') && \'active\'" @click="switchTab(\'tuev\')">TUeV</button>'
+    + '<button class="subtab-btn" :class="isTab(\'tuev\') && \'active\'" @click="switchTab(\'tuev\')">TÜV</button>'
     + '<button class="subtab-btn" :class="isTab(\'tax\') && \'active\'" @click="switchTab(\'tax\')">Steuer</button>'
     + '<button class="subtab-btn" :class="isTab(\'documents\') && \'active\'" @click="switchTab(\'documents\')">Dokumente</button>'
     + '<button class="subtab-btn" :class="isTab(\'tires\') && \'active\'" @click="switchTab(\'tires\')">Reifen</button>'
@@ -2983,12 +3023,12 @@ async function loadFleet() {
     + '<div class="modal-overlay" @click.self="$store.approval.cancel()">'
     + '<div class="modal">'
     + '<h3>Genehmigung erforderlich</h3>'
-    + '<div class="approval-banner">Bitte pruefen Sie die folgenden Aenderungen vor der Bestaetigung.</div>'
+    + '<div class="approval-banner">Bitte prüfen Sie die folgenden Änderungen vor der Bestätigung.</div>'
     + '<div class="approval-diff" x-ref="approvalDiffContent"></div>'
     + '<div class="approval-timer" x-text="$store.approval.timerText"></div>'
     + '<div class="approval-actions">'
     + '<button class="btn-ghost" @click="$store.approval.cancel()">Abbrechen</button>'
-    + '<button class="btn btn-primary" @click="$store.approval.confirm()">Bestaetigen</button>'
+    + '<button class="btn btn-primary" @click="$store.approval.confirm()">Bestätigen</button>'
     + '</div>'
     + '</div></div></template>'
     + '</div>';
@@ -3123,7 +3163,10 @@ async function selectSpForLink(idx) {
    ASSETS — Immobilienverwaltung (Sprint 5.5a-2)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-function fmtEur(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '–'; }
+/* P2-8: Zwischen Betrag und Währungszeichen steht ein GESCHÜTZTES
+   Leerzeichen (U+00A0). Vorher konnte der Zeilenumbruch den Betrag von
+   seinem Zeichen trennen — schmal passierte das in den PE-Kacheln. */
+function fmtEur(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0€' : '–'; }
 
 async function loadAssets() {
   const c = document.getElementById('content');
@@ -3142,7 +3185,7 @@ async function loadAssets() {
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('stammdaten') }" x-on:click="switchSubTab('stammdaten')">Stammdaten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('vertraege') }" x-on:click="switchSubTab('vertraege')">Vertr&#228;ge &amp; Kosten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('nebenkosten') }" x-on:click="switchSubTab('nebenkosten')">Nebenkosten</button>
-            <button class="subtab-btn" x-bind:class="{ active: isSubTab('status') }" x-on:click="switchSubTab('status')">Status &amp; NK-Readiness</button>
+            <button class="subtab-btn" x-bind:class="{ active: isSubTab('status') }" x-on:click="switchSubTab('status')">Status &amp; Abrechnungsreife</button>
           </div>
 
           <!-- Sub-Tab Content -->
@@ -3165,7 +3208,7 @@ async function loadAssets() {
       <template x-if="$store.approval.visible">
         <div class="modal-overlay" x-on:click.self="$store.approval.cancel()" style="z-index:150">
           <div class="modal" style="max-width:540px">
-            <h3 style="margin-bottom:12px">Aenderung bestaetigen</h3>
+            <h3 style="margin-bottom:12px">Änderung bestätigen</h3>
             <template x-if="$store.approval.warnings.length > 0">
               <div>
                 <template x-for="w in $store.approval.warnings" x-bind:key="w">
@@ -3188,7 +3231,7 @@ async function loadAssets() {
             <div class="approval-timer" x-text="'Gueltig: ' + $store.approval.timerText"></div>
             <div class="approval-actions">
               <button class="btn" x-on:click="$store.approval.cancel()">Abbrechen</button>
-              <button class="btn btn-primary" x-on:click="$store.approval.confirm()">Bestaetigen</button>
+              <button class="btn btn-primary" x-on:click="$store.approval.confirm()">Bestätigen</button>
             </div>
           </div>
         </div>
@@ -3342,12 +3385,12 @@ async function loadInstagram() {
       <span style="background:${tokenBg};color:${tokenColor};padding:4px 10px;border-radius:6px;font-size:13px;font-weight:600"
             title="Quelle: Core /api/system-status (Tabelle insta_tokens)">🔑 ${esc(tokenText)}</span>
       <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--muted);cursor:not-allowed"
-              disabled title="Abgleich wird nicht aus dem Dashboard ausgelöst. Befehl /instasync im Telegram-Bot.">↻ Sync nur per /instasync</button>
+              disabled title="Abgleich wird nicht aus dem Dashboard ausgelöst. Befehl /instasync im Telegram-Bot.">↻ Abgleich nur per /instasync</button>
     </div>
   </div>`;
 
   let tabs = `<div class="insta-subtabs" style="gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border)">
-    ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Drafts')}${tabBtn('raw','📁 Raw Material')}${tabBtn('analytics','Analyse')}${tabBtn('forensic','🔍 Forensic')}
+    ${tabBtn('overview','Übersicht')}${tabBtn('content','Content-Plan')}${tabBtn('drafts','Entwürfe')}${tabBtn('raw','📁 Rohmaterial')}${tabBtn('analytics','Analyse')}${tabBtn('forensic','🔍 Prüfdaten')}
   </div>`;
 
   let body = '';
@@ -3356,7 +3399,7 @@ async function loadInstagram() {
     const feedItems = (_instaMediaCache?.items || []).slice(0, 12);
     const liveFeed = feedItems.length ? `
       <div class="card card-pad" style="margin-bottom:20px">
-        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Live Feed</div>
+        <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:14px">Aktuelle Beiträge</div>
         <div class="insta-grid">
           ${feedItems.map(p => {
             const rawThumb = p.thumbnail_url || p.media_url || '';
@@ -3460,7 +3503,7 @@ async function loadInstagram() {
         const hashtagDisplay = hashtags.length ? hashtags.map(h => h.startsWith('#') ? h : '#' + h).join(' ') : '';
         /* P2-7: vorher ein rohes ISO-Datum (`createdAt.slice(0,10)`).
            Jetzt deutsches Format mit Jahr und benannter Bedeutung — und wenn
-           kein Veroeffentlichungszeitpunkt hinterlegt ist, steht das da,
+           kein Veröffentlichungszeitpunkt hinterlegt ist, steht das da,
            statt das Erstellungsdatum als Termin auszugeben. */
         const dateStr = dr.scheduledFor
           ? 'geplant ' + fmtDate(dr.scheduledFor)
@@ -3573,7 +3616,7 @@ async function _instaLoadForensic() {
         const isSpike = val > threshold;
         const color = isSpike ? 'var(--red)' : 'var(--accent)';
         /* P2-3: schmal nur jede zweite Datumsbeschriftung — sonst ueberlappen
-           die gedrehten Texte. Der juengste Balken ist immer beschriftet. */
+           die gedrehten Texte. Der jüngste Balken ist immer beschriftet. */
         const zeigeDatum = !schmal || idx % 2 === 1 || idx === fd.length - 1;
         const dateLabel = item.date && zeigeDatum ? item.date.slice(5) : '';
         return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;min-width:0">
@@ -3901,7 +3944,7 @@ async function _instaRawDetail(sessionId) {
     </div>
     <div style="display:flex;gap:6px;margin-bottom:16px">
       <button class="btn btn-primary" style="font-size:13px;padding:5px 12px" onclick="_instaRawUpload('${esc(s.id)}')">📤 Upload</button>
-      <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="navigator.clipboard.writeText('/instascan ${esc(s.id)}');_toast('Kopiert: /instascan ${esc(s.id)}')">🔍 Scan triggern</button>
+      <button class="btn" style="font-size:13px;padding:5px 12px;background:var(--surface);border:1px solid var(--border);color:var(--text)" onclick="instaRawScanKopieren('${esc(s.id)}')">🔍 Prüflauf-Befehl kopieren</button>
     </div>
     <div class="card card-pad">
       <div style="font-size:13px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:12px">Dateien (${files.length})</div>
@@ -3994,7 +4037,7 @@ async function loadBanking() {
         <div class="modal-overlay" @click.self="$store.approval.cancel()">
           <div class="modal">
             <h3>Genehmigung erforderlich</h3>
-            <div class="approval-banner">Bitte pruefen Sie die folgenden Aenderungen vor der Bestaetigung.</div>
+            <div class="approval-banner">Bitte prüfen Sie die folgenden Änderungen vor der Bestätigung.</div>
             <div class="approval-diff">
               <template x-for="(val, key) in $store.approval.diff" :key="key">
                 <div class="diff-field">
@@ -4010,7 +4053,7 @@ async function loadBanking() {
             <div class="approval-timer" x-text="$store.approval.timerText"></div>
             <div class="approval-actions">
               <button class="btn-ghost" @click="$store.approval.cancel()">Abbrechen</button>
-              <button class="btn btn-primary" @click="$store.approval.confirm()">Bestaetigen</button>
+              <button class="btn btn-primary" @click="$store.approval.confirm()">Bestätigen</button>
             </div>
           </div>
         </div>
@@ -4025,7 +4068,7 @@ async function loadBanking() {
 
 /* ── Trading ── */
 let _tradingRefresh = null;
-function fmtUsd(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $' : '–'; }
+function fmtUsd(n) { return n != null ? Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0$' : '–'; }
 function pnlColor(n) { return n > 0 ? 'var(--green)' : n < 0 ? 'var(--red)' : 'var(--muted)'; }
 function pnlPrefix(n) { return n > 0 ? '+' : ''; }
 
@@ -4097,11 +4140,11 @@ async function loadTrading() {
       </tr>`).join('');
       posHtml = `<h3 style="margin:20px 0 10px">Positionen</h3>
       <div style="overflow-x:auto"><table class="data-table" style="width:100%" data-tabelle="karten">
-        <thead><tr><th>Symbol</th><th>Exchange</th><th style="text-align:right">Menge</th><th style="text-align:right">Avg Kurs</th><th style="text-align:right">Marktpreis</th><th style="text-align:right">Marktwert</th><th style="text-align:right">P&amp;L</th></tr></thead>
+        <thead><tr><th>Symbol</th><th>Börse</th><th style="text-align:right">Menge</th><th style="text-align:right">Ø Kaufkurs</th><th style="text-align:right">Marktpreis</th><th style="text-align:right">Marktwert</th><th style="text-align:right">Gewinn/Verlust</th></tr></thead>
         <tbody>${rows}</tbody>
       </table></div>`;
     } else {
-      posHtml = `<div class="empty" style="margin:20px 0;padding:24px">Keine offenen Positionen.</div>`;
+      posHtml = `<div style="margin:20px 0">${zustandBlock('keine_daten', 'Im Depot ist derzeit keine Position offen.')}</div>`;
     }
 
     // Watchlist
@@ -4113,17 +4156,24 @@ async function loadTrading() {
       <td><button class="btn btn-sm" onclick="tradingRemoveWatch('${esc(w.symbol)}')" style="padding:2px 8px;font-size:13px">Entfernen</button></td>
     </tr>`).join('');
 
-    const wlHtml = `<h3 style="margin:20px 0 10px">Watchlist</h3>
-    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center">
-      <input id="wl-symbol" placeholder="Symbol" style="width:90px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
-      <input id="wl-exchange" placeholder="Exchange" value="SMART" style="width:80px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
-      <input id="wl-currency" placeholder="Currency" value="USD" style="width:60px;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
-      <button class="btn btn-primary" onclick="tradingAddWatch()" style="padding:6px 12px;font-size:13px">+ Hinzufugen</button>
+    const wlHtml = `<h3 style="margin:20px 0 10px">Beobachtungsliste</h3>
+    <!-- P2-8: flex-wrap, damit die Zeile schmal umbricht statt die
+         Schaltflaeche abzuschneiden. Die Felder sind seit P2-8 44 px hoch
+         und breiter als zuvor; bei 360 px passen sie nicht mehr in eine Zeile. -->
+    <div style="margin-bottom:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <!-- P2-8: drei Felder von 29 px Hoehe mit englischen Platzhaltern.
+           Jetzt 44 px hoch, deutsche Beschriftung und zugaenglicher Name.
+           Die Breiten bleiben: es sind Kuerzel, keine Fliesstexte. -->
+      <input id="wl-symbol" placeholder="Symbol" aria-label="Symbol" style="width:90px;min-height:44px;box-sizing:border-box;padding:10px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <input id="wl-exchange" placeholder="Börse" aria-label="Börse" value="SMART" style="width:90px;min-height:44px;box-sizing:border-box;padding:10px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <input id="wl-currency" placeholder="Währung" aria-label="Währung" value="USD" style="width:90px;min-height:44px;box-sizing:border-box;padding:10px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--fg);font-size:13px">
+      <button class="btn btn-primary" onclick="tradingAddWatch()" style="padding:10px 14px;font-size:13px;min-height:44px;white-space:nowrap">+ Hinzufügen</button>
     </div>
     ${wlRows ? `<div style="overflow-x:auto"><table class="data-table" style="width:100%">
-      <thead><tr><th>Symbol</th><th>Exchange</th><th>Wahrung</th><th style="text-align:right">Letzter Kurs</th><th></th></tr></thead>
+      <thead><tr><th>Symbol</th><th>Börse</th><th>Währung</th><th style="text-align:right">Letzter Kurs</th><th></th></tr></thead>
       <tbody>${wlRows}</tbody>
-    </table></div>` : '<div class="empty" style="padding:16px">Watchlist ist leer.</div>'}`;
+    </table></div>` : zustandBlock('keine_daten', 'Es ist kein Symbol in der Beobachtungsliste. '
+      + 'Symbole werden oben hinzugefügt.')}`;
 
     // Strategy cards
     const strats = strategies || {};
@@ -4174,14 +4224,16 @@ async function loadTrading() {
         topHtml = '<div style="color:var(--muted);font-size:13px;margin-top:8px">Keine aktuellen Kandidaten (letzte 2h)</div>';
       }
 
-      const lastBuild = universe?.lastBuild ? universe.lastBuild.slice(0, 19).replace('T', ' ') + ' UTC' : '—';
+      /* P2-8: stand als rohes ISO-Datum in UTC da, waehrend alle anderen
+         Zeitangaben im Dashboard Europe/Berlin sind. */
+      const lastBuild = universe?.lastBuild ? fmtDT(universe.lastBuild) : '—';
 
       uniHtml = `<h3 style="margin:20px 0 10px">Universum</h3>
       <div class="summary-grid">
         <div class="s-card"><div class="lbl">Symbole</div><div class="val" style="font-size:22px">${uniSymbols.length}</div></div>
         <div class="s-card"><div class="lbl">Indizes</div><div class="val" style="font-size:14px;margin-top:6px">${indexStats || '—'}</div></div>
         <div class="s-card"><div class="lbl">Letzter Build</div><div class="val" style="font-size:13px;margin-top:6px">${lastBuild}</div></div>
-        <div class="s-card"><div class="lbl">Scan</div><div class="val" style="margin-top:6px"><button class="btn btn-primary" onclick="triggerUniverseScan()" style="padding:4px 12px;font-size:13px" id="uni-scan-btn">Scan starten</button></div></div>
+        <div class="s-card"><div class="lbl">Suchlauf</div><div class="val" style="margin-top:6px"><button class="btn btn-primary" onclick="triggerUniverseScan()" style="padding:10px 14px;font-size:13px;min-height:44px" id="uni-scan-btn">Suchlauf starten</button></div></div>
       </div>
       <div style="margin:12px 0">
         <span style="font-size:13px;color:var(--muted);margin-right:8px">Indizes:</span>${indexToggles}
@@ -4240,11 +4292,11 @@ async function triggerUniverseScan() {
   if (btn) { btn.disabled = true; btn.textContent = 'Scannt...'; }
   try {
     const result = await apiFetch('/api/trading/universe/scan', { method: 'POST' });
-    if (result) meldung(`Scan fertig: ${result.universe} Symbole, ${result.momentum} Momentum, ${result.meanReversion} Mean-Reversion.`, 'success');
+    if (result) meldung(`Suchlauf fertig: ${result.universe} Symbole, ${result.momentum} nach Momentum, ${result.meanReversion} nach Rückkehr zum Mittel.`, 'success');
     loadTrading();
   } catch (e) {
-    meldung('Scan fehlgeschlagen: ' + e.message, 'error');
-    if (btn) { btn.disabled = false; btn.textContent = 'Scan starten'; }
+    meldung('Suchlauf fehlgeschlagen: ' + e.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = 'Suchlauf starten'; }
   }
 }
 

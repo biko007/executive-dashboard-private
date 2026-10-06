@@ -164,10 +164,11 @@ function setDatenstand(eintraege, opt) {
   /* Der Abrufzeitpunkt steht in der Kopfzeile (#lastUpdate) und stand hier
      ein zweites Mal — schmal kostete das eine ganze Zeile fuer dieselbe
      Angabe (P2-2). Die Leiste zeigt jetzt nur noch die Datenstaende. */
-  const zeitzoneZeigen = !opt || opt.zeitzone !== false;
-  el.innerHTML =
-    '<div class="ds-liste">' + liste.map(datenstandBadge).join('') + '</div>'
-    + (zeitzoneZeigen ? '<div class="ds-tz">Alle Zeitangaben in Europe/Berlin.</div>' : '');
+  /* P2-8: Der Zeitzonensatz steht jetzt im Seitenkopf (stamp()) und damit in
+     JEDEM Bereich — auch in denen ohne Datenstand-Leiste. Hier ist er deshalb
+     entfallen. Die Option `zeitzone: false` bleibt als Aufrufparameter gültig,
+     wirkt aber nicht mehr; die Aufrufstellen bleiben dadurch unverändert. */
+  el.innerHTML = '<div class="ds-liste">' + liste.map(datenstandBadge).join('') + '</div>';
 }
 
 function leereDatenstand() {

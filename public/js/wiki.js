@@ -510,8 +510,10 @@ function wikiSearchBarHtml() {
 
 function wikiOverviewHtml() {
   if (wikiState.pages.length === 0 && wikiState.searchHits === null) {
+    /* P2-8: die fuenf Zustaende statt eines .empty-Kastens. */
     return wikiSearchBarHtml()
-      + '<div class="empty">Noch keine Wiki-Seiten. Der Nuveon-Import ist noch nicht gelaufen.</div>';
+      + zustandBlock('nicht_eingerichtet',
+          'Es ist keine Wiki-Seite vorhanden. Der Import aus dem alten JSPWiki ist noch nicht gelaufen.');
   }
 
   if (wikiState.searchHits !== null) {
@@ -527,7 +529,9 @@ function wikiOverviewHtml() {
       </div>`).join('');
     return wikiSearchBarHtml()
       + `<div class="wiki-hint">${hits.length} Treffer für „${esc(wikiState.searchTerm)}"</div>`
-      + (hits.length ? rows : '<div class="empty">Keine Treffer.</div>');
+      + (hits.length ? rows : zustandBlock('keine_treffer',
+          'Kein Treffer für „' + wikiState.searchTerm + '". Gesucht wird in Seitentexten '
+          + 'und in den Inhalten der Anhänge.'));
   }
 
   const byCategory = new Map();

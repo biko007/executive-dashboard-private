@@ -111,7 +111,7 @@ document.addEventListener('alpine:init', () => {
       const years = [currentYear, currentYear - 1, currentYear - 2];
       let html = `
         <div class="card card-pad">
-          <h3 style="font-size:15px;margin-bottom:16px">NK-Readiness Uebersicht</h3>
+          <h3 style="font-size:15px;margin-bottom:16px">Abrechnungsreife je Objekt und Jahr</h3>
           <table class="assets-table">
             <thead><tr><th>Objekt</th>`;
       for (const y of years) html += `<th style="text-align:center">${y}</th>`;
@@ -212,7 +212,7 @@ async function showNkFindings(propertyId, year) {
     if (!findings.length) {
       target.innerHTML = '<div class="card card-pad"><div class="empty">'
         + '<div style="font-weight:600;color:var(--text);margin-bottom:6px">Keine Befunde</div>'
-        + '<div style="font-size:13px">Die Pruefung lief durch und hat nichts beanstandet.</div>'
+        + '<div style="font-size:13px">Die Prüfung lief durch und hat nichts beanstandet.</div>'
         + '</div></div>';
       return;
     }
@@ -277,7 +277,7 @@ async function loadAuditLog(append) {
     const entries = res.ok ? await res.json() : [];
 
     if (!entries.length && !append) {
-      target.innerHTML = '<div class="empty">Keine Audit-Eintraege</div>';
+      target.innerHTML = '<div class="empty">Keine Audit-Einträge</div>';
       return;
     }
 

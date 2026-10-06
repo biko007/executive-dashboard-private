@@ -194,7 +194,7 @@ function nkSchweregrad(f) {
 }
 
 const NK_SCHWEREGRAD_ANZEIGE = {
-  blocker:   { label: 'Blocker',  klasse: 'badge-red',    symbol: '⛔' },
+  blocker:   { label: 'Blockierend', klasse: 'badge-red', symbol: '⛔' },
   warning:   { label: 'Warnung',  klasse: 'badge-yellow', symbol: '⚠️' },
   info:      { label: 'Hinweis',  klasse: 'badge-blue',   symbol: 'ℹ️' },
   unbekannt: { label: 'unbekannter Schweregrad', klasse: 'badge-muted', symbol: '❔' },
@@ -301,23 +301,23 @@ function nkAmpel(daten) {
   const infos = Number(daten?.info_count || 0);
 
   const zahl = (n, ein, mehr) => n + ' ' + (n === 1 ? ein : mehr);
-  const alle = zahl(blocker, 'Blocker', 'Blocker') + ', '
+  const alle = zahl(blocker, 'blockierender Befund', 'blockierende Befunde') + ', '
     + zahl(warnungen, 'Warnung', 'Warnungen') + ', '
     + zahl(infos, 'Hinweis', 'Hinweise');
 
   if (blocker > 0) {
     return { stufe: 'blocker', klasse: 'nk-badge-red',
-      kurz: zahl(blocker, 'Blocker', 'Blocker'), lang: alle };
+      kurz: zahl(blocker, 'blockierender Befund', 'blockierende Befunde'), lang: alle };
   }
   if (warnungen > 0) {
     return { stufe: 'warnung', klasse: 'nk-badge-yellow',
       kurz: zahl(warnungen, 'Warnung', 'Warnungen'),
-      lang: alle + ' — keine Blocker' };
+      lang: alle + ' — keine blockierenden Befunde' };
   }
   if (infos > 0) {
     return { stufe: 'hinweis', klasse: 'nk-badge-yellow',
       kurz: zahl(infos, 'Hinweis', 'Hinweise'),
-      lang: alle + ' — keine Blocker, keine Warnungen' };
+      lang: alle + ' — keine blockierenden Befunde, keine Warnungen' };
   }
   return { stufe: 'bereit', klasse: 'nk-badge-green',
     kurz: 'Bereit', lang: 'Keine Befunde — Vorschau möglich' };

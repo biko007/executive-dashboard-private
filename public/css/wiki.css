@@ -7,10 +7,14 @@
   flex-wrap: wrap;
   margin-bottom: 14px;
 }
+/* P2-8: 33 px hoch und damit unter dem 44-px-Mindestmass fuer Bedienelemente
+   (Spec §6). Die Schaltflaechen daneben sind seit P2-2 bereits 44 px hoch. */
 .wiki-searchbar input[type="search"] {
   flex: 1 1 260px;
   min-width: 200px;
-  padding: 7px 10px;
+  padding: 10px 12px;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 
 .wiki-hint { color: var(--muted); font-size: 13px; margin-bottom: 10px; }

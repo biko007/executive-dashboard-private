@@ -342,7 +342,11 @@ document.addEventListener('alpine:init', () => {
 
     // Step 4: Neuer Lease
     new_lease: {
-      lease_type: 'residential_permanent',
+      /* P2-8: 'residential_permanent' ist in der Datenbank nicht zulaessig
+         (CHECK leases_lease_type_check) — ein damit angelegter Vertrag waere
+         beim Schreiben abgewiesen worden. Vorgabe ist jetzt der Wert, der
+         auch im Bestand steht. */
+      lease_type: 'residential',
       start_date: '',
       handover_at: '',
       kaltmiete: '',
@@ -375,7 +379,7 @@ document.addEventListener('alpine:init', () => {
       this.new_tenant_form = { name: '', company: '', email: '', phone: '', iban: '', address_street: '', address_postal: '', address_city: '' };
       this.new_unit_residents = { resident_count: null, valid_from: '', notes: '' };
       this.new_lease = {
-        lease_type: 'residential_permanent',
+        lease_type: 'residential',
         start_date: '',
         handover_at: '',
         kaltmiete: '',
