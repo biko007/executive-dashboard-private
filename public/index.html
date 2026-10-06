@@ -3529,9 +3529,9 @@ async function loadInstagram() {
         ${(() => {
           const fetchedAt = _instaMediaCache?.fetched_at;
           if (!fetchedAt) return '';
-          const age = Date.now() - fetchedAt;
-          const days = Math.floor(age / 86400000);
-          const ageStr = days > 0 ? `vor ${days} Tag${days > 1 ? 'en' : ''}` : 'heute';
+          /* C5 (Phase 3): eigene Tagesrechnung entfernt. altersText() zaehlt
+             Kalendertage der Ortszeit und unterscheidet heute/gestern. */
+          const ageStr = altersText(fetchedAt);
           return `<div style="font-size:13px;color:var(--muted);margin-top:10px;display:flex;align-items:center;gap:6px">
             <span>🔄 Zuletzt synchronisiert: ${ageStr}</span>
             <span style="opacity:.5">·</span>

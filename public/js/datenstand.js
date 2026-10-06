@@ -69,17 +69,50 @@ function datenstandZeit(wert) {
   return Number.isFinite(t) ? t : null;
 }
 
+/* Verstrichene 24-Stunden-Abschnitte. Fuer Schwellen ("aelter als 7 Tage")
+   richtig, fuer die Woerter "heute" und "gestern" falsch — dafuer zaehlt der
+   Kalendertag. Siehe datenstandKalenderTage(). */
 function datenstandAlterTage(wert) {
   const t = datenstandZeit(wert);
   if (t === null) return null;
   return Math.floor((Date.now() - t) / 86400000);
 }
 
+/* C5 (Phase 3): Abstand in KALENDERTAGEN der Ortszeit.
+   BEFUND: Ein Lauf vom 05.10.2026 22:47 erschien am 06.10.2026 als "heute",
+   weil erst 23 Stunden verstrichen waren. "heute" und "gestern" muessen sich
+   nach dem Kalendertag richten, nicht nach verstrichenen Stunden. */
+function datenstandKalenderTage(wert) {
+  const t = datenstandZeit(wert);
+  if (t === null) return null;
+  if (typeof zeitTagInZone !== 'function' || typeof zeitTageDifferenz !== 'function') {
+    return datenstandAlterTage(wert);
+  }
+  const tagWert = zeitTagInZone(new Date(t), ZEIT_ZONE);
+  const tagHeute = zeitTagInZone(new Date(), ZEIT_ZONE);
+  const diff = zeitTageDifferenz(tagWert, tagHeute);
+  return diff === null ? datenstandAlterTage(wert) : diff;
+}
+
+/* C5: "heute"/"gestern" nach dem Kalendertag, sonst eine relative Angabe.
+   Liegt der Zeitpunkt weniger als 48 Stunden zurueck, steht die Stundenzahl
+   dabei — "gestern (vor 15 Stunden)" sagt mehr als "gestern" allein. */
 function altersText(wert) {
-  const tage = datenstandAlterTage(wert);
+  const t = datenstandZeit(wert);
+  if (t === null) return 'Alter unbekannt';
+  const tage = datenstandKalenderTage(wert);
+  const stunden = Math.floor((Date.now() - t) / 3600000);
+
+  if (tage !== null && tage < 0) {
+    return 'liegt in der Zukunft';
+  }
+  const stundenZusatz = (stunden < 48 && stunden >= 1)
+    ? ' (vor ' + stunden + (stunden === 1 ? ' Stunde)' : ' Stunden)')
+    : (stunden < 1 ? ' (vor weniger als einer Stunde)' : '');
+
+  if (tage === 0) return 'heute' + stundenZusatz;
+  if (tage === 1) return 'gestern' + stundenZusatz;
   if (tage === null) return 'Alter unbekannt';
-  if (tage <= 0) return 'heute';
-  if (tage === 1) return 'vor 1 Tag';
   return 'vor ' + tage + ' Tagen';
 }
 
