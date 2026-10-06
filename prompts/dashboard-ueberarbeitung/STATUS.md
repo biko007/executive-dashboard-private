@@ -31,7 +31,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
 | P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
-| P2-5 | Tagesübersicht (§5) | L | **erledigt** | `PLATZHALTER_P2_5` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
+| P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-6 | Wiki-Suchausschnitte (I) | S | offen | — | — |
 | P2-7 | Instagram-Planung und Rohmaterial (J) | M | offen | — | — |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
@@ -1268,7 +1268,7 @@ werden.
 - Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
   Keine Datenänderung, deshalb kein Datenrückweg.
 
-**Commit:** `PLATZHALTER_P2_5` · Dienst-Restart nötig und durchgeführt
+**Commit:** `4983506` · Dienst-Restart nötig und durchgeführt
 
 ---
 
