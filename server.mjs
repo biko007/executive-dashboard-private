@@ -921,23 +921,110 @@ function detectMediaType(filename) {
 
 // ── API: Raw Sessions ────────────────────────────────────────────────────────
 
-// List all raw sessions
+// List raw sessions — mit Suche, Filter und Begrenzung (P2-7)
+//
+// Vorher lieferte diese Route ALLE Sessions (derzeit 907) und das Frontend
+// renderte jede davon als Karte. Das ist weder bedienbar noch schnell.
+// Jetzt sind Suche, Medientyp-, Status- und Mengenbegrenzung Aufgabe des
+// Servers; die Antwort nennt zusätzlich die Gesamt- und die Trefferzahl,
+// damit die Oberfläche "25 von 907" sagen kann statt stillschweigend zu kürzen.
+//
+// Rein lesend. Kein Scan, keine Generierung, keine Veröffentlichung.
+const RAW_LIMIT_STANDARD = 25;
+const RAW_LIMIT_MAX = 200;
+
 app.get('/api/instagram/raw', auth, (req, res) => {
   try {
-    const sessions = listRawSessions().map(s => {
+    const suche = String(req.query.q || '').trim().toLowerCase();
+    const typFilter = String(req.query.type || '').trim();
+    const statusFilter = String(req.query.status || '').trim();
+    const limit = Math.min(RAW_LIMIT_MAX,
+      Math.max(1, Number.parseInt(req.query.limit, 10) || RAW_LIMIT_STANDARD));
+    const offset = Math.max(0, Number.parseInt(req.query.offset, 10) || 0);
+
+    const alle = listRawSessions().map(s => {
       const origDir = path.join(RAW_DIR, s.id, 'original');
-      let fileCount = 0, mediaCount = 0;
+      let dateien = [];
       try {
-        const entries = fs.readdirSync(origDir);
-        fileCount = entries.length;
-        mediaCount = entries.filter(f => {
-          const t = detectMediaType(f);
-          return t === 'image' || t === 'video';
-        }).length;
+        dateien = fs.readdirSync(origDir).map(name => ({ name, type: detectMediaType(name) }));
       } catch {}
-      return { ...s, fileCount, mediaCount };
+      const medien = dateien.filter(f => f.type === 'image' || f.type === 'video');
+      /* Erstes Bild der Session — Grundlage des Vorschaubilds im Frontend.
+         Videos haben keins: dafür bräuchte es ffmpeg, und das Paket ändert
+         die Rohdaten nicht. */
+      const vorschau = dateien.find(f => f.type === 'image');
+      return {
+        ...s,
+        fileCount: dateien.length,
+        mediaCount: medien.length,
+        bildAnzahl: dateien.filter(f => f.type === 'image').length,
+        videoAnzahl: dateien.filter(f => f.type === 'video').length,
+        vorschauDatei: vorschau ? vorschau.name : null,
+        /* Dateinamen bleiben in der Antwort — die Suche im Browser soll ohne
+           zweiten Abruf dieselben Treffer erklären können. */
+        files: dateien.map(f => ({ name: f.name, type: f.type || 'document' })),
+      };
     });
-    res.json(sessions);
+
+    const passt = (s) => {
+      if (statusFilter && s.status !== statusFilter) return false;
+      if (typFilter === 'image' && !s.bildAnzahl) return false;
+      if (typFilter === 'video' && !s.videoAnzahl) return false;
+      if (typFilter === 'leer' && s.fileCount) return false;
+      if (suche) {
+        const heu = [s.id, ...(s.files || []).map(f => f.name)].join(' ').toLowerCase();
+        if (!heu.includes(suche)) return false;
+      }
+      return true;
+    };
+
+    const gefiltert = alle.filter(passt);
+    res.json({
+      gesamt: alle.length,
+      treffer: gefiltert.length,
+      limit,
+      offset,
+      sessions: gefiltert.slice(offset, offset + limit),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// Vorschaubild einer Rohmaterial-Datei (P2-7)
+//
+// Wird bei jedem Abruf aus dem Original gerechnet und NICHT zwischengespeichert:
+// ein abgelegtes Vorschaubild wäre eine Änderung der Rohmaterialdateien, und
+// genau die schließt das Paket aus. Dafür darf der Browser es 10 Minuten halten.
+app.get('/api/instagram/raw/:id/thumb/:filename', auth, async (req, res) => {
+  try {
+    const id = String(req.params.id).replace(/[^a-z0-9\-_]/gi, '');
+    const filename = String(req.params.filename).replace(/[^a-zA-Z0-9._\-]/g, '');
+    if (!id || !filename) return res.status(400).json({ error: 'Ungültige Parameter' });
+    if (detectMediaType(filename) !== 'image') {
+      return res.status(415).json({ error: 'Nur Bilddateien haben ein Vorschaubild' });
+    }
+    const basis = path.resolve(RAW_DIR, id, 'original');
+    const datei = path.resolve(basis, filename);
+    if (!datei.startsWith(basis + path.sep)) {
+      return res.status(400).json({ error: 'Pfad außerhalb des Sessionverzeichnisses' });
+    }
+    if (!fs.existsSync(datei)) return res.status(404).json({ error: 'Datei nicht vorhanden' });
+
+    let bild;
+    try {
+      bild = await sharp(datei).rotate().resize(200, 200, { fit: 'cover' })
+        .jpeg({ quality: 70 }).toBuffer();
+    } catch (e) {
+      /* Nicht jede .jpg-Datei im Bestand ist ein gültiges Bild — es liegen
+         Platzhalter von wenigen hundert Byte darin. Das ist kein Serverfehler,
+         sondern eine Eigenschaft der Datei; das Frontend zeigt dann das
+         Typsymbol statt eines Vorschaubilds. */
+      return res.status(422).json({ error: 'Datei ist kein lesbares Bild', detail: e.message });
+    }
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=600');
+    res.send(bild);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

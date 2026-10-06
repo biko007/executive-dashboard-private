@@ -2,10 +2,10 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 08:55 UTC
+**Letzte Aktualisierung:** 06.10.2026, 09:25 UTC
 **Aktuelle Phase:** **Phase 2 läuft** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
-Hetzner-Snapshot liegt vor. **P2-1 bis P2-6 sind erledigt.**
-**Nächster Schritt: P2-7** (Instagram-Planung und Rohmaterial).
+Hetzner-Snapshot liegt vor. **P2-1 bis P2-7 sind erledigt.**
+**Nächster Schritt: P2-8** (Begriffe, Formate, Barrierefreiheit).
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
@@ -33,7 +33,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
 | P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `b68057f` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-7 | Instagram-Planung und Rohmaterial (J) | M | offen | — | — |
+| P2-7 | Instagram-Planung und Rohmaterial (J) | M | **erledigt** | `PLATZHALTER_P2_7` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
 | P2-9 | Banking-Übersicht (K) | S | offen | — | — |
 | P2-10 | Agentenübersicht (L) | M | offen | — | — |
@@ -1351,6 +1351,118 @@ ist weniger schlimm als ein verschluckter Satz.
 - Rückweg: `git revert <commit>`. Keine Wiki-Mutation, deshalb kein Datenrückweg.
 
 **Commit:** `b68057f` · kein Dienst-Restart nötig
+
+---
+
+
+### P2-7 — Instagram: Content-Plan und Rohmaterial — 06.10.2026
+
+**Durchgeführt**
+
+1. **Content-Plan auf echter Grundlage.** Der Block war seit P1-1 ausgeblendet (die Einträge
+   kamen aus `_INSTA_MOCK` und verwiesen auf nie existierende Entwürfe `insta-001`/`insta-002`).
+   Er zeigt jetzt den **tatsächlichen Entwurfsbestand** aus `GET /api/instagram/drafts`:
+   je Zeile Bezeichnung (erster Satz der Caption — die Entwürfe tragen keinen Titel),
+   technische Kennung, Erstellungsdatum, Art, Status, Medien, Hashtag-Zahl und die Aktion
+   „Entwurf öffnen".
+   **Ehrliche Aussage über die Datenlage:** bei allen Entwürfen ist **kein**
+   Veröffentlichungszeitpunkt hinterlegt. Statt ein Erstellungsdatum als Termin auszugeben,
+   steht über der Liste, dass es keine Terminplanung in den Daten gibt und wonach sortiert wird.
+2. **Verknüpfung Plan → Entwurf.** „Entwurf öffnen" wechselt in den Unterbereich „Drafts",
+   rollt zum gemeinten Entwurf und hebt ihn kurz hervor. Weil der Plan aus dem Entwurfsbestand
+   selbst entsteht, kann kein Eintrag ins Leere verweisen; der Klickpfad prüft es trotzdem und
+   meldet „Zu diesem Eintrag gibt es keinen Entwurf mehr: <Kennung>", falls ein Entwurf
+   zwischenzeitlich verschwunden ist.
+3. **Alle Datumsangaben vollständig mit Jahr.** Im Entwurfskopf stand ein rohes ISO-Datum
+   (`createdAt.slice(0,10)`). Jetzt „erstellt 18.05.2026 · kein Termin hinterlegt" bzw.
+   „geplant <Datum>", wenn ein Termin da ist. Die Kalenderwochen-Überschrift ohne Jahr
+   („KW 10–11") ist mit dem Mock entfallen.
+4. **Keine Schaltfläche ohne Wirkung.** Gegenprobe über alle 15 Schaltflächen des
+   Instagram-Bereichs: jede hat `onclick` oder ist mit Begründung deaktiviert
+   („↻ Sync nur per /instasync"). „+ Neuen Plan generieren" ist mit dem Mock entfallen.
+5. **Rohmaterial: Suche, Filter und Begrenzung — serverseitig.** `GET /api/instagram/raw`
+   nimmt jetzt `q` (Sessionkennung **und** Dateinamen), `type` (`image`/`video`/`leer`),
+   `status`, `limit` (Standard 25, höchstens 200) und `offset`. Die Antwort nennt
+   `gesamt`, `treffer`, `limit` und die Sessions — damit sagt die Oberfläche „25 von 907"
+   statt stillschweigend zu kürzen. Vorher lieferte die Route **alle 907** Sessions und das
+   Frontend rendete jede als Karte.
+6. **Rohmaterial: erschließbare Karten.** Je Session Vorschaubild, **Dateiname** als
+   Überschrift (die technische Sessionkennung steht darunter, nicht mehr allein oben),
+   Datum mit Uhrzeit, Aufschlüsselung nach Bildern/Videos/sonstigen Dateien, Statusabzeichen
+   und vier Aktionen. Werkzeugzeile mit Suchfeld, zwei Filtern und „Filter zurücksetzen";
+   darunter eine Trefferzeile und „Weitere 25 laden".
+7. **Vorschaubilder ohne Änderung der Rohdaten.** Neue Route
+   `GET /api/instagram/raw/:id/thumb/:filename` rechnet das Bild bei jedem Abruf mit `sharp`
+   aus dem Original (200 × 200, JPEG). **Es wird kein Vorschaubild abgelegt** — das wäre eine
+   Änderung der Rohmaterialdateien, und genau die schließt das Paket aus. Dafür darf der
+   Browser es 10 Minuten halten. Pfadprüfung gegen Ausbruch aus dem Sessionverzeichnis;
+   Videos werden mit 415 abgewiesen (ein Videobild bräuchte ffmpeg), nicht lesbare Dateien
+   mit 422 — in beiden Fällen zeigt die Karte das Typsymbol.
+8. **Die Zustände werden unterschieden:** „Keine Daten" (kein Rohmaterial vorhanden) und
+   „Keine Treffer" (Filter lässt nichts übrig, mit Rücksetz-Schaltfläche) sind zwei
+   verschiedene Blöcke — Baustein aus P2-5.
+9. **Die Session-Kennungsvergabe wurde nicht angefasst** (`generateRawSessionId` in
+   `server.mjs`). Sie folgt nicht der Projektkonvention `YYMMDD-<subject>-<ort>`; eine
+   Umstellung würde Bestandsdaten betreffen und ist nach Spec ausdrücklich nicht Teil
+   dieses Pakets.
+
+**Geänderte Dateien:** `public/js/instagram-material.js` (neu),
+`public/css/instagram-material.css` (neu), `public/index.html`, `public/js/datenstand.js`
+(Klassenname der Zustandsblöcke), `server.mjs`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `node --check` alle `public/js/*.js` + Inline-Skript | Exit 0 |
+| `grep -n "x-if"` in den geänderten Dateien | keine Treffer — der Instagram-Bereich nutzt kein Alpine |
+| `curl "…/api/instagram/raw?limit=25"` | `gesamt 907`, `treffer 907`, **25 Einträge** |
+| Suche nach einem bekannten Dateinamen (`260518-jb-01.jpg`) | 93 Treffer, erste Session `jb-1805-mhwq` — gegen das Dateisystem abgeglichen |
+| Filter Medientyp | „Mit Videos" → 273 Treffer, „Mit Bildern" → geprüft, „Ohne Dateien" → geprüft |
+| Filter Status | „In Craft" → **8** Treffer, alle mit Abzeichen „In Craft" (Rohantwort: 8 Sessions mit `status=crafting`) |
+| Erstaufruf | 25 von 907 Karten, Schaltfläche „Weitere 25 laden" vorhanden; nach einem Klick 50 Karten |
+| Null Treffer | Trefferzeile „0 von 907 Sessions · Suche „…"" plus Zustand **„Keine Treffer"** mit Rücksetz-Schaltfläche — **nicht** „keine Daten" |
+| Filter zurücksetzen | Suchfeld leer, wieder 25 von 907 |
+| Vorschaubilder | im gefilterten Satz 9 von 25 Sessions mit gültigem Vorschaubild (200 × 200 px geladen), 16 mit Typsymbol. Ursache gemessen: von 673 Bilddateien im Rohmaterial sind **650 Platzhalter von 222 Byte ohne Bildinhalt**, nur 23 sind echte Bilder. Die Route antwortet dort mit 422, die Karte zeigt das Symbol |
+| Vorschaubild-Pfadprüfung | `..%2F..%2Fsession.json` → 415/400, ohne Token → 401 |
+| Content-Plan | 10 Zeilen = 10 echte Entwürfe; **0** Zeilen mit Datum ohne Jahr, **0** mit ISO-Datum |
+| Verknüpfung Plan → Entwurf | Klick auf die erste Zeile → Unterbereich „Drafts", Karte `draft-card-insta-when-1805` vorhanden und hervorgehoben; „Draft bearbeiten: insta-when-1805" öffnet den richtigen Entwurf |
+| Tote Schaltflächen | **0** von 15 im Instagram-Bereich ohne `onclick` oder Deaktivierungsgrund |
+| Instagram, 6 Unterbereiche × 360/390/768/1440 px | **0 Überläufe von 24**, **0 abgeschnittene Texte**, Touchziele unter 44 px: **0** bei 360 und 390 px |
+| Gegenprobe: keine Mutation | `insta_drafts` weiterhin **10 Zeilen**, letzte Änderung 18.05.2026; im Rohmaterial **0 Dateien** mit heutigem Änderungsdatum (jüngste Datei 05.10.2026 07:22); 909 Sessionverzeichnisse, 2.158 Dateien |
+| Kein Scan, keine Generierung, keine Veröffentlichung | „Scan-Befehl kopieren" legt nur `/instascan <id>` in die Ablage — ausgeführt wird er im Telegram-Bot (dieselbe Linie wie `/instasync`) |
+| Regression | Live-Feed, Drafts, Analyse und Forensic unverändert; Medien-Proxy weiterhin funktionsfähig (die 403 der abgelaufenen Meta-URLs bestehen unverändert und sind keine Folge dieses Pakets) |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Getroffene Annahmen**
+- **Bezeichnung eines Entwurfs:** der erste Satz der Caption, auf 70 Zeichen gekürzt. Die
+  Entwürfe tragen kein Titelfeld; das ist die einzige vorhandene Bezeichnung und erfindet
+  nichts.
+- **Der Content-Plan IST der Entwurfsbestand.** Es gibt keine getrennte Plantabelle und kein
+  Terminfeld. Eine erfundene Planstruktur hätte das Problem des Mocks wiederholt.
+- **Löschdialog statt `confirm()`:** die Rohmaterial-Löschung fragt jetzt über `openModal()`
+  nach (P2-4-Linie: keine Systemfenster), inhaltlich unverändert.
+- **Vorschaubildgröße 200 × 200, Zuschnitt auf das Quadrat**, JPEG-Qualität 70. Frei gewählt;
+  die Karte zeigt 72 px, der doppelte Wert deckt hochauflösende Displays.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Ladeverhalten der Vorschaubilder am Mobilnetz. 25 Bilder werden einzeln
+  gerechnet (`loading="lazy"`); gemessen wurde nur im lokalen Netz.
+- **CP2 prüfen:** Ob „Weitere 25 laden" die richtige Schrittweite ist oder ob der Owner
+  lieber eine Seitenblätterung möchte.
+- **CP2 prüfen:** Die Beschriftung „📁 Raw Material" ist noch englisch — Übersetzung in **P2-8**.
+- **Datenbefund für den Owner, nicht behoben:** 650 der 673 Bilddateien im Rohmaterial sind
+  222-Byte-Platzhalter ohne Bildinhalt. Das ist eine Eigenschaft des Bestands, keine Folge
+  dieses Pakets, und wird hier nur sichtbar gemacht.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: **ja** — `server.mjs` wurde geändert (Suchparameter, Vorschaubild-Route).
+  Dienst am 06.10.2026 neu gestartet, `GET /health` → 200.
+- Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
+  Keine Datenänderung, deshalb kein Datenrückweg.
+
+**Commit:** `PLATZHALTER_P2_7` · Dienst-Restart nötig und durchgeführt
 
 ---
 

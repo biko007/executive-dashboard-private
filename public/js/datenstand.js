@@ -216,7 +216,11 @@ const ZUSTAND_BLOECKE = {
 function zustandBlock(art, text, opt) {
   const z = ZUSTAND_BLOECKE[art] || ZUSTAND_BLOECKE.keine_daten;
   const o = opt || {};
-  return '<div class="zustand zustand-' + esc(art) + '">'
+  /* Klassenname mit Bindestrich: 'keine_treffer' → 'zustand-keine-treffer'.
+     Die Stilvorlage schreibt Klassen mit Bindestrich, die Schlüssel hier mit
+     Unterstrich — ohne diese Umsetzung griff die Zustandsfarbe nicht. */
+  const klasse = 'zustand-' + String(art).replace(/_/g, '-');
+  return '<div class="zustand ' + esc(klasse) + '">'
     + '<span class="zustand-symbol" aria-hidden="true">' + z.symbol + '</span>'
     + '<div class="zustand-text">'
     + '<div class="zustand-titel">' + esc(o.titel || z.titel) + '</div>'
