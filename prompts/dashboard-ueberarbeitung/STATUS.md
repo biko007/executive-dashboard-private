@@ -2,12 +2,16 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 09:15 UTC
-**Aktuelle Phase:** **Phase 2 läuft** — CHECKPOINT 1 am 05.10.2026 extern freigegeben,
-Hetzner-Snapshot liegt vor. **P2-1 bis P2-10 sind erledigt.**
-**Nächster Schritt: P2-11** (Immobilien- und Mieterdaten).
+**Letzte Aktualisierung:** 06.10.2026, 09:25 UTC
+**Aktuelle Phase:** **Phase 2 abgeschlossen, CP2 offen** — CHECKPOINT 1 am 05.10.2026 extern
+freigegeben, Hetzner-Snapshot liegt vor. **Alle elf Pakete P2-1 bis P2-11 sind erledigt.**
+**Nächster Schritt: CHECKPOINT 2** — vollständige Benutzer- und Mobilprüfung,
+Teile davon nur am echten Gerät möglich.
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
-**Änderungsstand Code:** Phase 1 ist produktiv und in allen drei Repositories gepusht.
+**Änderungsstand Code:** Phase 2 ist produktiv. `server.mjs` wurde in P2-5, P2-7, P2-8 und
+P2-10 geändert (vier neue lesende Routen und die Reise-Kennung); der Dienst wurde nach jeder
+Änderung neu gestartet, `GET /health` → 200.
+**Phase 1** ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
 erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbraucht.
 **Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
@@ -28,16 +32,16 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | **CHECKPOINT 1** | Browserprüfung durch den Owner | — | **bestanden** 05.10.2026 09:30–09:50 | — | Befunde A–G grün; vier Nachbesserungen siehe eigener Eintrag |
 | CP1-N | Nachbesserung aus CHECKPOINT 1 | S | **erledigt** | `aa40c12` | Report `~/bikosoc-spec/report-dashboard-cp1-nachbesserung-1005.md` |
 | P2-1 | Helles Design | M | **erledigt** | `b892e21` | Report `~/bikosoc-spec/report-dashboard-p2-1-1255.md` |
-| P2-2 | Navigation und mobile Grundstruktur | L | offen | — | — |
-| P2-3 | Tabellen, Karten, Diagramme responsiv | M | offen | — | — |
-| P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
-| P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `b68057f` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-7 | Instagram-Planung und Rohmaterial (J) | M | **erledigt** | `e0c37f4` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
-| P2-9 | Banking-Übersicht (K) | S | offen | — | — |
-| P2-10 | Agentenübersicht (L) | M | offen | — | — |
-| P2-11 | Immobilien-/Mieterdaten-Darstellung (H) | M | offen | — | — |
+| P2-2 | Navigation und mobile Grundstruktur | L | **erledigt** | `fed644f` | Eintrag unten · Bildschirmfotos `~/upgrade-artifacts/20261005-p2-2/` |
+| P2-3 | Tabellen, Karten, Diagramme responsiv | M | **erledigt** | `3260c50` | Eintrag unten · Bildschirmfotos `~/upgrade-artifacts/20261005-p2-3/` |
+| P2-4 | Formulare und Dialoge mobil | M | **erledigt** | `66756ed` | Eintrag unten |
+| P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `b68057f` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-7 | Instagram-Planung und Rohmaterial (J) | M | **erledigt** | `e0c37f4` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | **erledigt** | `c9e50c3` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-9 | Banking-Übersicht (K) | S | **erledigt** | `fcd64c4` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-10 | Agentenübersicht (L) | M | **erledigt** | `8fbeb62` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
+| P2-11 | Immobilien-/Mieterdaten-Darstellung (H) | M | **erledigt** | `31fea08` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
 | **CHECKPOINT 2** | vollständige Benutzer- und Mobilprüfung | — | offen | — | `04-…` §3 |
 | Phase 3 | Abschlusskorrekturen, Restpunkte | — | offen | — | — |
 
@@ -1463,6 +1467,473 @@ ist weniger schlimm als ein verschluckter Satz.
   Keine Datenänderung, deshalb kein Datenrückweg.
 
 **Commit:** `e0c37f4` · Dienst-Restart nötig und durchgeführt
+
+---
+
+
+### P2-8 — Begriffe, Zahlen-/Datumsformate, Barrierefreiheit — 06.10.2026
+
+**Durchgeführt**
+
+1. **Reise-Kennungen werden erzeugt, nicht eingetippt.** Das Formular verlangte „ID (Slug,
+   z. B. tokyo-2026-05)" als Pflichtfeld. Jetzt erzeugt `POST /api/trips` die Kennung nach der
+   Projektkonvention `YYMMDD-trip-<ort>`, wenn keine mitgeliefert wird; das Feld ist optional
+   und erklärt sich selbst. Eine **vorgegebene Kennung bleibt gültig** — der Endpunkt ist
+   rückwärtsverträglich. Nebenbefund behoben: nach dem Anlegen landete man im Health-Bereich,
+   jetzt im Reisebereich.
+2. **Gemeinsame Übersetzungstabelle** `public/js/begriffe.js` für Datenbank-Rohwerte: 20
+   Gruppen (`lease_type`, `lease_status`, `billing_mode`, `payment_method`, `charge_type`,
+   `tenant_type`, `role`, `property_type`, `medium`, `reading_type`, Fuhrpark-, Instagram- und
+   Dokumentwerte). `begriff()` übersetzt, `begriffBadge()` setzt ein Abzeichen,
+   `begriffOptionen()` baut Auswahlfelder aus derselben Quelle. Ein **unbekannter Wert kommt
+   unverändert zurück** — lieber ein sichtbarer Rohwert, der eine Lücke zeigt, als eine
+   erfundene Bezeichnung.
+3. **Dabei ein echter Fehler gefunden und behoben: Auswahlfelder boten Werte an, die die
+   Datenbank ablehnt.** Die Spalten tragen CHECK-Bedingungen:
+   | Feld | angeboten wurde | zulässig ist |
+   |---|---|---|
+   | `lease_type` | `residential_permanent`, `residential_temporary` | `residential`, `temporary`, `commercial`, `garage`, `storage` |
+   | `payment_method` | `direct_debit` | `bank_transfer`, `sepa_direct_debit`, `cash`, `other` |
+   Ein „Speichern" im Vertragsdetail hätte den Vertragstyp auf einen Wert gesetzt, den die
+   Datenbank zurückweist — und weil der echte Wert nie vorausgewählt war, hätte ein Klick ihn
+   auch noch stillschweigend geändert. `begriffOptionen()` bietet jetzt nur noch zulässige
+   Werte an (Liste `BEGRIFF_OPTIONEN`) und hängt einen vorhandenen Bestandswert unverändert
+   an, damit Speichern ihn nie ersetzt. Dieselbe Korrektur im Mieterwechsel-Assistenten und
+   bei den Vorgabewerten für neue Verträge.
+4. **Deutsche Beschriftungen.** „Runs & Statements" → „Abrechnungsläufe und Abrechnungen",
+   „Pre-Check" → „Vorprüfung", „NK-Readiness" → „Abrechnungsreife", „Status & NK-Readiness" →
+   „Status & Abrechnungsreife", „📁 Raw Material" → „📁 Rohmaterial", „Drafts" → „Entwürfe",
+   „🔍 Forensic" → „Prüfdaten", „Live Feed" → „Aktuelle Beiträge", „Scan starten" →
+   „Suchlauf starten", „📅 Sync" → „Mit Kalender abgleichen", „Blocker" → „Blockierend",
+   „Run-ID/Statements/Snapshot" → „Lauf/Abrechnungen/Prüfsumme", „Exchange/Wahrung" →
+   „Börse/Währung", „Avg Kurs" → „Ø Kaufkurs", „P&L" → „Gewinn/Verlust".
+   **Hauptnavigation:** „Health" → „Gesundheit", „Trips" → „Reisen", „Assets" → „Immobilien",
+   „Agents" → „Automatisierung". Die Bereichskennungen in `data-tab` und `?tab=` bleiben
+   **unverändert** — jeder vorhandene Deeplink gilt weiter.
+5. **Echte Umlaute statt „ae/oe/ue".** 103 Ersetzungen in sichtbarem Text über 11 Dateien,
+   ausschließlich in Anzeigetext und in den Attributen `placeholder`, `aria-label`, `title`
+   und `alt`. Schlüssel, Bezeichner und Datenwerte blieben unberührt — gegengeprüft über eine
+   Suche nach Bezeichnern mit Umlauten (0 Treffer) und über `value="…"`-Attribute (unverändert).
+6. **HRV und Readiness erklärt.** „💓 HRV 42 ms" ohne Skala und Quelle wurde zu
+   „💓 HRV (Herzratenvariabilität) · 18 ms · Ø 19 ms über 30 Tage · Quelle: Oura, nachts
+   gemessen. Höhere Werte stehen für mehr Erholung; der eigene Durchschnitt ist der Maßstab,
+   nicht ein fester Zielwert." Readiness: „🎯 Erholung (Readiness) · 66 von 100 · wenig
+   erholt · Quelle: Oura. Einteilung dieser Anzeige: ab 85 gut, ab 70 eingeschränkt, darunter
+   wenig erholt." Die Schwellen 85/70 sind damit benannt **und** als Einteilung dieser
+   Anzeige gekennzeichnet — nicht als Vorgabe von Oura.
+7. **Zahlen- und Datumsformate.** `fmtEur` und `fmtUsd` setzen ein **geschütztes**
+   Leerzeichen zwischen Betrag und Währungszeichen; vorher konnte ein Zeilenumbruch beide
+   trennen. Die **Zeitzone** steht jetzt einmal im Seitenkopf („Seite geladen: … · alle Zeiten
+   in Europe/Berlin") und damit in **jedem** Bereich, auch in denen ohne Datenstand-Leiste; in
+   der Leiste ist der Satz dafür entfallen (eine Angabe, eine Stelle).
+8. **Die fünf Zustände angewendet** (Baustein aus P2-5) in **acht** Bereichen: Mietverträge
+   (keine Daten / keine Treffer), Nebenkosten-Abrechnungsläufe, Fuhrparkfilter (Aktiv,
+   Archiviert, leerer Bestand — drei verschiedene Aussagen), Wiki (nicht eingerichtet, keine
+   Treffer), SharePoint (keine Treffer, Laden fehlgeschlagen), Instagram-Rohmaterial, Trading
+   (keine Position, leere Beobachtungsliste), Mieterliste.
+9. **Barrierefreiheit.** Sechs „X"-Löschschaltflächen im Fuhrpark haben einen zugänglichen
+   Namen bekommen (Service, Versicherung, TÜV, Steuer, Dokument, Reifensatz). Drei
+   Eingabefelder unter dem 44-px-Maß wurden korrigiert: Wiki-Suche (33 px), SharePoint-Suche
+   (36 px) und die drei Trading-Felder (29 px, zusätzlich mit deutschen Platzhaltern und
+   zugänglichem Namen). Die Trading-Zeile bricht jetzt um, statt die Schaltfläche
+   abzuschneiden.
+10. **„Hans Dampf" ist unverändert** — in der Kopfzeile und im Meta-Tag (Owner-Entscheidung
+    Nr. 6).
+
+**Geänderte Dateien:** `public/js/begriffe.js` (neu), `public/index.html`, `server.mjs`,
+`public/js/assets-vertraege.js`, `public/js/assets-stammdaten.js`, `public/js/assets-status.js`,
+`public/js/assets-nebenkosten.js`, `public/js/assets-wizard.js`, `public/js/assets-stores.js`,
+`public/js/banking-connect.js`, `public/js/fleet-detail.js`, `public/js/fleet-stores.js`,
+`public/js/nk-befunde.js`, `public/js/wiki.js`, `public/js/datenstand.js`, `public/css/wiki.css`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `node --check` alle `public/js/*.js` + Inline-Skript | Exit 0 |
+| Bezeichner mit Umlauten (Gegenprobe gegen versehentliche Umbenennung) | **0** nicht deklarierte Bezeichner in allen Frontend-Dateien |
+| Reise-Kennung | `POST /api/trips` ohne `id` → **`260415-trip-barcelona`**; mit vorgegebener `id` → unverändert `p28-test-vorgabe`. **Beide Testreisen danach gelöscht**, Bestand wieder 1 Datei |
+| Mietvertragstabelle | „Wohnung unbefristet" statt `residential`; **0** Zeilen mit Rohwert in 17 Verträgen |
+| Vertragsdetail | Vertragstyp-Auswahl bietet genau die 5 zulässigen Werte, **der echte Wert `residential` ist vorausgewählt**; Zahlungsweise bietet die 4 zulässigen Werte |
+| Englischer Oberflächentext, Browserdurchgang über alle 14 Bereiche | vorher 18 Begriffe, nachher **11** — die verbliebenen sind Eigennamen und Bereichsnamen (Trading, Banking, Status, Filter, Readiness, Workflow); in Immobilien und Fuhrpark **kein** englischer Oberflächentext mehr |
+| Umlaut-Ersatzschreibweisen, Browserdurchgang | vorher 27 auffällige Wörter, nachher **0 echte** (die 17 verbliebenen Treffer sind korrekte deutsche Wörter wie „Datenquelle", „manuell", „Regenschauer" oder Daten aus Wiki und Ausgaben — kein Oberflächentext) |
+| Rohwerte in sichtbarem Text | vorher 5, nachher **2**: `insta_tokens` (Quellenangabe der Token-Kachel) und „Commercial" im wörtlich zitierten Originaltext einer Core-Prüfmeldung — beides absichtlich |
+| HRV-/Readiness-Kacheln | nennen Skala („von 100"), Quelle („Oura") und Bedeutung der Schwellen |
+| Zeitzone | im Seitenkopf in allen 14 Bereichen vorhanden; in der Datenstand-Leiste nicht mehr doppelt |
+| Geldbeträge | geschütztes Leerzeichen vor € und $ (Gegenprobe im gerenderten Text) |
+| Touchziele bei 360 und 390 px, alle 14 Bereiche | **0 Verletzer** unter 44 × 44 px (vorher 3: Wiki-, SharePoint- und Trading-Eingaben) |
+| Dokumentbreite 14 Bereiche × 360/390/768/1440 px | **0 Überläufe von 56** |
+| Abgeschnittener Text ohne Scrollbehälter | **0** (die bei der Zwischenprüfung aufgetretene Beanstandung „+ Hinzufügen" bei 360 px ist mit dem Umbruch behoben) |
+| Smoke-Test | ALL PASS (31/31) |
+| Bestandsdaten | unverändert: `leases` 17 aktiv, `tenants` 26, letzte Änderung in beiden Tabellen 15.05.2026 |
+
+**Getroffene Annahmen**
+- **`residential` = „Wohnung unbefristet", `temporary` = „Wohnung befristet".** Die Spec nennt
+  als Zielbezeichnung „Wohnung unbefristet" für `residential_permanent`; im Bestand steht
+  stattdessen `residential`, und alle 13 so erfassten Verträge haben kein Enddatum. Die vier
+  `temporary`-Verträge sind die temporär vermieteten Wohnungen aus Owner-Entscheidung Nr. 4.
+- **Hauptnavigation teilweise übersetzt.** „Health", „Trips", „Assets" und „Agents" haben
+  natürliche deutsche Entsprechungen und sind übersetzt; „Kalender", „Fuhrpark", „Trading",
+  „Banking", „Private Equity", „Instagram", „SharePoint", „Wiki" und „Status" bleiben, weil
+  sie Eigennamen oder im Deutschen gebräuchlich sind. Die Bereichskennungen sind unverändert,
+  also bleibt jeder Deeplink gültig.
+- **„Filter" und „Status" gelten als deutsche Wörter** und wurden nicht ersetzt.
+- **„Readiness" und „HRV" bleiben als Herstellerbegriffe stehen**, jetzt aber mit deutscher
+  Erklärung und deutschem Leitwort („Erholung (Readiness)").
+- **Vorgabewert für neue Mietverträge** ist jetzt `residential` statt des von der Datenbank
+  abgelehnten `residential_permanent`. Das ändert keinen Bestandswert, sondern nur den
+  Vorschlag für künftige Anlagen.
+- **Zeitzone nur einmal im Seitenkopf** statt an jeder Uhrzeit. Ein Hinweis je Zeitangabe
+  hätte jede Zeile verlängert; die Spec verlangt, dass die Zeitzone genannt wird, nicht wie oft.
+
+**Verbleibende Fehler — Befund für den Owner, nicht in diesem Paket behoben**
+Beim Abgleich der Auswahlfelder gegen die CHECK-Bedingungen der Datenbank sind **weitere**
+Felder aufgefallen, die unzulässige Werte anbieten. Sie liegen in Schreibpfaden, die über
+diesen Anzeigeauftrag hinausgehen, und sind deshalb **nur dokumentiert**:
+
+| Feld | angeboten | zulässig laut Datenbank |
+|---|---|---|
+| `lease_charges.charge_type` | `kaltmiete`, `nk_vorauszahlung`, `heizkosten_vorauszahlung`, `kaution`, `sonstige` | `base_rent`, `operating_cost_prepayment`, `heating_prepayment`, `garage_rent`, `vat` |
+| `meters.medium` | zusätzlich `main_heat`, `space_heating_heat`, `warm_water_heat`, `warm_water_volume` | `cold_water`, `warm_water`, `heat`, `electricity`, `gas` |
+| `meter_readings.reading_type` | `periodic` | `annual`, `interim`, `move_in`, `move_out`, `meter_reset`, `automatic` |
+| Mietvertragsfilter „Zukünftig" | `future` | `draft`, `active`, `terminated`, `ended`, `unverified_legacy` |
+
+Anlegen eines Mietbestandteils, eines Zählers oder einer Ablesung schlägt damit voraussichtlich
+mit einem Datenbankfehler fehl. Die Begriffstabelle **kennt** die richtigen Werte bereits; die
+betroffenen Formulare umzustellen heißt aber, auch die Schreibwege im Core zu prüfen — das ist
+ein eigener Arbeitsschritt und keine Anzeigefrage.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Ob „Immobilien" und „Automatisierung" als Bereichsnamen passen, oder ob der
+  Owner bei „Assets" und „Agents" bleiben möchte.
+- **CP2 prüfen:** Die Formulare für Mietbestandteile, Zähler und Ablesungen ließen sich ohne
+  passenden Datensatz nicht vollständig durchspielen; geprüft ist die Auswahl im
+  Vertragsdetail und im Mieterwechsel-Assistenten.
+- **CP2 prüfen:** Lesbarkeit der erklärenden Zeilen unter den Gesundheitskacheln am Gerät.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: **ja** — `server.mjs` wurde geändert (Reise-Kennung). Dienst am 06.10.2026
+  neu gestartet, `GET /health` → 200.
+- Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
+  Keine Bestandsdatenänderung; die beiden Testreisen sind gelöscht.
+
+**Commit:** `c9e50c3` · Dienst-Restart nötig und durchgeführt
+
+---
+
+
+### P2-9 — Banking-Übersicht — 06.10.2026
+
+**Durchgeführt**
+
+1. **Je Konto steht jetzt da, was in den Daten steht.** Vorher zeigte die Zeile nur IBAN und
+   Saldo. Jetzt: Kontobezeichnung, Status, Währung, Saldo **und der Datenstand des Saldos mit
+   Alter** („Aktiv · EUR · Saldo vom 29.06.2026 (vor 98 Tagen)").
+2. **Keine erfundene Kontobezeichnung.** `displayName` wird nur angezeigt, wenn er von der
+   IBAN abweicht — im Bestand ist das bei keinem Konto der Fall, deshalb steht dort die IBAN.
+   `accountType` und `ownerName` sind bei allen 12 Konten leer; ein Kontozweck ist in den
+   Daten **nicht vorhanden** und wird nicht ergänzt.
+3. **Kein Saldo ist nicht null Euro.** Konten ohne `currentBalance` zeigen „kein Saldo
+   erfasst" und werden in der Summe nicht mitgerechnet.
+4. **Summe je Währung, nicht über Währungen hinweg.** Die Summenzeile nennt die Währung
+   ausdrücklich und wird je Währung getrennt gebildet — auch wenn derzeit alle Konten in EUR
+   geführt werden. Darunter steht, wie viele Konten einbezogen sind, wie viele keinen Saldo
+   haben und auf welchen Datenstand sich die Summe bezieht.
+5. **Archivierte Konten getrennt und eingeklappt** („10 archivierte Konten anzeigen").
+6. **Umsatzansicht — der lesende Zugriff existiert.** Die Spec hatte ihn als „nicht
+   verifiziert" vermerkt. Geprüft: `GET /api/banking/accounts/:id/transactions` liefert die
+   Zeilen aus `banking_transactions` (1.633 Zeilen im Bestand). Ein Klick auf das Konto öffnet
+   die Umsatzliste: Buchungsdatum (mit Wertstellung, wenn abweichend), Gegenseite,
+   Verwendungszweck, Buchungstext und Betrag; 50 Zeilen, „Weitere 50 laden"; ein zweiter Klick
+   schließt sie. Über der Liste steht ausdrücklich: **Stand des letzten FinTS-Abgleichs, nicht
+   der aktuelle Stand bei der Bank.**
+7. **IBAN der Gegenseite maskiert**, auf Klick sichtbar — dasselbe Muster wie bei den
+   Mieter-IBANs (`iban-masked` / `iban-reveal`).
+8. **Seitenkopf und Datenstand** waren schon in P1-1/P2-5 ergänzt und sind hier nachgewiesen.
+
+**Geänderte Dateien:** `public/js/banking-connect.js`, `public/index.html` (Stilvorlage)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `grep -n "x-if" public/js/banking-connect.js` | 17 Treffer, jede mit genau einem direkten Kindelement — Single-Root-Bedingung erfüllt (die neuen Blöcke nutzen `x-show`/`x-for`, keine neue `x-if`) |
+| Beide aktiven Konten | Saldo, Währung „EUR", Status „Aktiv" und „Saldo vom 29.06.2026 (vor 98 Tagen)" |
+| Summe | **17.968,73 EUR**, Währung genannt, Hinweis „2 aktive Konten · Datenstand 29.06.2026, vor 98 Tagen · Summiert wird je Währung getrennt." |
+| Archivierte Konten | **10**, in einem eingeklappten Block, standardmäßig zu |
+| Kontobezeichnung | IBAN, keine erfundene Bezeichnung |
+| Seitenkopf | „Seite geladen: 06.10.2026, 11:09 · alle Zeiten in Europe/Berlin" — nicht mehr leer |
+| Datenstand-Leiste | „⚠️ Bankkonten (FinTS) · Daten veraltet (98 Tage)" |
+| Umsatzliste | **50 von 437 Umsätzen** für das erste Konto, jüngste Buchung 25.06.2026 (vor 103 Tagen), 47 maskierte Gegenseiten-IBANs, „Weitere 50 laden" vorhanden |
+| Zweiter Klick auf dasselbe Konto | schließt die Liste (Container leer) |
+| Gegenprobe: keine Mutation | `banking_sync_runs` weiterhin **3 Zeilen**, letzte vom 29.06.2026 — keine neue Bankverbindung, keine Transaktion, kein Abruf ausgelöst |
+| Regression | Massenauswahl und Genehmigungsdialog unverändert; der Dialog wurde **nicht ausgeführt** |
+| Dokumentbreite Banking × 360/390/768/1440 px | **0 Überläufe**, **0 Touchziele** unter 44 px bei 360/390 px |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Getroffene Annahmen**
+- **Umsatzansicht umgesetzt, nicht nur geplant.** Die Spec verlangte „nur planen, wenn ein
+  lesender Zugriff tatsächlich existiert". Er existiert und ist bereits über den
+  Banking-Proxy erreichbar — damit war die Umsetzung der kleinere Schritt als eine Planung,
+  die ohnehin nur diese eine Route beschreibt.
+- **Maskierte Gegenseiten-IBAN mit Aufklappen** statt voller Anzeige — dasselbe Muster, das
+  im Projekt für Mieter-IBANs schon gilt.
+- **50 Umsätze je Seite.** Frei gewählt; 437 Zeilen auf einmal wären am Telefon unbrauchbar.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Lesbarkeit der Umsatzliste in Kartenform am Gerät (4 Spalten → Kartenform
+  nach der Regel aus P2-3).
+- **CP2 prüfen:** Ob die Summenzeile über dem oder unter dem Kontoblock stehen soll.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git revert <commit>`. Keine Datenänderung.
+
+**Commit:** `fcd64c4` · kein Dienst-Restart nötig
+
+---
+
+
+### P2-10 — Agentenübersicht — 06.10.2026
+
+**Durchgeführt**
+
+1. **Aus einer statischen Karte wurde eine lesende Übersicht.** Der Bereich bestand aus einem
+   einzigen Link auf n8n: keine Daten, kein Datenstand, kein Abruf.
+2. **Neue lesende Route** `GET /api/agents/workflows` in `server.mjs`. Sie fasst drei Quellen
+   zusammen: `/api/v1/workflows` und `/api/v1/executions` von n8n sowie Zählwerte aus der
+   eigenen Tabelle `approval_tokens`.
+3. **Der n8n-Schlüssel bleibt serverseitig.** Die Rohantwort von n8n geht **nicht** an den
+   Browser — sie enthält die vollständigen Workflow-Definitionen samt Knotenparametern, und
+   dort können Zugangsdaten stehen. Die Route liefert ausschließlich aufbereitete Felder.
+4. **Vier Abschnitte:**
+   - *Workflows in n8n* — Name, Schrittzahl, Zustand, letzte Änderung, letzter Lauf und
+     Zeitplan. Ein inaktiver Workflow ist **nicht grün**, sondern grau mit „Inaktiv — läuft
+     nicht"; sein hinterlegter Zeitplan erscheint als „Zeitplan hinterlegt (täglich 07:00),
+     **wird nicht ausgeführt**". Archivierte Workflows tragen ein eigenes Abzeichen.
+   - *Ausführungen* — n8n hat keine Historie, deshalb steht dort „Keine Ausführungen
+     aufgezeichnet" mit der Begründung und dem ausdrücklichen Satz, dass das **keine** Aussage
+     darüber ist, dass alles in Ordnung ist.
+   - *Freigaben im Dashboard* — offene, verwendete und Gesamtzahl der Genehmigungen plus
+     Zeitpunkt der letzten Anforderung. Nur Zählwerte und Zeitpunkte; **kein Token, kein
+     Inhalt**.
+   - *n8n öffnen* — der bestehende Link, unverändert erreichbar.
+5. **Kein Schreibzugriff.** Es gibt keine POST-, PATCH-, PUT- oder DELETE-Route unter
+   `/api/agents`. Kein `GRANT` auf die n8n-Datenbank; die bleibt für den `openclaw`-User
+   gesperrt.
+
+**Geänderte Dateien:** `server.mjs`, `public/index.html`, `public/css/tagesuebersicht.css`
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `curl .../api/agents/workflows` | **4 Workflows**, 0 Ausführungen, Freigabenzählwerte |
+| Alle vier Workflows mit Name und Zustand | `health-withings-sync-daily`, `260509-openclaw-health-check`, `instagram-token-health-daily`, `banking-sync-daily` — **alle „Inaktiv — läuft nicht"** |
+| Inaktiver Zustand nicht grün | **0** grüne Abzeichen in der ganzen Ansicht |
+| „Keine Ausführungen aufgezeichnet" | vorhanden, mit Begründung und dem Satz, dass es kein Gütesiegel ist |
+| n8n-Schlüssel in der Antwort | **0 Treffer** — der Schlüssel aus `~/.config/openclaw/env` kommt in der JSON-Antwort nicht vor |
+| n8n-Schlüssel im ausgelieferten HTML/JS | **nicht vorhanden** (Gegenprobe über den gesamten Seitenquelltext) |
+| Ohne Token | HTTP 401 |
+| Schreibroute unter `/api/agents` | **0** |
+| Verhalten bei nicht erreichbarem n8n | simuliert: Abschnitte „Workflows" und „Ausführungen" zeigen **„Laden fehlgeschlagen"** mit dem Grund und dem Zusatz „Das heißt NICHT, dass keine Workflows vorhanden sind."; die Freigaben bleiben lesbar. Fällt der ganze Abruf aus, steht „nicht abrufbar" und der Datenstand meldet „🔴 Quelle nicht erreichbar" |
+| n8n-Link | `https://app.bikobickel.de/n8n/`, funktioniert weiter |
+| Keine Ausführung ausgelöst, kein Workflow aktiviert | Gegenprobe: `/api/v1/executions` weiterhin 0 Einträge; alle vier Workflows weiterhin `active: false` |
+| Dokumentbreite Automatisierung × 360/390/768/1440 px | **0 Überläufe**, **0 Touchziele** unter 44 px bei 360/390 px |
+| Regression Status-Bereich | unverändert |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Getroffene Annahmen**
+- **Offene Freigaben kommen aus `approval_tokens`**, nicht aus n8n. Die Spec nannte die
+  Tabelle als „Nutzung nicht geprüft"; sie enthält 39 Zeilen, davon 29 verwendete und
+  derzeit 0 offene. Angezeigt werden nur Zählwerte und der Zeitpunkt der letzten Anforderung.
+- **Der Zeitplan wird aus dem Schedule-Trigger-Knoten gelesen** und in einen Satz übersetzt
+  („täglich 07:00"). Bei einem inaktiven Workflow steht ausdrücklich dabei, dass er nicht
+  ausgeführt wird — ein „nächster Lauf" wäre dort eine Falschaussage.
+- **20 Ausführungen je Abruf.** Derzeit gibt es keine; die Grenze verhindert, dass eine
+  spätere Historie die Ansicht sprengt.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Sobald n8n wieder Läufe hat (derzeit nach Owner-Entscheidung Nr. 1 nicht
+  vorgesehen), ist die Darstellung der Historie mit echten Daten zu prüfen. Geprüft ist bisher
+  nur der Leerfall und der Fehlerfall.
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: **ja** — `server.mjs` wurde geändert (neue Route). Dienst am 06.10.2026
+  neu gestartet, `GET /health` → 200.
+- Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
+  Lesend, keine Datenänderung.
+
+**Commit:** `8fbeb62` · Dienst-Restart nötig und durchgeführt
+
+---
+
+
+### P2-11 — Immobilien- und Mieterdaten: Darstellung — 06.10.2026
+
+**Durchgeführt**
+
+**Nur Anzeige.** Dieses Paket schreibt nichts: keine Statusänderung, keine Datumskorrektur,
+keine Zusammenführung von Mieterdatensätzen (Owner-Entscheidungen Nr. 3 und 4).
+
+1. **Neuer Baustein** `public/js/assets-mietverhaeltnisse.js`. Er lädt Verträge und Mieter
+   einmal und stellt daraus drei Verknüpfungen her: Mieter → Verträge, Vertrag →
+   Vertragsparteien, Einheit → alle Verträge.
+   **Zum Verknüpfungsweg:** der Core liefert keinen Endpunkt für die n:m-Tabelle
+   `lease_tenants` (geprüft: `/api/assets/leases/:id/tenants` antwortet mit dem Vertrag
+   selbst, nicht mit den Parteien). Die Liste `/api/assets/leases` enthält aber
+   `tenant_names`, und jede `tenant_code` endet auf Objekt und Einheit
+   (`jbickel-n24w3` → n24 / W3). **Beide Wege werden benutzt und gegeneinander geprüft** —
+   Namensgleichheit allein wäre bei vier gleichnamigen Datensätzen nicht eindeutig. Die
+   Mieteransicht nennt je Vertrag, wie die Zuordnung zustande kam („Kennung und Name",
+   „über die Kennung", „nur über den Namen").
+2. **Inkonsistenzen werden gekennzeichnet, nicht korrigiert.** Vertrag `n24-w6-2024` trägt
+   im Detail einen gelben Hinweis: „Auszug am 15.11.2024 erfasst, Status weiterhin ‚Aktiv' —
+   Klärung offen. Zusätzlich liegt das Auszugsdatum vor dem Kündigungsdatum (30.11.2025);
+   ob das ein Tippfehler im Jahr ist, ist nicht bewertet." Darunter: „Die Entscheidung liegt
+   beim Owner. Es wurde nichts geändert." In der Vertragsliste trägt die Zeile ein Abzeichen
+   „⚠️ Klärung", damit der Fall nicht erst im Detail sichtbar wird.
+3. **Der Mieterwechsel ist erkennbar.** Das Vertragsdetail zeigt alle Verträge derselben
+   Einheit nebeneinander: `n24-w6-2024` ab 15.05.2024 mit Auszug 15.11.2024 und
+   `n24-w6-2025` ab 01.12.2025 — mit Beginn, Kündigung, Auszug, Status und Mietern, der
+   gerade geöffnete Vertrag hervorgehoben.
+4. **Vertragsparteien im Vertragsdetail:** Name, Kennung, Kontakt und Rolle, jede Zeile
+   führt in die Mieteransicht. Zusätzlich steht darunter, wer im Vertrag genannt ist
+   (`tenant_names`), damit ein fehlender Mieterdatensatz auffällt.
+5. **Hauptmieter statt Doppeleintrag.** Vier Mieterdatensätze lauten auf „Jürgen Bickel" mit
+   derselben E-Mail. Nach Owner-Entscheidung Nr. 4 ist das **korrekt**; die Oberfläche sagt
+   das auch so: „Das ist beabsichtigt: der Eigentümer ist Hauptmieter temporär vermieteter
+   Wohnungen und vermietet unter (Owner-Entscheidung Nr. 4 vom 04.10.2026). Kein
+   Doppeleintrag — die Datensätze werden nicht zusammengeführt." In der Mieterliste trägt
+   jeder dieser Datensätze ein Abzeichen „Hauptmieter". Es gibt **keinen**
+   Zusammenführungsvorschlag und keine Schaltfläche dafür.
+6. **Ehrlicher Befund zu den Untermietern:** sie sind in den Daten **nicht erfasst**. Die
+   Verknüpfungstabelle `lease_tenants` lässt per CHECK-Bedingung nur die Rollen
+   `contract_party`, `occupant` und `guarantor` zu — eine Untermieter-Rolle gibt es im Schema
+   nicht. Die Untervermietung ist deshalb nur am Vertragstyp „Wohnung befristet" erkennbar,
+   und genau so steht es in der Mieteransicht. Ein eigenes Untermietverhältnis zu erfassen
+   wäre eine Schemaänderung und damit eine Owner-Entscheidung.
+7. **Neuer Abschnitt „Klärungsbedarf"** unter „Status & Abrechnungsreife" mit drei Teilen:
+   - *Statusbedeutung* im Klartext: was „Aktiv" heißt, dass der Status **nicht** automatisch
+     aus Kündigung oder Auszug folgt, und dass derzeit alle 17 Verträge auf „Aktiv" stehen.
+   - *Klärungsbedarf in den Verträgen*: die beiden Fälle mit Sprung in das Vertragsdetail.
+   - *Mehrere Mietverhältnisse pro Person*: der Fall „Jürgen Bickel" mit allen vier
+     Kennungen und Verträgen und der Erklärung aus Owner-Entscheidung Nr. 4.
+
+**Geänderte Dateien:** `public/js/assets-mietverhaeltnisse.js` (neu),
+`public/js/assets-vertraege.js`, `public/js/assets-stammdaten.js`, `public/js/assets-status.js`,
+`public/css/assets.css`, `public/index.html` (Skripteinbindung)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `npm run build` | Exit 0 |
+| `node --check` alle `public/js/*.js` | Exit 0 |
+| `grep -n "x-if"` in `assets-vertraege.js` und `assets-stammdaten.js` | keine Treffer — beide Dateien nutzen keine `x-if`; die neuen Blöcke sind klassisches HTML |
+| Vertrag `n24-w6-2024` | sichtbarer Klärungshinweis im Detail **und** Abzeichen in der Liste |
+| Einheit 32 (n24/W6) | beide Verträge mit Zeiträumen untereinander, Mieterwechsel erkennbar, der geöffnete Vertrag markiert |
+| Vertragsparteien | für `n24-w6-2024` drei erfasste Parteien (Vormieter und die beiden Nachmieter — sie hängen an derselben Einheit) plus die Angabe „Im Vertrag genannt: …" |
+| Mieteransicht „Jürgen Bickel" | alle **vier** Verträge, alle „Wohnung befristet", je mit Zuordnungsweg; Hauptmieter-Erklärung und Untermieter-Befund vorhanden |
+| Mieterliste | die vier Datensätze tragen „Hauptmieter"; Mieterkennung unter dem Namen sichtbar |
+| Übersicht „Klärungsbedarf" | **2 Vertragsfälle** und **1 Mehrfachvertrag**; jeder Eintrag nennt den Owner als Entscheider und führt per Schaltfläche in die Detailansicht |
+| Statusbedeutung erklärt | im Abschnitt „Klärungsbedarf" und zusätzlich als Hinweis am Statusfeld im Vertragsdetail |
+| Kein Zusammenführungsvorschlag | **0** Schaltflächen oder Vorschläge zum Zusammenführen |
+| **Gegenprobe nach der Prüfung** | `SELECT count(*) FROM leases WHERE status='active'` → **17** (unverändert); `SELECT count(*) FROM tenants` → **26** (unverändert); Mieter-IDs **31, 32, 37, 38** existieren unverändert; `n24-w6-2024` weiterhin `active`, `start_date` 2024-05-15, `termination_date` 2025-11-30, `actual_move_out` 2024-11-15 — **nichts geändert**; letzte Änderung in `leases` und `tenants` jeweils 15.05.2026 |
+| Regression | Mietersuche in den Stammdaten und Vertragsfilter aus P1-3 unverändert funktionsfähig; der Mieterwechsel-Assistent wurde **nicht gestartet** |
+| Dokumentbreite Immobilien × 360/390/768/1440 px | **0 Überläufe**, **0 Touchziele** unter 44 px bei 360/390 px |
+| Smoke-Test | ALL PASS (31/31) |
+
+**Getroffene Annahmen**
+- **Zuordnung über Mieterkennung plus Name.** Ohne Endpunkt für `lease_tenants` ist das der
+  belastbarste Weg, und der Zuordnungsweg wird je Zeile ausgewiesen, statt eine Sicherheit zu
+  behaupten, die es nicht gibt.
+- **Vertragsparteien eines Vertrags** werden über die Einheit in der Mieterkennung bestimmt.
+  Bei der Einheit n24/W6 erscheinen deshalb auch der Vormieter und die Nachmieter zusammen —
+  das ist der Datenlage angemessen und wird durch die Vertragsliste darunter aufgelöst.
+- **„Klärungsbedarf" liegt unter „Status & Abrechnungsreife"** und nicht als eigener
+  Unterbereich: dort steht der bereichsübergreifende Zustand schon.
+- **Zwei Befundarten** werden erkannt: Auszug oder Ende in der Vergangenheit bei Status
+  „Aktiv", und mehrere gleichzeitig aktive Verträge auf einer Einheit. Beide Regeln stehen
+  als Code am Dateianfang und erfinden keine weiteren Prüfungen.
+
+**Noch nicht verifiziert — CP2 prüfen**
+- **CP2 prüfen:** Ob die Darstellung der Hauptmieter-Beziehung so ausreicht oder ob der Owner
+  eine echte Untermieter-Erfassung möchte — das wäre eine Schemaänderung und damit eine
+  eigene Entscheidung.
+- **CP2 prüfen:** Ob der Vertrag `n24-w6-2024` auf „Beendet" gesetzt und das Auszugsdatum
+  geprüft werden soll. Die Oberfläche weist den Fall aus; die Änderung ist ausgesetzt
+  (Owner-Entscheidung Nr. 3).
+- **CP2 prüfen:** Lesbarkeit der beiden Tabellen im Vertragsdetail am Gerät (Kartenform).
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: nein (nur `public/`), Browser-Neuladen genügt.
+- Rückweg: `git checkout <tag> -- public/js/assets-vertraege.js public/js/assets-stammdaten.js`
+  bzw. `git revert <commit>`. Da nichts geschrieben wird, ist kein Datenrückweg erforderlich.
+
+**Commit:** `31fea08` · kein Dienst-Restart nötig
+
+---
+
+
+### Phase 2 — Abschlussregression und Abnahmevorbereitung — 06.10.2026
+
+**Durchgeführt**
+
+Nach P2-11 eine gemeinsame Prüfung über **alle 14 Bereiche** (13 Fachbereiche plus die neue
+Tagesübersicht) bei **360, 390, 768 und 1440 px**.
+
+| Prüfung | Resultat |
+|---|---|
+| Horizontaler Seitenüberlauf | **0 von 56** Messungen |
+| Touchziele unter 44 × 44 px bei 360 und 390 px | **0** in allen 14 Bereichen |
+| Abgeschnittener Text ohne scrollbaren Behälter | **0** |
+| `node --check` über `server.mjs`, 17 Frontend-Dateien, Inline-Skript | Exit 0 |
+| `npm run build` | Exit 0 |
+| `alert()`-Aufrufe (Regression P2-4) | **0** (ein Treffer in einem Kommentar) |
+| `aria-label` über alle Frontend-Dateien | **43** (vor Phase 2: 11) |
+| Alpine-Single-Root-Regel über alle 17 `x-if`-Templates | **0 Verletzungen**; die beiden per Zeichenkette eingesetzten Banking-Blöcke haben je genau ein Wurzelelement (einzeln nachgewiesen) |
+| Smoke-Test | **ALL PASS (31/31)** |
+| Dienste | `openclaw-dashboard.service` aktiv, `GET /health` → 200 |
+
+**Die 28 Beanstandungen bei 768 und 1440 px sind kein Fehler**, sondern die in P2-2 bewusst
+beschlossene Rücknahme der 44-px-Mindesthöhe oberhalb von 640 px. Sie bestanden vor Phase 2
+genauso. Eine davon war neu und ist behoben: der n8n-Link in der Automatisierung war als
+`inline-block` nur 42 px hoch (Commit `b0bfc9a`).
+
+**Gegenprobe: keine Bestandsdaten verändert**
+
+`leases` 17 aktiv · `tenants` 26 · Mieter-IDs 31/32/37/38 unverändert · `n24-w6-2024`
+unverändert `active` mit denselben Datumsangaben · letzte Änderung in `leases` und `tenants`
+jeweils 15.05.2026 · `insta_drafts` 10 Zeilen, letzte Änderung 18.05.2026 · **0** Dateien im
+Instagram-Rohmaterial mit heutigem Änderungsdatum · `banking_sync_runs` 3 Zeilen, letzte vom
+29.06.2026 · n8n-Ausführungen 0, alle vier Workflows weiterhin `active: false` · Reisen 1 Datei
+(die zwei Testreisen aus der Kennungsprüfung sind gelöscht).
+
+Externe Aktionen zu Testzwecken: **keine**.
+
+**Bildschirmfotos**
+`~/bikosoc-spec/screens/p2-5-bis-11/` — 28 Dateien: alle 14 Bereiche bei 390 px und bei
+1440 px, Gerätefaktor 1, ganze Seitenlänge.
+
+**Gesamtbericht**
+`~/bikosoc-spec/report-dashboard-p2-5-bis-11-0920.md`
+
+**Offene Owner-Entscheidung**
+- **„Änderungen seit letztem Besuch"** (Spec §5) ist nicht umgesetzt: jede Umsetzung braucht
+  eine neue Speicherung, der Auftrag erlaubte sie nur ohne. Drei Varianten mit Empfehlung
+  stehen im Bericht §4; der Punkt steht sichtbar in der Tagesübersicht.
+- **Optional:** vier weitere Formularfelder bieten Werte an, die die Datenbank per
+  CHECK-Bedingung ablehnt (Mietbestandteil, Zählermedium, Ableseart, Vertragsfilter
+  „Zukünftig"). Zwei gleichartige Fälle sind in P2-8 behoben; diese vier liegen in
+  Schreibwegen, die auch den Core betreffen, und sind nur dokumentiert — Bericht §3.
+
+**Nächster Schritt: CHECKPOINT 2** — vollständige Benutzer- und Mobilprüfung am echten Gerät
+gemeinsam mit dem Owner. Die Punkte, die nur dort entschieden werden können, sind in den
+Paketeinträgen als „CP2 prüfen" markiert.
 
 ---
 
