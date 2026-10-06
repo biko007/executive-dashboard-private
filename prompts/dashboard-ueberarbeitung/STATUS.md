@@ -2,11 +2,12 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 09:25 UTC
-**Aktuelle Phase:** **Phase 2 abgeschlossen, CP2 offen** — CHECKPOINT 1 am 05.10.2026 extern
-freigegeben, Hetzner-Snapshot liegt vor. **Alle elf Pakete P2-1 bis P2-11 sind erledigt.**
-**Nächster Schritt: CHECKPOINT 2** — vollständige Benutzer- und Mobilprüfung,
-Teile davon nur am echten Gerät möglich.
+**Letzte Aktualisierung:** 06.10.2026, 21:00 UTC
+**Aktuelle Phase:** **Phase 3 abgeschlossen, Nachprüfung CP2 offen** — CHECKPOINT 1 am
+05.10.2026 extern freigegeben, Hetzner-Snapshot liegt vor. Alle elf Pakete P2-1 bis P2-11
+sind erledigt; CHECKPOINT 2 hat sieben Fehler und zehn Verbesserungspunkte ergeben, alle
+siebzehn sind in Phase 3 behoben.
+**Nächster Schritt: Nachprüfung der Phase-3-Punkte durch den Owner** am echten Gerät.
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 2 ist produktiv. `server.mjs` wurde in P2-5, P2-7, P2-8 und
 P2-10 geändert (vier neue lesende Routen und die Reise-Kennung); der Dienst wurde nach jeder
@@ -42,8 +43,12 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-9 | Banking-Übersicht (K) | S | **erledigt** | `fcd64c4` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
 | P2-10 | Agentenübersicht (L) | M | **erledigt** | `8fbeb62` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
 | P2-11 | Immobilien-/Mieterdaten-Darstellung (H) | M | **erledigt** | `31fea08` | Report `…/report-dashboard-p2-5-bis-11-0920.md` |
-| **CHECKPOINT 2** | vollständige Benutzer- und Mobilprüfung | — | offen | — | `04-…` §3 |
-| Phase 3 | Abschlusskorrekturen, Restpunkte | — | offen | — | — |
+| **CHECKPOINT 2** | vollständige Benutzer- und Mobilprüfung | — | **durchgeführt** 06.10.2026 | — | sieben Fehler (A1–A7), zehn Verbesserungen (B, C1–C5, D1–D4) |
+| P3-A | Fehler A1 bis A7 | L | **erledigt** | `41fe1a2` `45306ec` `29c2846` `dc9136e` `a7486ab` `a4433ac` `3120ba6` | Report `~/bikosoc-spec/report-dashboard-p3-2100.md` |
+| P3-B | Formularfelder mit DB-unzulässigen Werten | M | **erledigt** | `429725d` | Report §B |
+| P3-C | Verbesserungen C1 bis C5 | M | **erledigt** | `f55c22d` `2e5c3e9` `934d503` `ef2acc0` `f33407f` | Report §C |
+| P3-D | Formate und Kosmetik D1 bis D4 | S | **erledigt** | `aa220da` `4d8540a` `7a746fd` `b97531f` | Report §D |
+| **Nachprüfung CP2** | Owner prüft die siebzehn Punkte am Gerät | — | offen | — | — |
 
 ---
 
@@ -1936,6 +1941,68 @@ gemeinsam mit dem Owner. Die Punkte, die nur dort entschieden werden können, si
 Paketeinträgen als „CP2 prüfen" markiert.
 
 ---
+
+---
+
+---
+
+### Phase 3 — Abschlusskorrekturen aus CHECKPOINT 2 — 06.10.2026
+
+**Grundlage:** Owner-Smartphone-Test, externe Prüfung und Claude-Browserprüfung aus
+CHECKPOINT 2. Reihenfolge wie beauftragt: Block A (Fehler) → B → C → D.
+
+**Durchgeführt — 17 Punkte, 17 Commits**
+
+| Punkt | Thema | Commit |
+|---|---|---|
+| A1 | „Load failed" am iPhone — Netzschicht mit Wiederholung, HTTP/2, Touch-Icon | `41fe1a2` |
+| A2 | Verbindungsstand und Saldostand getrennt benannt (Diagnose: Fall **c**) | `45306ec` |
+| A3 | Banking: Umsätze in den Blick holen, Archivieren in die Detailansicht | `29c2846` |
+| A4 | Deeplinks aus „Heute" übergeben Objekt und Jahr | `dc9136e` |
+| A5 | SharePoint: Dokumentlink zeigt wieder auf das Dokument | `a7486ab` |
+| A6 | Vertragsparteien aus `lease_tenants` statt über die Einheit | `a4433ac` |
+| A7 | Systemstatus: gespeicherte Zustände nicht als Erfolg | `3120ba6` |
+| B | Vier Formularfelder auf zulässige Werte, fünf Schreibwegfehler dazu | `429725d` |
+| C1 | Nebenkosten-Zeilen gebündelt, Zähler je Stufe | `f55c22d` |
+| C2 | Mobiler Kopf 190 px → 100 px | `2e5c3e9` |
+| C3 | Technische Hinweise in einen Diagnose-Abschnitt | `934d503` |
+| C4 | Statuserklärung nach der tatsächlichen Logik | `ef2acc0` |
+| C5 | „heute"/„gestern" nach dem lokalen Kalendertag | `f33407f` |
+| D1 | Deutsche Zahlenformate, Geldbeträge ohne Umbruch | `aa220da` |
+| D2 | Begriffe mit Umlauten, „Traveled" auf Deutsch | `4d8540a` |
+| D3 | Formatierungsreste in Wiki-Suchausschnitten | `7a746fd` |
+| D4 | Objektkarte ohne Foto als flacher Streifen | `b97531f` |
+
+**Neue Dateien und Routen**
+- `public/js/netz.js` — eine Netzschicht für alle Abrufe (A1).
+- `GET /api/banking/verbindungsstand` — nur lesend, nur Zeitpunkte und Zählwerte (A2).
+- `GET /api/assets/leases/:id/parteien` — nur lesend, `lease_tenants` (A6).
+
+**Änderung außerhalb der Repositories**
+`/etc/nginx/sites-enabled/openclaw.conf`: HTTP/2 aufgeschaltet
+(`listen 46.62.153.181:443 ssl http2;`). Rückweg: `http2` entfernen, `nginx -t`,
+`systemctl reload nginx`. Sicherung der alten Datei liegt im Arbeitsverzeichnis der
+Sitzung.
+
+**Verbleibende Fehler**
+- Fahrzeug `FZG-MB/8`: die Fahrzeugkennung enthält einen Schrägstrich, die Bildadresse
+  wird dadurch zu `/api/images/fleet-FZG-MB/8.jpg` und antwortet mit 404. Sichtbare
+  Folge ist durch D4 behoben (flacher Streifen statt Leerraum), die 404 bleibt im
+  Konsolenprotokoll. Nicht geändert — die Kennung ist ein Bestandsdatum.
+- Instagram-Medienvorschau: `/api/instagram/media-proxy` antwortet mit 403. Bestand aus
+  Phase 2, nicht Teil des Phase-3-Auftrags.
+- `confirm()` wird an 14 Stellen noch verwendet (nicht im Banking-Archivweg, der war
+  Gegenstand von A3). P2-4 hatte nur `alert()` ersetzt.
+
+**Offene Owner-Entscheidungen**
+- „Änderungen seit dem letzten Besuch" bleibt offen (laut Auftrag nicht zu ändern).
+- Kopfzeile „Hans Dampf": unverändert, Entscheidung Nr. 6 steht weiter aus.
+
+**Live-Auswirkung und Rückweg**
+- `server.mjs` geändert (A2, A6) → Dienst neu gestartet, `GET /health` → 200.
+- Rückweg je Punkt: `git revert <commit>`; für nginx siehe oben.
+
+**Nächster Schritt:** Nachprüfung der Phase-3-Punkte durch den Owner (CP2-Nachprüfung).
 
 ---
 
