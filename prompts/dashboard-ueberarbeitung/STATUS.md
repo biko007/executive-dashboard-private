@@ -33,7 +33,7 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P2-4 | Formulare und Dialoge mobil | M | offen | — | — |
 | P2-5 | Tagesübersicht (§5) | L | **erledigt** | `4983506` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-6 | Wiki-Suchausschnitte (I) | S | **erledigt** | `b68057f` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
-| P2-7 | Instagram-Planung und Rohmaterial (J) | M | **erledigt** | `PLATZHALTER_P2_7` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
+| P2-7 | Instagram-Planung und Rohmaterial (J) | M | **erledigt** | `e0c37f4` | Report `~/bikosoc-spec/report-dashboard-p2-5-bis-11-<HHMM>.md` |
 | P2-8 | Begriffe, Formate, Barrierefreiheit (M) | M | offen | — | — |
 | P2-9 | Banking-Übersicht (K) | S | offen | — | — |
 | P2-10 | Agentenübersicht (L) | M | offen | — | — |
@@ -1462,7 +1462,7 @@ ist weniger schlimm als ein verschluckter Satz.
 - Rückweg: `git revert <commit>` und `systemctl --user restart openclaw-dashboard.service`.
   Keine Datenänderung, deshalb kein Datenrückweg.
 
-**Commit:** `PLATZHALTER_P2_7` · Dienst-Restart nötig und durchgeführt
+**Commit:** `e0c37f4` · Dienst-Restart nötig und durchgeführt
 
 ---
 
