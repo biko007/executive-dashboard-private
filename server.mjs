@@ -1940,6 +1940,82 @@ app.post('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 app.patch('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 app.delete('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
 
+/* ── A2 (Phase 3): Verbindungsstand getrennt vom Saldostand ──────────────────
+   BEFUND: Das Dashboard zeigte einen Saldo vom 29.06.2026, obwohl der Owner am
+   05.10.2026 "einen manuellen Bankabgleich ueber die Weboberflaeche ausgeloest"
+   hatte.
+
+   DIAGNOSE (belegt): Am 05.10.2026 lief KEIN Abgleich. Das Zugriffsprotokoll
+   zeigt um 20:47 UTC genau drei Schreibaufrufe: POST /api/banking/
+   approval-preview, POST /api/banking/connect, POST /api/banking/complete-tan.
+   Das ist der Weg "Bank verbinden" (FinTS-Dialog mit pushTAN), nicht der
+   Abgleich. Das FinTS-Sidecar-Protokoll derselben Minute endet mit
+   "Dialog init confirmed for session_id=19, fetching accounts" — es wurde die
+   SEPA-KONTENLISTE geholt. Die Tabelle banking_sync_runs hat genau drei Zeilen,
+   die jungste vom 29.06.2026; fuer den 05.10. keine. banking_accounts.
+   last_sync_at steht bei beiden aktiven Konten unveraendert auf dem
+   29.06.2026; nur updated_at wurde am 05.10. gesetzt (Kontenliste).
+
+   ERGEBNIS: Fall (c) der Auftragsstellung — kein Abgleich protokolliert, weil
+   keiner angefordert wurde. Die Route POST /api/banking/accounts/:id/sync
+   existiert im Core, ist aber bewusst nicht in der Weboberflaeche verdrahtet
+   (Owner-Entscheidung Nr. 1: kein automatischer Abgleich).
+
+   DIESE ROUTE loest die Verwechslung in der ANZEIGE: sie liefert den Zeitpunkt
+   der letzten erfolgreichen VERBINDUNG getrennt vom Zeitpunkt des letzten
+   ABGLEICHS. Nur lesend, nur Zeitpunkte und Zaehlwerte — keine Zugangsdaten,
+   keine Kontonummern, kein Token. Loest keinen Bankabruf aus. */
+app.get('/api/banking/verbindungsstand', requireSession, async (_req, res) => {
+  if (!dbPool) { res.status(503).json({ error: 'keine Datenbankverbindung' }); return; }
+  try {
+    const { rows: institute } = await dbPool.query(
+      `SELECT i.id, i.name,
+              s.last_success_at      AS verbindung_erneuert_am,
+              s.session_expires_at   AS verbindung_gueltig_bis
+         FROM banking_institutions i
+         LEFT JOIN LATERAL (
+           SELECT last_success_at, session_expires_at
+             FROM banking_sessions
+            WHERE institution_id = i.id
+            ORDER BY COALESCE(last_success_at, updated_at) DESC NULLS LAST
+            LIMIT 1
+         ) s ON TRUE
+        ORDER BY i.id`);
+    const { rows: laeufe } = await dbPool.query(
+      `SELECT institution_id,
+              count(*)::int                                   AS laeufe_gesamt,
+              max(finished_at) FILTER (WHERE status LIKE 'SUCCESS%') AS letzter_erfolg,
+              max(started_at)                                 AS letzter_versuch
+         FROM banking_sync_runs
+        GROUP BY institution_id`);
+    const jeInstitut = new Map(laeufe.map(r => [Number(r.institution_id), r]));
+    res.json({
+      abgerufen_am: new Date().toISOString(),
+      /* Der Abgleich wird nie aus dem Dashboard ausgeloest. Das steht hier als
+         Angabe, damit die Anzeige es nicht erraten muss. */
+      abgleich_aus_dashboard_moeglich: false,
+      institute: institute.map(i => {
+        const l = jeInstitut.get(Number(i.id)) || null;
+        return {
+          id: Number(i.id),
+          name: i.name,
+          verbindung_erneuert_am: i.verbindung_erneuert_am
+            ? new Date(i.verbindung_erneuert_am).toISOString() : null,
+          verbindung_gueltig_bis: i.verbindung_gueltig_bis
+            ? new Date(i.verbindung_gueltig_bis).toISOString() : null,
+          abgleich_laeufe_gesamt: l ? Number(l.laeufe_gesamt) : 0,
+          abgleich_letzter_erfolg: l && l.letzter_erfolg
+            ? new Date(l.letzter_erfolg).toISOString() : null,
+          abgleich_letzter_versuch: l && l.letzter_versuch
+            ? new Date(l.letzter_versuch).toISOString() : null,
+        };
+      }),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Banking (Sprint 7b) — Proxy to Core ──────────────────────────────────────
 // All /api/banking/* routes are proxied to Core (18789) via trust-boundary.
 // Reads pass through with session only. Mutations (connect, complete-tan) require session + CSRF.

@@ -537,6 +537,15 @@ nav button { min-height: 44px; min-width: 44px; }
 .bank-archiv[open] summary::before { transform: rotate(90deg); }
 .bank-konto-archiv { opacity: .75; }
 
+/* ── A2 (Phase 3): Verbindungsstand und Saldostand ─────────────────────────
+   Zwei Zeitpunkte, die der Owner verwechselt hat, weil nur einer sichtbar war. */
+.bank-stand { font-size: 13px; line-height: 1.55; }
+.bank-stand-institut + .bank-stand-institut { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.bank-stand-name { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+.bank-stand-zeile { color: var(--text); overflow-wrap: anywhere; }
+.bank-stand-warn { color: var(--red); font-weight: 600; }
+.bank-stand-hinweis { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); color: var(--muted); }
+
 .bank-umsaetze { margin-top: 16px; }
 .bank-umsatz-kopf {
   display: flex; align-items: center; justify-content: space-between;

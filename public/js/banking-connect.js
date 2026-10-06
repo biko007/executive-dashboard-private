@@ -209,6 +209,21 @@ function bankingOverviewHtml() {
 
       <template x-if="!bankingLoading && !bankingError">
         <div>
+          <!-- A2 (Phase 3): Verbindungsstand und Saldostand getrennt benannt. -->
+          <template x-if="verbindungZeilen().length > 0">
+            <div class="card card-pad bank-stand" style="margin-bottom:12px">
+              <template x-for="z in verbindungZeilen()" :key="z.id">
+                <div class="bank-stand-institut">
+                  <div class="bank-stand-name" x-text="z.name"></div>
+                  <div class="bank-stand-zeile" x-text="z.verbindung"></div>
+                  <div class="bank-stand-zeile" :class="z.alt ? 'bank-stand-warn' : ''">
+                    <span x-show="z.alt" aria-hidden="true">\u26a0\ufe0f </span><span x-text="z.abgleich"></span>
+                  </div>
+                </div>
+              </template>
+              <div class="bank-stand-hinweis" x-text="verbindungHinweis()"></div>
+            </div>
+          </template>
           <!-- Institutions + Accounts -->
           <template x-if="institutions.length === 0 && accounts.length === 0">
             <div class="empty" style="text-align:center;padding:40px">
@@ -392,6 +407,8 @@ document.addEventListener('alpine:init', () => {
     bulkTimerText: '',
     bulkArchiving: false,
     _bulkTimerInterval: null,
+    /* A2 (Phase 3): Antwort von GET /api/banking/verbindungsstand. */
+    verbindung: null,
 
     async init() {
       // Fetch CSRF token
@@ -409,18 +426,75 @@ document.addEventListener('alpine:init', () => {
       this.bankingError = null;
       try {
         const csrf = Alpine.store('csrf');
-        const [instRes, acctRes] = await Promise.all([
+        const [instRes, acctRes, verbRes] = await Promise.all([
           csrf.fetch('/api/banking/institutions'),
           csrf.fetch('/api/banking/accounts'),
+          /* A2 (Phase 3): Verbindungsstand getrennt vom Saldostand. */
+          csrf.fetch('/api/banking/verbindungsstand'),
         ]);
         if (instRes.ok) this.institutions = await instRes.json();
         if (acctRes.ok) this.accounts = await acctRes.json();
+        this.verbindung = verbRes.ok ? await verbRes.json() : null;
         this.meldeDatenstand();
       } catch (e) {
         this.bankingError = netzFehlerText(e);
         this.meldeDatenstand(netzFehlerText(e));
       }
       this.bankingLoading = false;
+    },
+
+    /* ── A2 (Phase 3): zwei Zeitpunkte, die nie verwechselt werden duerfen ────
+       BEFUND: Der Owner hat am 05.10.2026 "Bank verbinden" durchlaufen (mit
+       pushTAN) und erwartete danach aktuelle Salden. Das Dashboard zeigte
+       weiterhin den 29.06.2026 — zu Recht: der Verbindungsweg holt die
+       SEPA-Kontenliste, nicht die Salden und nicht die Umsaetze. Nachgewiesen
+       ist das am Zugriffsprotokoll (nur connect/complete-tan am 05.10.), am
+       FinTS-Protokoll ("fetching accounts") und an banking_sync_runs (jungste
+       Zeile 29.06.2026).
+       Die Anzeige nennt deshalb jetzt BEIDE Zeitpunkte ausdruecklich und sagt,
+       was welcher bedeutet. */
+    verbindungZeilen() {
+      const v = this.verbindung;
+      if (!v || !Array.isArray(v.institute) || !v.institute.length) return [];
+      return v.institute.map(i => {
+        const verbTeile = [];
+        if (i.verbindung_erneuert_am) {
+          verbTeile.push('zuletzt erfolgreich am ' + fmtDT(i.verbindung_erneuert_am)
+            + ' (' + altersText(i.verbindung_erneuert_am) + ')');
+        } else {
+          verbTeile.push('kein erfolgreicher Verbindungsaufbau erfasst');
+        }
+        if (i.verbindung_gueltig_bis) {
+          verbTeile.push('Sitzung gültig bis ' + fmtDate(i.verbindung_gueltig_bis));
+        }
+        const abgTeile = [];
+        if (i.abgleich_letzter_erfolg) {
+          abgTeile.push('zuletzt erfolgreich am ' + fmtDT(i.abgleich_letzter_erfolg)
+            + ' (' + altersText(i.abgleich_letzter_erfolg) + ')');
+        } else {
+          abgTeile.push(i.abgleich_laeufe_gesamt
+            ? 'kein erfolgreicher Abgleich erfasst'
+            : 'noch kein Abgleich erfasst');
+        }
+        abgTeile.push(i.abgleich_laeufe_gesamt
+          + (i.abgleich_laeufe_gesamt === 1 ? ' protokollierter Lauf' : ' protokollierte Läufe')
+          + ' insgesamt');
+        return {
+          id: i.id,
+          name: i.name || ('Institut ' + i.id),
+          verbindung: 'Bankverbindung: ' + verbTeile.join(' \u00b7 '),
+          abgleich: 'Datenstand der Salden und Umsätze: ' + abgTeile.join(' \u00b7 '),
+          alt: !!(i.verbindung_erneuert_am && i.abgleich_letzter_erfolg
+            && new Date(i.verbindung_erneuert_am) > new Date(i.abgleich_letzter_erfolg)),
+        };
+      });
+    },
+
+    verbindungHinweis() {
+      return 'Zwei verschiedene Dinge: \u201eBank verbinden\u201c stellt den FinTS-Zugang her '
+        + 'und holt die Kontenliste \u2014 es holt KEINE Salden und KEINE Ums\u00e4tze. '
+        + 'Salden und Ums\u00e4tze entstehen nur beim Abgleich, und der wird nicht aus dem '
+        + 'Dashboard ausgel\u00f6st.';
     },
 
     /* Salden stammen aus dem letzten FinTS-Abgleich, nicht aus dem Seitenaufruf.
@@ -445,7 +519,8 @@ document.addEventListener('alpine:init', () => {
         stand: letzter,
         abgleich: letzter,
         hinweis: aktive + ' aktive Konten von ' + this.accounts.length
-          + '. Abgleich wird nicht aus dem Dashboard ausgelöst.',
+          + '. Dies ist der Stand des letzten ABGLEICHS, nicht des letzten '
+          + 'Verbindungsaufbaus. Ein Abgleich wird nicht aus dem Dashboard ausgelöst.',
       }]);
     },
 

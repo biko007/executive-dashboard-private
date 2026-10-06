@@ -495,7 +495,11 @@ async function loadHeute() {
       hinweis: 'Automatischer Abgleich ist abgeschaltet (Owner-Entscheidung Nr. 1).' },
     { quelle: 'Bankkonten (FinTS)', stand: letzterKontoAbgleich, abgleich: letzterKontoAbgleich,
       zustand: Array.isArray(konten) ? undefined : 'getrennt',
-      hinweis: 'Abgleich wird nicht aus dem Dashboard ausgelöst.' },
+      /* A2 (Phase 3): Der Owner hielt den Verbindungsaufbau vom 05.10.2026 für
+         einen Abgleich. Die Zeile sagt jetzt, welcher Zeitpunkt hier steht. */
+      hinweis: 'Stand des letzten ABGLEICHS, nicht des letzten Verbindungsaufbaus. '
+        + 'Ein Abgleich wird nicht aus dem Dashboard ausgelöst; der Bereich Banking '
+        + 'nennt beide Zeitpunkte.' },
     { quelle: 'SharePoint-Dokumentenindex',
       stand: spSync ? (spSync.last_success_at || spSync.last_run?.finished_at || null) : null,
       abgleich: spSync ? (spSync.last_success_at || null) : null,
