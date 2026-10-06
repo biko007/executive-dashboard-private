@@ -23,13 +23,24 @@
 .wiki-cat { margin-bottom: 18px; }
 .wiki-cat h3 { margin: 0 0 6px; font-size: 14px; }
 .wiki-list { list-style: none; margin: 0; padding: 0; }
+/* Nachtrag Phase 3: Die Seitenliste ist eine NAVIGATION, keine Textliste. Bei
+   der Regressionsprüfung waren die 48 Verweise nur rund 20 px hoch und damit
+   unter dem Mindestmaß von 44 px aus Spec §6. Der Verweis füllt jetzt die
+   Zeilenhöhe aus — anklickbar ist die ganze Zeile, nicht nur die Schrift. */
 .wiki-list li {
-  padding: 5px 0;
+  padding: 0;
   border-bottom: 1px solid var(--border);
   display: flex;
   gap: 8px;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
+  min-height: 44px;
+}
+.wiki-list li > a {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  flex: 1 1 auto;
 }
 
 .wiki-badge {
@@ -46,9 +57,15 @@
 .wiki-badge-file { background: var(--accent-weak); color: var(--accent); }
 .wiki-badge-warn { background: var(--orange-weak); color: var(--orange); }
 
+/* Dieselbe Regel für die Suchtreffer: der Titel ist der Verweis zur Seite. */
 .wiki-hit {
   padding: 8px 0;
   border-bottom: 1px solid var(--border);
+}
+.wiki-hit > div:first-child > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .wiki-snippet { color: var(--muted); font-size: 13px; margin-top: 3px; }
 
