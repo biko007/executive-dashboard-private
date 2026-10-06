@@ -183,7 +183,9 @@ function heutePostenNebenkosten(readiness, jahr) {
         + (d.warning_count
             ? ' Zusätzlich ' + d.warning_count + (d.warning_count === 1 ? ' Warnung.' : ' Warnungen.')
             : ''),
-      ziel: { tab: 'assets', parameter: { assets_subtab: 'nebenkosten' } },
+      /* A4: Objekt UND Jahr mitgeben — sonst landet der Sprung auf den
+         Vorgabewerten des Nebenkosten-Speichers. */
+      ziel: { tab: 'assets', parameter: { assets_subtab: 'nebenkosten', assets_prop: r.code, assets_year: jahr } },
       zielText: 'Nebenkosten öffnen',
     });
   }

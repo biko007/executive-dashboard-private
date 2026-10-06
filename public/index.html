@@ -943,7 +943,11 @@ function istBekannterTab(tab) {
    `ersetzen = false` — der Nutzer hat gewechselt. Dann werden die Parameter
                         des verlassenen Bereichs entfernt, sonst wandert ein
                         Deeplink in den naechsten Bereich mit. */
-const BEREICHSPARAMETER = ['fleet_code','fleet_subtab','assets_subtab','assets_entity_id','assets_action','page'];
+/* A4 (Phase 3): `assets_prop` und `assets_year` neu. Ohne sie uebergab ein
+   Sprung aus „Heute“ nur den Unterbereich; Objekt und Jahr blieben auf den
+   Vorgabewerten des Nebenkosten-Speichers stehen (d4/2024) — deshalb oeffnete
+   „Nebenkosten 2025 – I83“ die Ansicht D4/2024. */
+const BEREICHSPARAMETER = ['fleet_code','fleet_subtab','assets_subtab','assets_entity_id','assets_action','assets_prop','assets_year','page'];
 
 function setzeTabAdresse(tab, ersetzen) {
   const url = new URL(window.location.href);

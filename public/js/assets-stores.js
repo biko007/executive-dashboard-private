@@ -422,7 +422,10 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.store('nk', {
     selectedPropertyCode: null,
-    selectedYear: 2024,
+    /* A4 (Phase 3): vorher fest 2024. Die Tagesuebersicht rechnet mit dem
+       letzten ABGESCHLOSSENEN Kalenderjahr; zwei verschiedene Vorgabejahre in
+       einer Anwendung waren der zweite Teil des Deeplink-Befunds. */
+    selectedYear: new Date().getFullYear() - 1,
     activeSubTab: 'precheck', // precheck | preview | runs | obligations
 
     preCheck: null,
@@ -465,6 +468,21 @@ document.addEventListener('alpine:init', () => {
             entityId: params.get('assets_entity_id'),
             action: params.get('assets_action') || null,
           };
+        }
+        /* A4 (Phase 3): Objekt und Jahr aus dem Deeplink in den
+           Nebenkosten-Speicher schreiben, BEVOR der Unterbereich initialisiert
+           wird. nebenkostenTab.init() setzt das erste Objekt nur dann, wenn
+           hier nichts steht. Ohne diese beiden Zeilen zeigte ein Sprung aus
+           "Heute" immer die Vorgabewerte (d4/2024) statt des angeklickten
+           Objekts und Jahres. */
+        if (params.has('assets_prop')) {
+          Alpine.store('nk').selectedPropertyCode = params.get('assets_prop');
+        }
+        if (params.has('assets_year')) {
+          const jahr = Number(params.get('assets_year'));
+          if (Number.isInteger(jahr) && jahr >= 2000 && jahr <= 2100) {
+            Alpine.store('nk').selectedYear = jahr;
+          }
         }
 
         this.loading = false;

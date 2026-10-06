@@ -185,6 +185,20 @@ function nkSwitchSection(section) {
   }
 }
 
+/* A4 (Phase 3): Objekt und Jahr in der Adresse mitfuehren. Sonst sprang ein
+   Neuladen nach einer Handauswahl auf den Wert des alten Deeplinks zurueck.
+   replaceState — kein zusaetzlicher Verlaufseintrag je Auswahl. */
+function nkAdresseAktualisieren() {
+  const nk = Alpine.store('nk');
+  const url = new URL(window.location.href);
+  url.searchParams.set('tab', 'assets');
+  url.searchParams.set('assets_subtab', 'nebenkosten');
+  if (nk.selectedPropertyCode) url.searchParams.set('assets_prop', nk.selectedPropertyCode);
+  if (nk.selectedYear) url.searchParams.set('assets_year', String(nk.selectedYear));
+  url.searchParams.delete('token');
+  history.replaceState(history.state, '', url.pathname + (url.search || ''));
+}
+
 function nkSelectProperty(code) {
   Alpine.store('nk').selectedPropertyCode = code;
   Alpine.store('nk').preCheck = null;
@@ -193,6 +207,7 @@ function nkSelectProperty(code) {
   Alpine.store('nk').selectedRun = null;
   Alpine.store('nk').statements = [];
   Alpine.store('nk').obligations = [];
+  nkAdresseAktualisieren();
   const tabEl = document.querySelector('[x-data="nebenkostenTab"]');
   if (tabEl) {
     const comp = Alpine.$data(tabEl);
@@ -207,6 +222,7 @@ function nkSelectYear(year) {
   Alpine.store('nk').runs = [];
   Alpine.store('nk').selectedRun = null;
   Alpine.store('nk').statements = [];
+  nkAdresseAktualisieren();
   const tabEl = document.querySelector('[x-data="nebenkostenTab"]');
   if (tabEl) {
     const comp = Alpine.$data(tabEl);
