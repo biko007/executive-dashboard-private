@@ -88,11 +88,11 @@ function mietVertraegeZuMieter(tenant, leases) {
   return raus.sort((a, b) => String(b.lease.start_date || '').localeCompare(String(a.lease.start_date || '')));
 }
 
-/* Alle erfassten Vertragsparteien eines Vertrags. */
-function mietParteienZuVertrag(lease, tenants) {
-  const ort = mietVertragOrt(lease);
-  return tenants.filter(t => mietKennungOrt(t.tenant_code) === ort);
-}
+/* A6 (Phase 3): mietParteienZuVertrag() ist entfallen. Sie bestimmte die
+   Vertragsparteien aus dem Orts-Teil der Mieterkennung und lieferte damit alle
+   Personen der EINHEIT statt der Parteien des VERTRAGS — das war der Befund
+   n24-w6-2025. Maßgeblich ist jetzt GET /api/assets/leases/:id/parteien
+   (Tabelle lease_tenants). */
 
 /* Alle Verträge derselben Einheit — macht einen Mieterwechsel sichtbar. */
 function mietVertraegeZuEinheit(lease, leases) {
@@ -250,25 +250,105 @@ function mietVertragslisteHtml(tenant, leases) {
     }).join('') + '</tbody></table>';
 }
 
-/* Vertragsparteien und Einheitenverlauf — in der Vertragsansicht. */
-function mietVertragsdetailHtml(lease, leases, tenants) {
-  const parteien = mietParteienZuVertrag(lease, tenants);
+/* ── A6 (Phase 3): Vertragsparteien und Einheitenverlauf ─────────────────────
+
+   BEFUND CHECKPOINT 2 (n24-w6-2025): Unter „Vertragsparteien" standen die
+   aktuellen Mieter und die Mieter des früheren Vertrags gemischt.
+
+   HERKUNFT DES FEHLERS: die Anzeige, nicht das Datenmodell.
+   P2-11 bestimmte die Parteien aus dem Orts-Teil der MIETERKENNUNG
+   (`westhauser-n24w6` und `schweiger-n24w6` ergeben beide "n24w6"), weil es für
+   die Verknüpfungstabelle keinen Endpunkt gab. Damit erschien jede Person, die
+   je in dieser Einheit gewohnt hat.
+
+   Die Tabelle `lease_tenants` ordnet dagegen jede Person genau einem Vertrag zu
+   — mit Rolle, Hauptkontakt und Zeitraum. Sie ist vollständig gefüllt
+   (26 Zeilen für 17 Verträge). GET /api/assets/leases/:id/parteien macht sie
+   lesbar; am Bestand wurde nichts geändert.
+
+   Angezeigt wird jetzt getrennt:
+     „Parteien dieses Vertrags"                            aus lease_tenants
+     „Weitere Personen dieser Einheit (frühere Verträge)"  mit Vertrag und Zeitraum
+   Fällt der Abruf aus, wird das gesagt — es wird NICHT auf die alte, falsche
+   Zuordnung über die Einheit zurückgefallen. */
+
+function mietZeitraumText(von, bis) {
+  if (!von && !bis) return 'Zeitraum nicht erfasst';
+  if (von && bis) return fmtDate(von) + ' – ' + fmtDate(bis);
+  if (von) return 'ab ' + fmtDate(von);
+  return 'bis ' + fmtDate(bis);
+}
+
+function mietParteienTabelle(parteien) {
+  return '<table class="assets-table" data-tabelle="karten">'
+    + '<thead><tr><th>Name</th><th>Kennung</th><th>Kontakt</th><th>Rolle</th><th>Zeitraum</th></tr></thead><tbody>'
+    + parteien.map(t => '<tr onclick="assetsOpenTenantDrawer(' + Number(t.tenant_id) + ')" style="cursor:pointer">'
+      + '<td>' + esc(t.name || '')
+        + (t.is_primary_contact ? ' <span class="badge badge-blue">Hauptkontakt</span>' : '') + '</td>'
+      + '<td><code>' + esc(t.tenant_code || '') + '</code></td>'
+      + '<td>' + esc(t.email || '–') + '</td>'
+      + '<td>' + esc(begriff('role', t.role || 'contract_party')) + '</td>'
+      + '<td>' + esc(mietZeitraumText(t.valid_from, t.valid_until)) + '</td></tr>').join('')
+    + '</tbody></table>';
+}
+
+function mietWeiterePersonenTabelle(personen) {
+  return '<table class="assets-table" data-tabelle="karten">'
+    + '<thead><tr><th>Name</th><th>Vertrag</th><th>Status</th><th>Zeitraum der Zuordnung</th>'
+    + '<th>Vertragsende</th></tr></thead><tbody>'
+    + personen.map(t => {
+      const ende = [
+        t.lease_termination ? 'Kündigung ' + fmtDate(t.lease_termination) : null,
+        t.lease_move_out ? 'Auszug ' + fmtDate(t.lease_move_out) : null,
+        t.lease_end ? 'Ende ' + fmtDate(t.lease_end) : null,
+      ].filter(Boolean).join(' · ') || '–';
+      return '<tr onclick="assetsOpenLeaseDrawer(' + Number(t.lease_id) + ')" style="cursor:pointer">'
+        + '<td>' + esc(t.name || '') + '<div class="miet-quelle-klein"><code>'
+          + esc(t.tenant_code || '') + '</code></div></td>'
+        + '<td>' + esc(t.lease_number || '#' + t.lease_id) + '</td>'
+        + '<td>' + begriffBadge('lease_status', t.lease_status) + '</td>'
+        + '<td>' + esc(mietZeitraumText(t.valid_from, t.valid_until)) + '</td>'
+        + '<td>' + esc(ende) + '</td></tr>';
+    }).join('')
+    + '</tbody></table>';
+}
+
+function mietVertragsdetailHtml(lease, leases, tenants, parteienDaten) {
   const derEinheit = mietVertraegeZuEinheit(lease, leases);
 
-  const parteienHtml = parteien.length
-    ? '<table class="assets-table" data-tabelle="karten">'
-      + '<thead><tr><th>Name</th><th>Kennung</th><th>Kontakt</th><th>Rolle</th></tr></thead><tbody>'
-      + parteien.map(t => '<tr onclick="assetsOpenTenantDrawer(' + t.id + ')" style="cursor:pointer">'
-        + '<td>' + esc(t.name || '') + '</td>'
-        + '<td><code>' + esc(t.tenant_code || '') + '</code></td>'
-        + '<td>' + esc(t.email || '–') + '</td>'
-        + '<td>' + esc(begriff('role', 'contract_party')) + '</td></tr>').join('')
-      + '</tbody></table>'
+  let parteienHtml;
+  let weitereHtml = '';
+  if (!parteienDaten) {
+    parteienHtml = zustandBlock('fehler',
+      'Die Vertragsparteien sind nicht abrufbar. Angezeigt wird deshalb keine Zuordnung — '
+      + 'eine Zuordnung über die Einheit wäre nicht die Zuordnung dieses Vertrags.',
+      { aktion: netzWiederholenKnopf('assetsOpenLeaseDrawer(' + Number(lease.id) + ')') });
+  } else if (!parteienDaten.parteien.length) {
+    parteienHtml = zustandBlock('keine_daten',
+      'Zu diesem Vertrag ist in der Verknüpfungstabelle keine Person erfasst.'
+      + (lease.tenant_names ? ' Im Vertragstext genannt: ' + lease.tenant_names + '.' : ''));
+  } else {
+    parteienHtml = mietParteienTabelle(parteienDaten.parteien)
+      + '<div class="miet-quelle">' + esc('Quelle: Verknüpfungstabelle Vertrag–Person. '
+        + 'Maßgeblich ist der Vertrag, nicht die Einheit.') + '</div>'
       + (lease.tenant_names
-          ? '<div class="miet-quelle">' + esc('Im Vertrag genannt: ' + lease.tenant_names) + '</div>'
-          : '')
-    : zustandBlock('keine_daten', 'Zu diesem Vertrag ist kein Mieterdatensatz auffindbar.'
-        + (lease.tenant_names ? ' Im Vertrag genannt: ' + lease.tenant_names + '.' : ''));
+          ? '<div class="miet-quelle">' + esc('Im Vertragstext genannt: ' + lease.tenant_names) + '</div>'
+          : '');
+  }
+
+  if (parteienDaten && parteienDaten.weitere_personen.length) {
+    weitereHtml = '<div class="drawer-section">'
+      /* Der Auftrag nennt die Überschrift „Weitere Personen dieser Einheit
+         (frühere Verträge)". Beim ÄLTEREN Vertrag einer Einheit sind die
+         anderen Personen aber die des NACHFOLGENDEN Vertrags — „frühere" wäre
+         dort sachlich falsch. Deshalb „andere Verträge"; der Zeitraum je Zeile
+         sagt, ob der Vertrag vor oder nach diesem liegt. */
+      + '<h4>Weitere Personen dieser Einheit (andere Verträge)</h4>'
+      + mietWeiterePersonenTabelle(parteienDaten.weitere_personen)
+      + '<div class="miet-quelle">' + esc('Diese Personen gehören NICHT zu diesem Vertrag. '
+        + 'Sie sind anderen Verträgen derselben Einheit zugeordnet und stehen hier, weil ein '
+        + 'Mieterwechsel sonst nicht erkennbar wäre.') + '</div></div>';
+  }
 
   const einheitHtml = derEinheit.length > 1
     ? '<table class="assets-table" data-tabelle="karten">'
@@ -288,7 +368,8 @@ function mietVertragsdetailHtml(lease, leases, tenants) {
     : '<div class="miet-quelle">Auf dieser Einheit gibt es nur diesen Vertrag.</div>';
 
   return '<div class="drawer-section">'
-    + '<h4>Vertragsparteien</h4>' + parteienHtml + '</div>'
+    + '<h4>Parteien dieses Vertrags</h4>' + parteienHtml + '</div>'
+    + weitereHtml
     + '<div class="drawer-section"><h4>Verträge dieser Einheit</h4>' + einheitHtml + '</div>';
 }
 

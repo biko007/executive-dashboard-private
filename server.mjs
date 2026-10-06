@@ -2191,6 +2191,103 @@ app.get('/api/links/:entityType/:entityId', requireSession, proxyToCore);
 app.post('/api/links', requireSession, requireCsrf, proxyToCore);
 app.delete('/api/links/:linkCode', requireSession, requireCsrf, proxyToCore);
 
+/* ── A6 (Phase 3): Vertragsparteien aus der Verknuepfungstabelle ──────────────
+   BEFUND: Im Vertragsdetail n24-w6-2025 standen unter "Vertragsparteien" die
+   aktuellen Mieter UND die Mieter des frueheren Vertrags gemischt.
+
+   URSACHE: eine Anzeigeentscheidung aus P2-11, nicht das Datenmodell.
+   mietParteienZuVertrag() bestimmte die Parteien aus dem Orts-Teil der
+   MIETERKENNUNG (`westhauser-n24w6`, `schweiger-n24w6` -> beide "n24w6"), weil
+   es fuer die Verknuepfungstabelle keinen Endpunkt gab. Damit erscheint jede
+   Person, die je in dieser Einheit wohnte.
+
+   DAS DATENMODELL IST SAUBER: `lease_tenants` hat 26 Zeilen und ordnet jede
+   Person genau einem Vertrag zu, mit Rolle, Hauptkontakt und Zeitraum.
+   Beispiel: n24-w6-2025 -> westhauser (Hauptkontakt) und westhauser2,
+   gueltig ab 01.12.2025; n24-w6-2024 -> schweiger, gueltig bis 30.11.2025.
+
+   Diese Route macht die Tabelle lesbar. Nur lesend, keine IBAN, keine
+   Bankverbindung, kein Geburtsdatum — Name, Kennung, E-Mail, Rolle, Zeitraum.
+   Registriert VOR dem /api/assets/*-Proxy, weil der sonst greift. */
+app.get('/api/assets/leases/:id/parteien', requireSession, async (req, res) => {
+  if (!dbPool) { res.status(503).json({ error: 'keine Datenbankverbindung' }); return; }
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'ungültige Vertragskennung' }); return; }
+  try {
+    const { rows: vertrag } = await dbPool.query(
+      `SELECT l.id, l.lease_number, l.unit_id, u.code AS unit_code, p.code AS property_code
+         FROM leases l JOIN units u ON u.id = l.unit_id JOIN properties p ON p.id = u.property_id
+        WHERE l.id = $1`, [id]);
+    if (!vertrag.length) { res.status(404).json({ error: 'Vertrag nicht gefunden' }); return; }
+    const v = vertrag[0];
+
+    /* Namensbildung wie im Core: Person -> Vor- und Nachname, Firma -> Firmenname. */
+    const namensAusdruck = `COALESCE(NULLIF(TRIM(CONCAT_WS(' ', t.first_name, t.last_name)), ''), t.company_name, t.tenant_code)`;
+
+    const { rows: parteien } = await dbPool.query(
+      /* Datumsspalten als Text lesen: ein DATE kommt sonst als JS-Date mit
+          Ortszeit zurueck und verschiebt beim Umwandeln den Tag. */
+      `SELECT lt.tenant_id, lt.role, lt.is_primary_contact,
+              to_char(lt.valid_from, 'YYYY-MM-DD')  AS valid_from,
+              to_char(lt.valid_until, 'YYYY-MM-DD') AS valid_until,
+              t.tenant_code, t.tenant_type, t.email, ${namensAusdruck} AS name
+         FROM lease_tenants lt JOIN tenants t ON t.id = lt.tenant_id
+        WHERE lt.lease_id = $1
+        ORDER BY lt.is_primary_contact DESC, name`, [id]);
+
+    /* Personen der EINHEIT aus anderen Vertraegen — mit Vertrag und Zeitraum. */
+    const { rows: weitere } = await dbPool.query(
+      `SELECT lt.tenant_id, lt.role,
+              to_char(lt.valid_from, 'YYYY-MM-DD')  AS valid_from,
+              to_char(lt.valid_until, 'YYYY-MM-DD') AS valid_until,
+              t.tenant_code, t.email, ${namensAusdruck} AS name,
+              l2.id AS lease_id, l2.lease_number, l2.status AS lease_status,
+              to_char(l2.start_date, 'YYYY-MM-DD')       AS start_date,
+              to_char(l2.end_date, 'YYYY-MM-DD')         AS end_date,
+              to_char(l2.termination_date, 'YYYY-MM-DD') AS termination_date,
+              to_char(l2.actual_move_out, 'YYYY-MM-DD')  AS actual_move_out
+         FROM lease_tenants lt
+         JOIN leases l2 ON l2.id = lt.lease_id
+         JOIN tenants t ON t.id = lt.tenant_id
+        WHERE l2.unit_id = $1 AND l2.id <> $2
+        ORDER BY l2.start_date DESC, name`, [v.unit_id, id]);
+
+    const abb = (r) => ({
+      tenant_id: Number(r.tenant_id),
+      name: r.name,
+      tenant_code: r.tenant_code,
+      email: r.email || null,
+      role: r.role,
+      is_primary_contact: r.is_primary_contact === true,
+      valid_from: r.valid_from ? String(r.valid_from).slice(0, 10) : null,
+      valid_until: r.valid_until ? String(r.valid_until).slice(0, 10) : null,
+    });
+
+    res.json({
+      lease_id: v.id,
+      lease_number: v.lease_number,
+      unit_id: v.unit_id,
+      unit_code: v.unit_code,
+      property_code: v.property_code,
+      /* Herkunft ausdruecklich: die Anzeige soll nicht raten muessen. */
+      quelle: 'lease_tenants',
+      parteien: parteien.map(abb),
+      weitere_personen: weitere.map(r => ({
+        ...abb(r),
+        lease_id: Number(r.lease_id),
+        lease_number: r.lease_number,
+        lease_status: r.lease_status,
+        lease_start: r.start_date ? String(r.start_date).slice(0, 10) : null,
+        lease_end: r.end_date ? String(r.end_date).slice(0, 10) : null,
+        lease_termination: r.termination_date ? String(r.termination_date).slice(0, 10) : null,
+        lease_move_out: r.actual_move_out ? String(r.actual_move_out).slice(0, 10) : null,
+      })),
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ── Assets (Immobilien) — Proxy to Core (Sprint 5.5a-1) ─────────────────────
 // All /api/assets/* routes are proxied to Core (18789) via trust-boundary.
 // Reads pass through with auth only. Mutations require session + CSRF.

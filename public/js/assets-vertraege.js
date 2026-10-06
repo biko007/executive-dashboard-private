@@ -334,12 +334,15 @@ function vertraegeFilterReset() {
 async function assetsOpenLeaseDrawer(leaseId) {
   const csrf = Alpine.store('csrf');
   try {
-    const [leaseRes, chargesRes] = await Promise.all([
+    const [leaseRes, chargesRes, parteienRes] = await Promise.all([
       csrf.fetch(`/api/assets/leases/${leaseId}`),
       csrf.fetch(`/api/assets/leases/${leaseId}/charges`),
+      /* A6 (Phase 3): echte Vertragsparteien aus `lease_tenants`. */
+      csrf.fetch(`/api/assets/leases/${leaseId}/parteien`),
     ]);
     const lease = await leaseRes.json();
     const charges = chargesRes.ok ? await chargesRes.json() : [];
+    const parteien = parteienRes.ok ? await parteienRes.json() : null;
 
     const statusBadge = begriffBadge('lease_status', lease.status);
 
@@ -432,7 +435,7 @@ async function assetsOpenLeaseDrawer(leaseId) {
 
     /* P2-11: Vertragsparteien und alle Vertraege derselben Einheit — damit ein
        Mieterwechsel erkennbar wird. Nur Anzeige. */
-    html += (miet && !miet.fehler ? mietVertragsdetailHtml(lease, miet.leases, miet.tenants) : '');
+    html += (miet && !miet.fehler ? mietVertragsdetailHtml(lease, miet.leases, miet.tenants, parteien) : '');
 
     html += `
       <!-- Actions -->

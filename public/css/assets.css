@@ -496,6 +496,7 @@
 .miet-hauptmieter-text { font-size: 13px; line-height: 1.5; margin-top: 4px; }
 
 .miet-quelle { font-size: 13px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+.miet-quelle-klein { font-size: 13px; color: var(--muted); margin-top: 2px; }
 
 .miet-liste { list-style: none; }
 
