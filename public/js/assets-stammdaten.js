@@ -93,11 +93,13 @@ document.addEventListener('alpine:init', () => {
       }
 
       html += '<div class="entity-grid">';
-      const _htMap = {gas:'Gas',oil:'Oel',heat_pump:'Waermepumpe',district:'Fernwaerme',pellets:'Pellets',electric:'Strom'};
+      /* D2 (Phase 3): Die eigene Zuordnung schrieb "Oel", "Waermepumpe" und
+         "Fernwaerme" ohne Umlaute. Sie ist entfallen; die Begriffe stehen
+         jetzt in begriffe.js. */
       const _cur = new Intl.NumberFormat('de-DE',{style:'currency',currency:'EUR',maximumFractionDigits:0});
       for (const p of props) {
         const isEnded = p.ownership_end != null;
-        const htLabel = _htMap[p.heating_type] || esc(p.heating_type || '\u2014');
+        const htLabel = esc(p.heating_type ? begriff('heating_type', p.heating_type) : '\u2014');
         const energy = p.primary_energy_kwh_m2 != null ? p.primary_energy_kwh_m2 + ' kWh/m\u00B2' : '\u2014';
         const kaufpreis = p.purchase_price_total != null ? _cur.format(p.purchase_price_total) : '\u2014';
         const verkehrswert = p.current_market_value != null ? _cur.format(p.current_market_value) : '\u2014';

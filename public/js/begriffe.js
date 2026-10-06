@@ -101,6 +101,18 @@ const BEGRIFFE = {
     unit: 'Einheit',
   },
 
+  /* D2 (Phase 3): Die Heizungsart stand in assets-stammdaten.js als eigene
+     Zuordnung — mit "Oel", "Waermepumpe" und "Fernwaerme" ohne Umlaute.
+     Jetzt hier, mit richtiger Schreibweise, wie alle anderen Begriffe. */
+  heating_type: {
+    gas: 'Gas',
+    oil: 'Öl',
+    heat_pump: 'Wärmepumpe',
+    district: 'Fernwärme',
+    pellets: 'Pellets',
+    electric: 'Strom',
+  },
+
   /* ── Zähler und Ablesungen ─────────────────────────────────────────────── */
   medium: {
     cold_water: 'Kaltwasser',

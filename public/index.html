@@ -235,7 +235,7 @@ tbody tr:hover td { background: var(--row-hover); }
 .seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border-soft); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .seg-row:last-child { border-bottom: none; }
 
-/* ── Traveled (past trips collapsible) ── */
+/* ── Abgeschlossene Reisen (eingeklappt) ── */
 .traveled-section { margin-top: 24px; }
 .traveled-section summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 10px 0; border-top: 1px solid var(--border); list-style: none; display: flex; align-items: center; gap: 8px; }
 .traveled-section summary::before { content: '▶'; font-size:13px; transition: transform .2s; }
@@ -1513,7 +1513,7 @@ async function loadTrips() {
     html += current.map(renderTripCard).join('');
     if (past.length) {
       html += `<details class="traveled-section">
-        <summary>Traveled (${past.length})</summary>
+        <summary>Abgeschlossene Reisen (${past.length})</summary>
         ${past.map(renderTripCard).join('')}
       </details>`;
     }
