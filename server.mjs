@@ -1964,9 +1964,15 @@ app.delete('/api/fleet/*', requireSession, requireCsrf, proxyToCore);
    29.06.2026; nur updated_at wurde am 05.10. gesetzt (Kontenliste).
 
    ERGEBNIS: Fall (c) der Auftragsstellung — kein Abgleich protokolliert, weil
-   keiner angefordert wurde. Die Route POST /api/banking/accounts/:id/sync
-   existiert im Core, ist aber bewusst nicht in der Weboberflaeche verdrahtet
-   (Owner-Entscheidung Nr. 1: kein automatischer Abgleich).
+   keiner angefordert wurde.
+
+   NACHTRAG 07.10.2026 (E1): Die Route POST /api/banking/accounts/:id/sync war
+   bis dahin ein Skeleton (HTTP 501) und nicht verdrahtet. Sie ist jetzt
+   implementiert und in der Weboberflaeche als „Abgleich jetzt" verfuegbar
+   (genehmigungspflichtig); zusaetzlich laeuft montags 13:00 Europe/Berlin ein
+   Abgleich von selbst. Owner-Entscheidung vom 07.10.2026; sie ersetzt die
+   frueheren Entscheidungen „kein automatischer Abgleich" und den
+   Mo-12:00-Reminder aus Banking-E3.
 
    DIESE ROUTE loest die Verwechslung in der ANZEIGE: sie liefert den Zeitpunkt
    der letzten erfolgreichen VERBINDUNG getrennt vom Zeitpunkt des letzten
@@ -1998,9 +2004,12 @@ app.get('/api/banking/verbindungsstand', requireSession, async (_req, res) => {
     const jeInstitut = new Map(laeufe.map(r => [Number(r.institution_id), r]));
     res.json({
       abgerufen_am: new Date().toISOString(),
-      /* Der Abgleich wird nie aus dem Dashboard ausgeloest. Das steht hier als
-         Angabe, damit die Anzeige es nicht erraten muss. */
-      abgleich_aus_dashboard_moeglich: false,
+      /* Seit E1 (07.10.2026) kann das Dashboard einen Abgleich ausloesen.
+         Die Angabe bleibt im Antwortkoerper, damit die Anzeige es nicht
+         erraten muss. */
+      abgleich_aus_dashboard_moeglich: true,
+      /* Zeitplan des Laufs, der ohne Zutun stattfindet. */
+      abgleich_zeitplan: 'Mo 13:00 Europe/Berlin',
       institute: institute.map(i => {
         const l = jeInstitut.get(Number(i.id)) || null;
         return {

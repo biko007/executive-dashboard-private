@@ -19,6 +19,7 @@ Object.assign(ENDPOINT_MAP, {
   'banking.approval-preview':    () => '/api/banking/approval-preview',
   'banking-accounts.archive':    (p) => `/api/banking/accounts/${p.account_id}/archive`,
   'banking-accounts.bulk-archive': () => '/api/banking/accounts/bulk-archive',
+  'banking-accounts.sync':       (p) => `/api/banking/accounts/${p.account_id}/sync`,
 });
 
 // ── Banking Approval Mutation Helper ────────────────────────────────────────
@@ -28,6 +29,81 @@ async function bankingApprovalMutation(endpointKey, httpMethod, pathParams, body
     ...options,
     previewEndpointKey: 'banking.approval-preview',
   });
+}
+
+/* ── „Abgleich jetzt" (E1, Owner-Entscheidung 07.10.2026) ────────────────────
+
+   Dieselbe Strecke wie der Montagslauf: POST /api/banking/accounts/:id/sync
+   ruft im Core `runWeeklySyncWithReport` auf — Salden UND Umsaetze aller
+   aktiven Konten des Instituts, protokolliert in `banking_sync_runs`.
+
+   Bestaetigt wird im Genehmigungsdialog, nicht mit confirm(). Der Dialog nennt
+   ausdruecklich, dass Bankkontakt entsteht und eine pushTAN-Anforderung moeglich
+   ist — eine Freigabe ohne diese Angabe waere keine.
+
+   Der eigene Vorschau-Aufruf (statt `bankingApprovalMutation`) ist noetig, weil
+   der Dialog diesen Hinweistext zeigen soll; die Vorschau des Core liefert fuer
+   diesen Endpunkt keinen Diff, den man anzeigen koennte. */
+
+const BANK_ABGLEICH_HINWEIS = [
+  'Dieser Abgleich nimmt Kontakt zur Bank auf und holt Salden und Umsätze '
+  + 'aller aktiven Konten dieses Instituts.',
+  'Die Bank kann dafür eine Freigabe per pushTAN verlangen. Dann endet der Lauf '
+  + 'ohne Daten, das Institut wird pausiert, und Sie erhalten über Telegram einen '
+  + 'Knopf zum Fortsetzen.',
+];
+
+let _bankAbgleichLaeuft = false;
+
+async function bankingAbgleichJetzt(accountId) {
+  if (_bankAbgleichLaeuft) return;
+  const csrf = Alpine.store('csrf');
+  const toast = Alpine.store('toast');
+  const approval = Alpine.store('approval');
+
+  _bankAbgleichLaeuft = true;
+  try {
+    const resp = await csrf.fetch('/api/banking/approval-preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        endpoint_key: 'banking-accounts.sync',
+        http_method: 'POST',
+        method: 'POST',
+        path_params: { account_id: accountId },
+        body: {},
+      }),
+    });
+    if (!resp.ok) {
+      const e = await resp.json().catch(() => ({}));
+      throw new Error(e.error || ('HTTP ' + resp.status));
+    }
+    const vorschau = await resp.json();
+
+    const ergebnis = await approval.show({
+      diff: {},
+      warnings: BANK_ABGLEICH_HINWEIS,
+      expiresAt: vorschau.expires_at,
+      approvalToken: vorschau.token,
+      endpointKey: 'banking-accounts.sync',
+      httpMethod: 'POST',
+      pathParams: { account_id: accountId },
+      body: {},
+      options: { successToast: false },
+    });
+
+    if (ergebnis === false) return;          // abgebrochen oder abgelaufen
+    const meldung = ergebnis && ergebnis.meldung
+      ? ergebnis.meldung
+      : 'Abgleich ausgeführt.';
+    if (ergebnis && ergebnis.ok) toast.success(meldung);
+    else toast.error(meldung);
+    if (_bankingRoot) await _bankingRoot.loadOverview();
+  } catch (e) {
+    toast.error('Abgleich nicht möglich: ' + netzFehlerText(e));
+  } finally {
+    _bankAbgleichLaeuft = false;
+  }
 }
 
 // ── Banking Connect Form — Alpine Component ─────────────────────────────────
@@ -238,11 +314,17 @@ function bankingOverviewHtml() {
               <div>
                 <template x-for="inst in institutions" :key="inst.id">
                 <div class="card card-pad" style="margin-bottom:12px">
-                  <div style="display:flex;justify-content:space-between;align-items:center">
+                  <div class="bank-institut-kopf">
                     <div>
                       <strong x-text="inst.name"></strong>
                       <span class="badge badge-muted" x-text="instBlzLabel(inst.blz)" style="margin-left:8px"></span>
                     </div>
+                    <!-- E1 (07.10.2026): „Abgleich jetzt" — derselbe Weg wie der
+                         Montagslauf. Bestaetigung im Genehmigungsdialog. -->
+                    <template x-if="abgleichKontoId(inst.id)">
+                      <button type="button" class="btn bank-abgleich-knopf"
+                              x-on:click="abgleichJetzt(inst.id)">Abgleich jetzt…</button>
+                    </template>
                   </div>
                   <template x-if="accountsForInst(inst.id).length > 0">
                     <div style="margin-top:8px">
@@ -495,10 +577,12 @@ document.addEventListener('alpine:init', () => {
     },
 
     verbindungHinweis() {
+      /* E1 (07.10.2026): Der letzte Satz stimmte bis heute. Jetzt gibt es
+         „Abgleich jetzt" im Dashboard und montags 13:00 einen Lauf von selbst. */
       return 'Zwei verschiedene Dinge: \u201eBank verbinden\u201c stellt den FinTS-Zugang her '
         + 'und holt die Kontenliste \u2014 es holt KEINE Salden und KEINE Ums\u00e4tze. '
-        + 'Salden und Ums\u00e4tze entstehen nur beim Abgleich, und der wird nicht aus dem '
-        + 'Dashboard ausgel\u00f6st.';
+        + 'Salden und Ums\u00e4tze entstehen nur beim Abgleich: montags 13:00 von selbst '
+        + 'oder sofort \u00fcber \u201eAbgleich jetzt\u201c.';
     },
 
     /* Salden stammen aus dem letzten FinTS-Abgleich, nicht aus dem Seitenaufruf.
@@ -524,7 +608,8 @@ document.addEventListener('alpine:init', () => {
         abgleich: letzter,
         hinweis: aktive + ' aktive Konten von ' + this.accounts.length
           + '. Dies ist der Stand des letzten ABGLEICHS, nicht des letzten '
-          + 'Verbindungsaufbaus. Ein Abgleich wird nicht aus dem Dashboard ausgelöst.',
+          + 'Verbindungsaufbaus. Ein Abgleich läuft montags 13:00 von selbst und '
+          + 'lässt sich über „Abgleich jetzt" auslösen.',
       }]);
     },
 
@@ -803,6 +888,22 @@ document.addEventListener('alpine:init', () => {
 
     hasBulkTimer() {
       return this.bulkTimerText.length > 0;
+    },
+
+    /* E1: Die Route ist kontobezogen, der Abgleich gilt dem Institut. Wir
+       nehmen das erste aktive Konto des Instituts als Kennung im Pfad; der
+       Genehmigungsdialog sagt ausdruecklich, dass alle aktiven Konten des
+       Instituts abgeglichen werden. Ohne aktives Konto gibt es nichts
+       abzugleichen — dann erscheint die Schaltflaeche nicht. */
+    abgleichKontoId(instId) {
+      const aktive = this.accountsForInst(instId);
+      return aktive.length ? aktive[0].id : null;
+    },
+
+    async abgleichJetzt(instId) {
+      const kontoId = this.abgleichKontoId(instId);
+      if (!kontoId) return;
+      await bankingAbgleichJetzt(kontoId);
     },
 
     async archiveSingle(accountId) {
@@ -1116,8 +1217,8 @@ async function bankingUmsaetzeRendern(konto, mehr) {
 
   if (!Array.isArray(zeilen) || !zeilen.length) {
     ziel.innerHTML = kopf + zustandBlock('keine_daten',
-      'Für dieses Konto sind keine Umsätze gespeichert. Umsätze entstehen beim FinTS-Abgleich; '
-      + 'der wird nicht aus dem Dashboard ausgelöst.');
+      'Für dieses Konto sind keine Umsätze gespeichert. Umsätze entstehen beim FinTS-Abgleich '
+      + '— montags 13:00 von selbst oder über „Abgleich jetzt".');
     bankingDetailAnzeigen(ziel, mehr);
     return;
   }

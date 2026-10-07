@@ -610,6 +610,17 @@ nav button { min-height: 44px; min-width: 44px; }
 }
 .bank-detail-archiv:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
 .bank-detail-aktion-sub { font-size: 13px; color: var(--muted); line-height: 1.5; }
+/* E1 (07.10.2026): Kopfzeile des Instituts mit der Schaltflaeche „Abgleich
+   jetzt". Schmal stapelt sie unter den Namen statt daneben zu quetschen. */
+.bank-institut-kopf {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 10px; flex-wrap: wrap;
+}
+.bank-abgleich-knopf { min-height: 44px; }
+@media (max-width: 480px) {
+  .bank-institut-kopf { align-items: stretch; }
+  .bank-abgleich-knopf { width: 100%; }
+}
 .bank-konto-pfeil { color: var(--muted); font-size: 18px; padding: 0 2px; }
 .bank-umsatz-kopf {
   display: flex; align-items: center; justify-content: space-between;
@@ -4334,7 +4345,21 @@ async function loadBanking() {
         <div class="modal-overlay" @click.self="$store.approval.cancel()">
           <div class="modal">
             <h3>Genehmigung erforderlich</h3>
-            <div class="approval-banner">Bitte prüfen Sie die folgenden Änderungen vor der Bestätigung.</div>
+            <!-- E1 (07.10.2026): Der Dialog zeigte nur den Satz „Bitte prüfen Sie
+                 die folgenden Änderungen" und darunter nichts, wenn die Aktion
+                 keinen Datenvergleich hat. Für „Abgleich jetzt" ist genau das der
+                 Fall — und eine Freigabe ohne Angabe, was passiert, ist keine.
+                 Liegen Hinweise vor, treten sie an die Stelle des Satzes. -->
+            <template x-if="$store.approval.warnings.length > 0">
+              <div>
+                <template x-for="w in $store.approval.warnings" :key="w">
+                  <div class="approval-banner" x-text="w"></div>
+                </template>
+              </div>
+            </template>
+            <template x-if="$store.approval.warnings.length === 0">
+              <div class="approval-banner">Bitte prüfen Sie die folgenden Änderungen vor der Bestätigung.</div>
+            </template>
             <div class="approval-diff">
               <template x-for="(val, key) in $store.approval.diff" :key="key">
                 <div class="diff-field">

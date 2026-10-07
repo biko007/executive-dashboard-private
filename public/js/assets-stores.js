@@ -297,7 +297,14 @@ document.addEventListener('alpine:init', () => {
           throw new Error(err.error?.message || err.error || `HTTP ${res.status}`);
         }
         const result = await res.json().catch(() => ({}));
-        Alpine.store('toast').success('Gespeichert');
+        /* Nicht jede genehmigte Aktion ist ein Speichervorgang. Der Aufrufer
+           kann die Erfolgsmeldung ersetzen (`successToast: '…'`) oder
+           unterdruecken (`successToast: false`) und sie selbst setzen — so
+           stand ueber dem Bankabgleich nicht „Gespeichert". */
+        const erfolgsText = this.options && 'successToast' in this.options
+          ? this.options.successToast
+          : 'Gespeichert';
+        if (erfolgsText) Alpine.store('toast').success(erfolgsText);
         this.close();
         if (this._resolve) this._resolve(result);
       } catch (e) {
