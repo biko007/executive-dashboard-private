@@ -7,7 +7,7 @@
 <link rel="apple-touch-icon" href="/dashboard/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Hans Dampf">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="csrf-token" content="">
 <link rel="stylesheet" href="/dashboard/css/assets.css">
 <link rel="stylesheet" href="/dashboard/css/entity-tile.css">
@@ -130,7 +130,6 @@ header h1 {
 }
 .kopf-lang { display: none; }
 .kopf-kurz { display: inline; }
-.kopf-name { display: none; color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 8px; }
 .header-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: nowrap; }
 .header-meta span { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .btn-logout {
@@ -462,7 +461,6 @@ input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-co
   header h1 { font-size: 16px; }
   .kopf-lang { display: inline; }
   .kopf-kurz { display: none; }
-  .kopf-name { display: inline; }
   .header-meta { justify-content: flex-end; flex-wrap: nowrap; gap: 12px; }
   .header-meta span { font-size: 13px; }
   .abm-lang { display: inline; }
@@ -854,9 +852,11 @@ pre, code { overflow-wrap: anywhere; }
        mit Auslassungszeichen), kurzer Zeitstempel mit Zeitzone, Abmelden als
        Symbol mit zugaenglichem Namen. Ab 640 px bleibt alles beim Alten. -->
   <header>
+    <!-- E3 (07.10.2026, Owner-Entscheidung Nr. 6): Der Agentenname stand als
+         dritter Titelbestandteil in der Kopfzeile und war dort ohne Funktion.
+         Titel ist „Executive Dashboard", schmal „Dashboard". -->
     <h1><span aria-hidden="true">⚙️</span>
-      <span class="kopf-lang">Executive Dashboard</span><span class="kopf-kurz">Dashboard</span>
-      <span class="kopf-name">Hans Dampf</span></h1>
+      <span class="kopf-lang">Executive Dashboard</span><span class="kopf-kurz">Dashboard</span></h1>
     <div class="header-meta">
       <span id="lastUpdate"></span>
       <button class="btn-logout" onclick="logout()" aria-label="Abmelden" title="Abmelden">
