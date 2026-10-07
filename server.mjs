@@ -414,7 +414,14 @@ app.use(express.json());
 
 // CSP header
 app.use((req, res, next) => {
-  res.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'");
+  /* E2 (07.10.2026): `blob:` war in img-src nicht erlaubt. Der Foto-Upload legt
+     die gewaehlte Datei mit URL.createObjectURL() in ein <img>, um sie vor dem
+     Hochladen zu verkleinern — der Browser blockierte das Laden still, das
+     <img> feuerte onerror, und der Upload brach mit „Bild konnte nicht geladen
+     werden" ab. Reproduziert am Desktop (Chrome) und am iPhone.
+     `blob:` ist eine seitenlokale Quelle (nur dieses Dokument kann die URL
+     erzeugen); die Erlaubnis oeffnet keinen fremden Ursprung. */
+  res.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'");
   next();
 });
 

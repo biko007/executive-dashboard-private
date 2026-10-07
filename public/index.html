@@ -1169,53 +1169,150 @@ function triggerImgUpload(wrap, entityType, entityId) {
   wrap.querySelector('input[type=file]').click();
 }
 
-function resizeImageBlob(file, maxW, maxH, quality) {
+/* E2 (07.10.2026) — Foto-Upload auf der Objektkarte.
+
+   BEFUND: Ein gewoehnliches JPG (3,7 MB, 1512x2016) brach mit
+   „Bild-Upload fehlgeschlagen: Bild konnte nicht geladen werden" ab, am Desktop
+   wie am iPhone. Danach zeigte die Karte nur noch ein Kamerasymbol.
+
+   URSACHE, zwei Teile:
+   1. Die Verkleinerung legte die Datei per URL.createObjectURL() in ein <img>.
+      Die Inhaltsrichtlinie des Servers erlaubte in `img-src` nur `'self'` und
+      `data:` — `blob:` fehlte. Der Browser verwarf das Laden still, `onerror`
+      lief, und die Verkleinerung warf. Nicht die Groesse, nicht der Server:
+      der Upload kam nie bis dorthin. (`blob:` ist jetzt erlaubt, server.mjs.)
+   2. `placeholder.textContent = '⏳'` ersetzte den Inhalt des Platzhalters und
+      loeschte damit die beiden <span> — Symbol und Beschriftung. Nach dem
+      Fehlschlag blieb deshalb nur ein Kamerasymbol ohne Text uebrig.
+
+   JETZT:
+   - Verkleinert wird bevorzugt mit createImageBitmap(), das ohne URL und ohne
+     <img> arbeitet und von der Inhaltsrichtlinie nicht beruehrt wird. Der
+     bisherige Weg bleibt als Rueckfall fuer aeltere Browser.
+   - Schlaegt die Verkleinerung trotzdem fehl, wird die Originaldatei
+     hochgeladen. Der Server verkleinert ohnehin mit sharp auf 800x800; die
+     Verkleinerung im Browser spart nur Uebertragung. Ein Upload scheitert damit
+     nie mehr daran, dass der Browser das Bild nicht dekodieren kann.
+   - Der Platzhalter behaelt seine Struktur; nur die Texte der beiden <span>
+     wechseln. Nach einem Fehler steht wieder „Foto hinzufügen" da.
+   - Fehler erscheinen als Einblendung (meldung), nicht als alert(); bestaetigt
+     wird nichts mit confirm(). */
+
+const UPLOAD_MAX_KANTE = 800;
+const UPLOAD_JPEG_GUETE = 0.82;
+
+/** Zielmasse unter Beibehaltung des Seitenverhaeltnisses. */
+function bildZielmasse(w, h, maxW, maxH) {
+  if (w <= maxW && h <= maxH) return { w, h };
+  const r = Math.min(maxW / w, maxH / h);
+  return { w: Math.round(w * r), h: Math.round(h * r) };
+}
+
+function canvasZuBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      blob => blob ? resolve(blob) : reject(new Error('Canvas-Export fehlgeschlagen')),
+      'image/jpeg', quality,
+    );
+  });
+}
+
+/* Weg 1: createImageBitmap — keine URL, kein <img>, keine Inhaltsrichtlinie. */
+async function verkleinernMitBitmap(file, maxW, maxH, quality) {
+  const bitmap = await createImageBitmap(file);
+  try {
+    const { w, h } = bildZielmasse(bitmap.width, bitmap.height, maxW, maxH);
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    c.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    return await canvasZuBlob(c, quality);
+  } finally {
+    if (typeof bitmap.close === 'function') bitmap.close();
+  }
+}
+
+/* Weg 2: Rueckfall ueber <img> und eine blob:-URL. */
+function verkleinernMitImg(file, maxW, maxH, quality) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
+    img.onload = async () => {
       URL.revokeObjectURL(url);
-      let w = img.width, h = img.height;
-      if (w > maxW || h > maxH) {
-        const r = Math.min(maxW / w, maxH / h);
-        w = Math.round(w * r);
-        h = Math.round(h * r);
-      }
-      const c = document.createElement('canvas');
-      c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      c.toBlob(blob => blob ? resolve(blob) : reject(new Error('Canvas export failed')), 'image/jpeg', quality);
+      try {
+        const { w, h } = bildZielmasse(img.width, img.height, maxW, maxH);
+        const c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(await canvasZuBlob(c, quality));
+      } catch (e) { reject(e); }
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Bild konnte nicht geladen werden')); };
     img.src = url;
   });
 }
 
+async function resizeImageBlob(file, maxW, maxH, quality) {
+  if (typeof createImageBitmap === 'function') {
+    try {
+      return await verkleinernMitBitmap(file, maxW, maxH, quality);
+    } catch { /* Rueckfall unten */ }
+  }
+  return verkleinernMitImg(file, maxW, maxH, quality);
+}
+
+/** Setzt Symbol und Beschriftung im Platzhalter, ohne ihn zu zerstoeren. */
+function platzhalterZustand(placeholder, symbol, text) {
+  if (!placeholder) return;
+  const symbolEl = placeholder.querySelector('span[aria-hidden="true"]');
+  const textEl = placeholder.querySelector('.img-platzhalter-text');
+  if (symbolEl) symbolEl.textContent = symbol;
+  else placeholder.textContent = symbol;
+  if (textEl) textEl.textContent = text;
+}
+
 async function uploadImage(input, entityType, entityId) {
   const file = input.files[0];
   if (!file) return;
   const wrap = input.closest('.entity-img-wrap, .detail-img-wrap, .entity-tile__image');
-  const placeholder = wrap.querySelector('.img-placeholder');
-  if (placeholder) { placeholder.textContent = '⏳'; placeholder.style.display = 'flex'; }
-  const imgEl = wrap.querySelector('img');
+  const placeholder = wrap ? wrap.querySelector('.img-placeholder') : null;
+  const imgEl = wrap ? wrap.querySelector('img') : null;
+
+  platzhalterZustand(placeholder, '⏳', 'Bild wird hochgeladen…');
+  if (placeholder) placeholder.style.display = 'flex';
   if (imgEl) imgEl.style.display = 'none';
+
   try {
-    const blob = await resizeImageBlob(file, 800, 800, 0.82);
+    /* Verkleinern ist freiwillig: gelingt es nicht, geht das Original raus. */
+    let koerper = file;
+    let name = file.name || 'photo.jpg';
+    try {
+      koerper = await resizeImageBlob(file, UPLOAD_MAX_KANTE, UPLOAD_MAX_KANTE, UPLOAD_JPEG_GUETE);
+      name = 'photo.jpg';
+    } catch { /* Original hochladen, der Server verkleinert */ }
+
     const fd = new FormData();
-    fd.append('image', blob, 'photo.jpg');
+    fd.append('image', koerper, name);
     fd.append('entityType', entityType);
     fd.append('entityId', entityId);
     const res = await fetch('/dashboard/api/upload/image?token=' + encodeURIComponent(TOKEN), { method: 'POST', body: fd });
-    if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Upload fehlgeschlagen'); }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || ('Der Server hat den Upload abgelehnt (HTTP ' + res.status + ').'));
+    }
     const data = await res.json();
     if (imgEl) {
       imgEl.src = '/dashboard' + data.imagePath + '?token=' + encodeURIComponent(TOKEN) + '&_t=' + Date.now();
       imgEl.style.display = 'block';
       if (placeholder) placeholder.style.display = 'none';
+      if (wrap) wrap.classList.remove('bild-leer');
     }
+    platzhalterZustand(placeholder, '📷', 'Foto hinzufügen');
   } catch (e) {
     meldung('Bild-Upload fehlgeschlagen: ' + netzFehlerText(e), 'error');
-    if (placeholder) { placeholder.textContent = '📷'; }
+    platzhalterZustand(placeholder, '📷', 'Foto hinzufügen');
+    if (placeholder) placeholder.style.display = 'flex';
+    if (imgEl) imgEl.style.display = 'none';
+    if (wrap) wrap.classList.add('bild-leer');
   }
   input.value = '';
 }
