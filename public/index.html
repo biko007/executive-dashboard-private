@@ -1215,14 +1215,33 @@ const UPLOAD_JPEG_GUETE = 0.82;
 /* Erlaubte Bildformate — deckungsgleich mit der Pruefung im Server
    (server.mjs, bildFormatErkennen). PNG, JPG und HEIC/HEIF.
 
-   WARUM NICHT MEHR `image/*`: Die Auswahl zeigte am Telefon auch Formate, die
-   der Server nicht annimmt — der Fehler fiel erst nach dem Hochladen auf.
+   WARUM NICHT `image/*`: Die Auswahl zeigte am Telefon auch Formate, die der
+   Server nicht annimmt — der Fehler fiel erst nach dem Hochladen auf.
 
-   WARUM AUCH DIE ENDUNGEN `.heic`/`.heif`: Mobile Safari meldet fuer
-   HEIC-Aufnahmen je nach iOS-Fassung `image/heic`, `image/heif` oder einen
-   leeren MIME-Typ. Ohne die Endungen blieben solche Dateien in der Auswahl
-   ausgegraut. */
-const BILD_ACCEPT = 'image/png,image/jpeg,image/heic,image/heif,.png,.jpg,.jpeg,.heic,.heif';
+   WARUM MIME-TYPEN: Sie sind die eigentliche Angabe. Der Dateidialog des
+   Systems loest sie ueber den Dateityp auf, nicht ueber die Schreibweise des
+   Namens.
+
+   WARUM TROTZDEM DIE ENDUNGEN: Mobile Safari meldet fuer HEIC-Aufnahmen je nach
+   iOS-Fassung `image/heic`, `image/heif` oder einen LEEREN MIME-Typ. Ohne die
+   Endungen bleiben solche Dateien in der iOS-Auswahl ausgegraut.
+
+   WARUM JEDE ENDUNG ZWEIMAL (Befund Owner, 07.10.2026 15:34 am Mac):
+   `IMG_3060.JPG` war im Dateidialog ausgegraut, `…_4c.jpg` waehlbar — bei einer
+   Liste, die `image/jpeg` schon enthielt. Der Unterschied war allein die
+   Schreibweise der Endung. Die HTML-Spezifikation schreibt den Vergleich
+   gross/klein-UNempfindlich vor, WebKit hat ihn aber empfindlich umgesetzt, und
+   sobald die Liste Endungen enthaelt, entscheidet in Safari die Endung. Deshalb
+   steht jede Endung in beiden Schreibweisen. Das kostet nichts und wirkt unter
+   jeder der beiden Auslegungen.
+
+   Der Server prueft ohnehin die ersten Bytes (Magic Bytes), nicht den Namen —
+   diese Liste steuert nur, was der Dateidialog anbietet. */
+const BILD_ACCEPT = [
+  'image/png', 'image/jpeg', 'image/heic', 'image/heif',
+  '.png', '.PNG', '.jpg', '.JPG', '.jpeg', '.JPEG',
+  '.heic', '.HEIC', '.heif', '.HEIF',
+].join(',');
 
 /** Zielmasse unter Beibehaltung des Seitenverhaeltnisses. */
 function bildZielmasse(w, h, maxW, maxH) {
