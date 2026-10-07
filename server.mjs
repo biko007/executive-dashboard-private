@@ -6,6 +6,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import multer from 'multer';
 import sharp from 'sharp';
+import heicConvert from 'heic-convert';
 import pg from 'pg';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
@@ -507,6 +508,86 @@ app.get('/version', (_req, res) => {
 });
 
 // ── API: Images ──────────────────────────────────────────────────────────────
+/* ── Bildformate für Uploads (07.10.2026) ───────────────────────────────────
+
+   ERLAUBT: PNG, JPEG, HEIC/HEIF. Eine Stelle für alle Bild-Uploads, damit das
+   `accept`-Attribut im Browser und die Prüfung im Server nicht auseinanderlaufen.
+
+   WARUM MAGIC BYTES UND NICHT MIME ODER ENDUNG: Beides kommt vom Browser und ist
+   frei wählbar. Mobile Safari schickt für HEIC-Aufnahmen je nach iOS-Fassung
+   `image/heic`, `image/heif` oder einen leeren MIME-Typ; eine MIME-Weiche würde
+   genau den Fall verfehlen, der funktionieren soll. Die ersten Bytes der Datei
+   lügen nicht.
+
+   WARUM HEIC SERVERSEITIG NACH JPEG: Kein Browser zeigt HEIC an. Die Datei wird
+   deshalb beim Upload umgewandelt und als JPEG abgelegt — die Anzeige bekommt
+   JPEG wie bisher.
+
+   WARUM heic-convert UND NICHT sharp: sharps mitgeliefertes libvips bringt
+   libheif mit, aber OHNE HEVC-Decoder. Nachgemessen mit einer echten
+   HEVC-HEIF-Datei: `sharp(...).metadata()` liest Format, Maße und
+   `compression: 'hevc'`, die Dekodierung bricht dann mit „Support for this
+   compression format has not been built in" ab. Das System-libvips (8.15.1 mit
+   libheif-plugin-libde265) kann es, sharps gebündeltes nicht. heic-convert
+   bringt den Decoder als WebAssembly mit — kein Systempaket, kein Nachbau von
+   sharp. Messung: 1200x1600-HEIC in 124 ms. */
+
+const BILD_FORMATE = ['png', 'jpeg', 'heic'];
+
+/* HEIF-Markenkennungen, die ein Standbild bezeichnen. `avif`/`avis` stehen
+   bewusst nicht darin — AVIF ist nicht beauftragt und kommt nicht vom iPhone. */
+const HEIF_MARKEN = new Set([
+  'heic', 'heix', 'heim', 'heis', 'hevc', 'hevx', 'hevm', 'hevs', 'mif1', 'msf1',
+]);
+
+/** Alle Markenkennungen aus der ftyp-Box lesen (Hauptmarke plus verträgliche). */
+function ftypMarken(buf) {
+  if (buf.length < 12 || buf.toString('latin1', 4, 8) !== 'ftyp') return [];
+  const boxLaenge = Math.min(buf.readUInt32BE(0), buf.length);
+  const marken = [buf.toString('latin1', 8, 12)];
+  for (let i = 16; i + 4 <= boxLaenge; i += 4) {
+    marken.push(buf.toString('latin1', i, i + 4));
+  }
+  return marken;
+}
+
+/**
+ * Bildformat an den ersten Bytes erkennen. Liefert 'png', 'jpeg', 'heic'
+ * oder null, wenn es keines der drei erlaubten Formate ist.
+ */
+function bildFormatErkennen(buf) {
+  if (!buf || buf.length < 12) return null;
+  if (buf[0] === 0x89 && buf.toString('latin1', 1, 4) === 'PNG'
+      && buf[4] === 0x0d && buf[5] === 0x0a && buf[6] === 0x1a && buf[7] === 0x0a) {
+    return 'png';
+  }
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return 'jpeg';
+  const marken = ftypMarken(buf);
+  if (marken.length && !marken[0].startsWith('avi') && marken.some(m => HEIF_MARKEN.has(m))) {
+    return 'heic';
+  }
+  return null;
+}
+
+/**
+ * Puffer in eine Form bringen, die sharp lesen kann.
+ * HEIC/HEIF wird nach JPEG umgewandelt, PNG und JPEG bleiben unberührt.
+ * Wirft mit verständlichem Text, wenn das Format nicht erlaubt ist.
+ */
+async function bildPufferFuerSharp(buf) {
+  const format = bildFormatErkennen(buf);
+  if (!format) {
+    throw new Error('Nur PNG, JPG und HEIC werden angenommen. Die Datei ist keines davon.');
+  }
+  if (format !== 'heic') return { format, buf };
+  try {
+    const jpeg = await heicConvert({ buffer: buf, format: 'JPEG', quality: 0.92 });
+    return { format, buf: Buffer.from(jpeg) };
+  } catch (e) {
+    throw new Error(`HEIC konnte nicht umgewandelt werden: ${e.message}`);
+  }
+}
+
 
 const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -529,7 +610,11 @@ app.get('/api/images/:filename', auth, (req, res) => {
   res.sendFile(fp);
 });
 
-// Upload + resize image
+/* Upload + Verkleinerung.
+   Angenommen werden PNG, JPG und HEIC — geprüft an den ersten Bytes, nicht am
+   gemeldeten MIME-Typ oder an der Endung. HEIC wird vor der Verkleinerung nach
+   JPEG umgewandelt. Größenlimit (20 MB) und Zielmaß (800x800, JPEG q82)
+   unverändert; abgelegt wird wie bisher immer als .jpg. */
 app.post('/api/upload/image', auth, imageUpload.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No image file provided' });
@@ -537,16 +622,26 @@ app.post('/api/upload/image', auth, imageUpload.single('image'), async (req, res
     const entityId = String(req.body.entityId || '').replace(/[^a-zA-Z0-9._\-]/g, '');
     if (!entityType || !entityId) return res.status(400).json({ error: 'entityType and entityId required' });
 
+    let quelle;
+    let format;
+    try {
+      ({ buf: quelle, format } = await bildPufferFuerSharp(req.file.buffer));
+    } catch (e) {
+      // Ein nicht erlaubtes oder unlesbares Bild ist ein Eingabefehler, kein Serverfehler.
+      return res.status(415).json({ error: e.message });
+    }
+
     fs.mkdirSync(IMAGES_DIR, { recursive: true });
     const filename = `${entityType}-${entityId}.jpg`;
     const outPath = path.join(IMAGES_DIR, filename);
 
-    await sharp(req.file.buffer)
+    await sharp(quelle)
+      .rotate()
       .resize(800, 800, { fit: 'inside', withoutEnlargement: true })
       .jpeg({ quality: 82 })
       .toFile(outPath);
 
-    res.json({ imagePath: `/api/images/${filename}` });
+    res.json({ imagePath: `/api/images/${filename}`, format });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -1025,7 +1120,12 @@ app.get('/api/instagram/raw/:id/thumb/:filename', auth, async (req, res) => {
 
     let bild;
     try {
-      bild = await sharp(datei).rotate().resize(200, 200, { fit: 'cover' })
+      /* HEIC-Rohmaterial (iPhone) kann sharp nicht dekodieren — der Puffer läuft
+         deshalb über dieselbe Weiche wie der Bild-Upload. Maß und Güte des
+         Vorschaubilds bleiben unverändert. */
+      const roh = fs.readFileSync(datei);
+      const { buf: quelle } = await bildPufferFuerSharp(roh);
+      bild = await sharp(quelle).rotate().resize(200, 200, { fit: 'cover' })
         .jpeg({ quality: 70 }).toBuffer();
     } catch (e) {
       /* Nicht jede .jpg-Datei im Bestand ist ein gültiges Bild — es liegen

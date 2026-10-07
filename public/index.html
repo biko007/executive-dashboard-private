@@ -1172,7 +1172,7 @@ function entityImgHtml(entityType, entityId, cssClass) {
   return `<div class="${cls}" onclick="triggerImgUpload(this,'${esc(entityType)}','${esc(entityId)}')">
     <img src="${src}" alt="" onerror="bildFehlt(this)" onload="bildVorhanden(this)" style="display:block">
     <div class="img-placeholder" style="display:none"><span aria-hidden="true">📷</span><span class="img-platzhalter-text">Foto hinzufügen</span></div>
-    <input type="file" accept="image/*" onchange="uploadImage(this,'${esc(entityType)}','${esc(entityId)}')">
+    <input type="file" accept="${BILD_ACCEPT}" onchange="uploadImage(this,'${esc(entityType)}','${esc(entityId)}')">
   </div>`;
 }
 
@@ -1211,6 +1211,18 @@ function triggerImgUpload(wrap, entityType, entityId) {
 
 const UPLOAD_MAX_KANTE = 800;
 const UPLOAD_JPEG_GUETE = 0.82;
+
+/* Erlaubte Bildformate — deckungsgleich mit der Pruefung im Server
+   (server.mjs, bildFormatErkennen). PNG, JPG und HEIC/HEIF.
+
+   WARUM NICHT MEHR `image/*`: Die Auswahl zeigte am Telefon auch Formate, die
+   der Server nicht annimmt — der Fehler fiel erst nach dem Hochladen auf.
+
+   WARUM AUCH DIE ENDUNGEN `.heic`/`.heif`: Mobile Safari meldet fuer
+   HEIC-Aufnahmen je nach iOS-Fassung `image/heic`, `image/heif` oder einen
+   leeren MIME-Typ. Ohne die Endungen blieben solche Dateien in der Auswahl
+   ausgegraut. */
+const BILD_ACCEPT = 'image/png,image/jpeg,image/heic,image/heif,.png,.jpg,.jpeg,.heic,.heif';
 
 /** Zielmasse unter Beibehaltung des Seitenverhaeltnisses. */
 function bildZielmasse(w, h, maxW, maxH) {
