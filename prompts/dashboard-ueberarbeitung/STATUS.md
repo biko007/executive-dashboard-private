@@ -2,12 +2,16 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 06.10.2026, 21:00 UTC
-**Aktuelle Phase:** **Phase 3 abgeschlossen, Nachprüfung CP2 offen** — CHECKPOINT 1 am
-05.10.2026 extern freigegeben, Hetzner-Snapshot liegt vor. Alle elf Pakete P2-1 bis P2-11
-sind erledigt; CHECKPOINT 2 hat sieben Fehler und zehn Verbesserungspunkte ergeben, alle
-siebzehn sind in Phase 3 behoben.
-**Nächster Schritt: Nachprüfung der Phase-3-Punkte durch den Owner** am echten Gerät.
+**Letzte Aktualisierung:** 07.10.2026, 08:55 UTC
+**Aktuelle Phase:** **Phase 3b abgeschlossen (Sammel-Lauf E1–E7), Owner-Aktionen offen** —
+CHECKPOINT 1 am 05.10.2026 extern freigegeben, Hetzner-Snapshot liegt vor. Phase 3 ist am
+iPhone bestätigt (A1 bei Netzwechsel, A5 PDF, Banking-Umsätze funktionieren). Der Sammel-Lauf
+vom 07.10.2026 hat die restlichen Punkte aus CHECKPOINT 2 erledigt: Bankabgleich (E1),
+Foto-Upload (E2), Kopfzeile (E3), Vertrag n24-w6-2024 (E4), Dropbox-Inbox (E5), Ablaufdoku
+(E6), Berichtsdisziplin (E7).
+**Nächster Schritt: zwei Owner-Aktionen** — `/arm push` für den Core-Anteil und die
+Nachprüfung des Montagsabgleichs am 12.10.2026 ab 13:00 Berliner Zeit. Siehe Report
+`~/bikosoc-spec/report-sammellauf-0855.md`.
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 2 ist produktiv. `server.mjs` wurde in P2-5, P2-7, P2-8 und
 P2-10 geändert (vier neue lesende Routen und die Reise-Kennung); der Dienst wurde nach jeder
@@ -15,7 +19,14 @@ P2-10 geändert (vier neue lesende Routen und die Reise-Kennung); der Dienst wur
 **Phase 1** ist produktiv und in allen drei Repositories gepusht.
 Dashboard-Dienst und Gateway neu gestartet. Der Red-Zone-Push des Core-Anteils (`5f65c4b`)
 erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbraucht.
-**Owner-Entscheidungen:** alle acht Punkte entschieden, siehe `00-masterplan.md` §5.
+**Stand 07.10.2026:** Der Dashboard-Anteil von Phase 3b ist gepusht. Der Core-Anteil
+(fünf Commits, darunter `index.ts` und `dist/index.js` = Rote Zone) ist lokal committet und
+wartet auf `/arm push`. Produktiv ist der Code trotzdem schon — Build, Tests und Neustart
+sind gelaufen.
+**Owner-Entscheidungen:** alle acht Punkte aus `00-masterplan.md` §5 entschieden; am
+07.10.2026 kamen zwei dazu: (9) montags 13:00 läuft ein echter Bankabgleich — das hebt die
+E3-Entscheidung „kein automatischer Bankkontakt" vom 26.06.2026 auf; (10) Vertrag
+n24-w6-2024 auf „Beendet", Auszugsdatum 15.11.2025.
 
 ---
 
@@ -48,7 +59,16 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 | P3-B | Formularfelder mit DB-unzulässigen Werten | M | **erledigt** | `429725d` | Report §B |
 | P3-C | Verbesserungen C1 bis C5 | M | **erledigt** | `f55c22d` `2e5c3e9` `934d503` `ef2acc0` `f33407f` | Report §C |
 | P3-D | Formate und Kosmetik D1 bis D4 | S | **erledigt** | `aa220da` `4d8540a` `7a746fd` `b97531f` | Report §D |
-| **Nachprüfung CP2** | Owner prüft die siebzehn Punkte am Gerät | — | offen | — | — |
+| **Nachprüfung CP2** | Owner prüft die siebzehn Punkte am Gerät | — | **erledigt** 07.10.2026 | — | am iPhone bestätigt: A1 bei Netzwechsel, A5 PDF, Banking-Umsätze |
+| E1 | Wöchentlicher Bankabgleich — Diagnose und Wiederherstellung | L | **erledigt** | Core `5fdd300` `1749b36` `70c4f05`, Dashboard `5870b74` | Report `~/bikosoc-spec/report-sammellauf-0855.md` §E1 |
+| E2 | Foto-Upload Objektkarte | M | **erledigt** | `3cfcafc` | Report §E2 |
+| E3 | Agentenname aus der Kopfzeile | S | **erledigt** | `059d17a` | Report §E3 |
+| E4 | Vertrag n24-w6-2024 auf „Beendet" | S | **erledigt** | — (Datenänderung über Core-Route, `audit_log` #1391) | Report §E4 |
+| E5 | Dropbox-Inbox → `~/inbox/` | M | **erledigt** | Core `3fac89d` | Report §E5 |
+| E6 | Ablaufdokumentation | M | **erledigt** | — (Datei in `~/bikosoc-spec/`) | `~/bikosoc-spec/doku-ablaeufe-20261007.md` |
+| E7 | Berichtsdisziplin ohne Personen- und Kontodaten | S | **erledigt** | — | Report §E7 |
+| **Nachprüfung Montagslauf** | Owner prüft den Bankabgleich am 12.10.2026 | — | offen | — | Telegram-Meldung ab 13:00 Berliner Zeit |
+| **Rote-Zone-Freigabe** | `/arm push` für den Core-Anteil | — | offen | — | fünf Commits warten |
 
 ---
 
@@ -2003,6 +2023,123 @@ Sitzung.
 - Rückweg je Punkt: `git revert <commit>`; für nginx siehe oben.
 
 **Nächster Schritt:** Nachprüfung der Phase-3-Punkte durch den Owner (CP2-Nachprüfung).
+
+---
+
+### Phase 3b — Sammel-Lauf E1 bis E7 — 07.10.2026
+
+Grundlage: Owner-Auftrag vom 07.10.2026 („Korrekturen nach CHECKPOINT 2 (Rest) +
+Dropbox-Inbox + Ablaufdoku"). Phase 3 ist am iPhone bestätigt.
+
+**E1 — Wöchentlicher Bankabgleich**
+
+Diagnose zuerst, wie beauftragt. Drei Befunde, alle am Protokoll belegt:
+
+1. **Ein automatischer Montagslauf hat nie existiert.** Banking-E3 (26.06.2026) hatte
+   jeden automatischen Bankkontakt abgeschafft; übrig blieb montags **12:00** eine
+   Telegram-Nachricht mit Startknopf, ausdrücklich ohne Bankkontakt. Weder ein
+   systemd-Timer noch cron, n8n oder ein Gateway-Cron hat je einen Abgleich ausgelöst
+   (`crontab -l` leer, `/etc/cron.d` ohne Banking, kein Banking-Timer in
+   `systemctl --user list-timers`).
+2. **Der Knopf war folgenlos.** Der Owner hat ihn am 13.07., 20.07., 03.08., 10.08.,
+   17.08., 24.08. und 31.08.2026 gedrückt — zu jedem Druck steht
+   „command-guard: Callback erkannt" im Gateway-Protokoll. In `banking_sync_runs` ist
+   der jüngste Lauf unverändert der 29.06.2026, und zwischen `audit_log` #773
+   (29.06., `weekly_sync.completed`) und #1349 (05.10., „Bank verbinden") liegt kein
+   einzelner Banking-Eintrag. Ursache: Der Kanal liefert einen Klick als Text
+   `callback_data: <präfix>_<inhalt>`; `parseCallbackEvent` prüfte auf
+   `startsWith('<präfix>_')` und gab `null` zurück. Belegt in `conversation_log` (zwei
+   Zeilen mit genau diesem Text) und durch die Protokollzeile „Inbound message …
+   28 chars". Betroffen waren **alle** Knopf-Präfixe, nicht nur das Banking.
+3. **Die Sitzungsreihenfolge hätte den Lauf zusätzlich scheitern lassen.**
+   `listActiveSessions()` sortierte `ORDER BY id`, also älteste zuerst; je Institut wird
+   nur eine Sitzung verarbeitet. Nach dem „Bank verbinden" vom 05.10. lagen zwei
+   Sitzungen für die Kreissparkasse vor — die alte vom 22.06. (Stand 29.06.) und die
+   frische, gültig bis 03.01.2027. Der Abgleich hätte immer die alte genommen.
+
+Nicht die Ursache, geprüft und ausgeschlossen: Sidecar erreichbar
+(`/health` → 200), Zugangsdaten entschlüsselbar (beide Sitzungen), Institut nicht
+pausiert, SCA-Budget bei 0 von 6, zwei aktive Konten vorhanden.
+
+**Umgesetzt**
+- `unwrapCallbackContent()` schält die Transporthülle ab (vier Formen), Commit `5fdd300`.
+- Scheduler `[banking-weekly]`, montags **13:00** Europe/Berlin, ruft
+  `runWeeklySyncWithReport({ runPhase: 'scheduled' })`. Tagesmarke wird vor dem Lauf
+  gesetzt. Telegram an Rolle `operativ`: Erfolg kurz, Fehler mit Grund. Commit `70c4f05`.
+- `listActiveSessions()` sortiert jüngste Sitzung zuerst, Commit `70c4f05`.
+- `POST /api/banking/accounts/:id/sync` umgesetzt (war HTTP 501),
+  genehmigungspflichtig über `banking-accounts.sync`, Commit `1749b36`.
+- Schaltfläche „Abgleich jetzt…" auf der Institutskarte mit Genehmigungsdialog, der den
+  Bankkontakt und die pushTAN-Möglichkeit ausdrücklich nennt, Commit `5870b74`.
+- Nebenbefund: `getSyncStatus()` suchte noch nach `daily_sync.completed` und meldete
+  deshalb dauerhaft `never_synced`. Beide Namen zählen jetzt.
+
+**Es wurde KEIN Abgleich ausgelöst** — wie beauftragt. Der Genehmigungsdialog wurde
+geöffnet und abgebrochen; einziger Schreibaufruf dabei: `POST approval-preview`.
+
+**E2 — Foto-Upload Objektkarte**
+
+Ursache zweiteilig: `img-src` erlaubte kein `blob:`, deshalb blockierte der Browser das
+`<img>` mit der Objekt-URL und die Verkleinerung warf „Bild konnte nicht geladen werden";
+und `placeholder.textContent = '⏳'` löschte die beiden `<span>` des Platzhalters, weshalb
+danach nur das Kamerasymbol übrig blieb. Nachgemessen mit der echten 4-MB-Datei: alte
+Richtlinie → `<img>` mit `blob:` **blockiert**, `createImageBitmap` **ok 1512x2016**.
+Jetzt: `blob:` erlaubt, bevorzugt `createImageBitmap` (ohne URL, ohne `<img>`),
+Originaldatei als Rückfall, Platzhalter bleibt intakt. Commit `3cfcafc`.
+
+**E3 — Kopfzeile** · Commit `059d17a`. Owner-Entscheidung Nr. 6 ist damit umgesetzt.
+
+**E4 — Vertrag n24-w6-2024** · Status `active` → `ended`, `actual_move_out`
+15.11.2024 → 15.11.2025, `termination_date` 30.11.2025 unverändert. Über
+`PATCH /api/assets/leases/27` (vorgesehene Core-Route), `audit_log` #1391 mit Vorher- und
+Nachher-Zustand. Vollständige Zeile vorher gesichert in
+`~/backups/lease-27-vor-e4-20261007.json`. Danach: kein „Klärung"-Abzeichen mehr — weder
+für diesen Vertrag noch für einen anderen; die Einheit hat nur noch einen aktiven Vertrag.
+Bestand 17 Verträge unverändert (16 aktiv, 1 beendet).
+
+**E5 — Dropbox-Inbox** · Commit `3fac89d`. Echter Durchlauf belegt: Ablage 10:29:06,
+lokal 10:29:20, vom Prompt-Inbox-Watcher 10:30:17 übernommen, Prompt in tmux `bikosoc`
+angekommen. Alle Testartefakte entfernt.
+
+**E6 — Ablaufdoku** · `~/bikosoc-spec/doku-ablaeufe-20261007.md`, neun Abschnitte, nur
+Ist-Zustand.
+
+**E7 — Berichtsdisziplin** · Der Bericht zu diesem Lauf nennt Verträge über
+`lease_number`, Konten über Anzahl, nie über IBAN oder Kontonummer; keine Mieternamen.
+
+**Prüfungen und Resultate**
+- `npm run build` ohne Fehler · `verify:commands` 118/118 · `verify-schema` ohne Drift
+- `npm test` **663 pass, 0 fail, 0 skip** (58 Dateien) · Smoke-Test **31/31**
+- Gateway und Dashboard neu gestartet, `GET /health` je 200
+- Regression 14 Bereiche × 360/390/768/1440 px: 56 Screenshots in
+  `~/bikosoc-spec/screens/p3b/`, **kein** waagerechter Überlauf des Dokuments
+- `alert()` im Dashboard = 0 (nur noch in Kommentaren) · `confirm()` im Upload- und
+  Banking-Pfad = 0 · `node --check` für alle 19 JS-Dateien, `server.mjs` und den
+  Inline-Block grün
+- Bestandsdaten vorher = nachher: `banking_sync_runs` 3, `banking_transactions` 1633,
+  `banking_accounts` 12, `leases` 17, Bilderbestand 9 Dateien. Einzige Änderung: die
+  beauftragte Zeile aus E4.
+
+**Offene Befunde, nicht Teil des Auftrags**
+- `GET /api/images/fleet-FZG-MB/8.jpg` → 404: Die Fahrzeugkennung enthält einen
+  Schrägstrich, dadurch greift die Route `/api/images/:filename` nicht. Kosmetisch, das
+  Fahrzeug hat kein Foto.
+- `GET /api/instagram/media-proxy` → 403 für alle Vorschaubilder. Besteht unabhängig von
+  diesem Lauf.
+- `confirm()` gibt es weiter an zwölf Stellen außerhalb von Upload und Banking (Reisen,
+  Entwürfe, Kalender, Dokumente, Verknüpfungen, PE, Nebenkosten, Verträge, Assistent).
+
+**Live-Auswirkung und Rückweg**
+- `server.mjs` geändert (CSP, Verbindungsstand) → Dienst neu gestartet, `/health` → 200.
+- Neuer systemd-user-Timer `dropbox-inbox.timer` ist aktiv.
+  Rückweg: `systemctl --user disable --now dropbox-inbox.timer`.
+- Rückweg Code je Punkt: `git revert <commit>`.
+- Rückweg E4 (Datenänderung):
+  `PATCH /api/assets/leases/27` mit `{"status":"active","actual_move_out":"2024-11-15"}`;
+  die vollständige Zeile liegt in `~/backups/lease-27-vor-e4-20261007.json`.
+
+**Nächster Schritt:** zwei Owner-Aktionen — `/arm push` für den Core-Anteil und die
+Nachprüfung des Montagsabgleichs am 12.10.2026 ab 13:00 Berliner Zeit.
 
 ---
 
