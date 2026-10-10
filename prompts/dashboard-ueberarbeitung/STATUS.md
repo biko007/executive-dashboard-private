@@ -2,16 +2,20 @@
 
 Fortschreiben nach **jedem** Arbeitspaket. Keine Erfolgsmeldung ohne tatsächliches Prüfergebnis.
 
-**Letzte Aktualisierung:** 07.10.2026, 08:55 UTC
+**Letzte Aktualisierung:** 10.10.2026
 **Aktuelle Phase:** **Phase 3b abgeschlossen (Sammel-Lauf E1–E7), Owner-Aktionen offen** —
 CHECKPOINT 1 am 05.10.2026 extern freigegeben, Hetzner-Snapshot liegt vor. Phase 3 ist am
 iPhone bestätigt (A1 bei Netzwechsel, A5 PDF, Banking-Umsätze funktionieren). Der Sammel-Lauf
 vom 07.10.2026 hat die restlichen Punkte aus CHECKPOINT 2 erledigt: Bankabgleich (E1),
 Foto-Upload (E2), Kopfzeile (E3), Vertrag n24-w6-2024 (E4), Dropbox-Inbox (E5), Ablaufdoku
 (E6), Berichtsdisziplin (E7).
-**Nächster Schritt: zwei Owner-Aktionen** — `/arm push` für den Core-Anteil und die
-Nachprüfung des Montagsabgleichs am 12.10.2026 ab 13:00 Berliner Zeit. Siehe Report
-`~/bikosoc-spec/report-sammellauf-0855.md`.
+**Nächster Schritt: eine Owner-Aktion** — Nachprüfung des Montagsabgleichs am 12.10.2026
+ab 13:00 Berliner Zeit; der Lauf wird automatisch ausgewertet (Timer, Paket 1 vom
+10.10.2026). Siehe Report `~/bikosoc-spec/report-sammellauf-0855.md`.
+**Korrektur 10.10.2026:** Die hier bis zuletzt als offen geführte Rote-Zone-Freigabe ist
+erledigt. Alle fünf Core-Commits (`5f65c4b`, `5fdd300`, `1749b36`, `70c4f05`, `3fac89d`)
+liegen in `origin/master`; nachgeprüft mit `git branch -r --contains`. Diese Datei war an
+der Stelle veraltet.
 **Sicherungsstand:** Tag `pre-dashboard-ueberarbeitung-20261004` → Commit `735d5b8`
 **Änderungsstand Code:** Phase 2 ist produktiv. `server.mjs` wurde in P2-5, P2-7, P2-8 und
 P2-10 geändert (vier neue lesende Routen und die Reise-Kennung); der Dienst wurde nach jeder
@@ -23,6 +27,9 @@ erfolgte am 05.10.2026 07:30 UTC mit gesetztem Armed-Flag; das Flag ist verbrauc
 (fünf Commits, darunter `index.ts` und `dist/index.js` = Rote Zone) ist lokal committet und
 wartet auf `/arm push`. Produktiv ist der Code trotzdem schon — Build, Tests und Neustart
 sind gelaufen.
+**Überholt am 10.10.2026:** Der Core-Anteil ist gepusht (siehe Korrektur oben). Seit dem
+Zuschnitt der Roten Zone vom 10.10.2026 sind `index.ts`, `dist/**` und `CLAUDE.md`
+ohnehin keine roten Pfade mehr.
 **Owner-Entscheidungen:** alle acht Punkte aus `00-masterplan.md` §5 entschieden; am
 07.10.2026 kamen zwei dazu: (9) montags 13:00 läuft ein echter Bankabgleich — das hebt die
 E3-Entscheidung „kein automatischer Bankkontakt" vom 26.06.2026 auf; (10) Vertrag
@@ -67,8 +74,9 @@ n24-w6-2024 auf „Beendet", Auszugsdatum 15.11.2025.
 | E5 | Dropbox-Inbox → `~/inbox/` | M | **erledigt** | Core `3fac89d` | Report §E5 |
 | E6 | Ablaufdokumentation | M | **erledigt** | — (Datei in `~/bikosoc-spec/`) | `~/bikosoc-spec/doku-ablaeufe-20261007.md` |
 | E7 | Berichtsdisziplin ohne Personen- und Kontodaten | S | **erledigt** | — | Report §E7 |
-| **Nachprüfung Montagslauf** | Owner prüft den Bankabgleich am 12.10.2026 | — | offen | — | Telegram-Meldung ab 13:00 Berliner Zeit |
-| **Rote-Zone-Freigabe** | `/arm push` für den Core-Anteil | — | offen | — | fünf Commits warten |
+| **Nachprüfung Montagslauf** | Bankabgleich am 12.10.2026 | S | offen, Auswertung vorbereitet | — | Telegram-Meldung ab 13:00; Auswertung automatisch um 15:00 durch `montagslauf-auswertung.timer` (Paket 1, 10.10.2026) |
+| **Rote-Zone-Freigabe** | `/arm push` für den Core-Anteil | — | **erledigt** | `5f65c4b` `5fdd300` `1749b36` `70c4f05` `3fac89d` | alle fünf in `origin/master`, nachgeprüft 10.10.2026 |
+| P4-1 | Aufräumen: Fahrzeugfoto, Audit-Lücke, Berührungsziele, PE-Leerzustand, Instagram-Vorschau | M | **erledigt** 10.10.2026 | siehe Eintrag unten | Report `~/bikosoc-spec/report-paket1-nk-datenbasis-mg24-20261010.md` |
 
 ---
 
@@ -2140,6 +2148,94 @@ Ist-Zustand.
 
 **Nächster Schritt:** zwei Owner-Aktionen — `/arm push` für den Core-Anteil und die
 Nachprüfung des Montagsabgleichs am 12.10.2026 ab 13:00 Berliner Zeit.
+
+---
+
+### P4-1 — Aufräumen aus der Ist-Stand-Diagnose — 10.10.2026
+
+Teil E des Arbeitspakets 1 (NK-Datenbasis MG24). Grundlage:
+`~/bikosoc-spec/report-dashboard-iststand-20261010.md`.
+Gesamtreport: `~/bikosoc-spec/report-paket1-nk-datenbasis-mg24-20261010.md`.
+
+**Durchgeführt**
+- **E1 Fahrzeugfoto (404).** `GET /api/images/fleet-FZG-MB/8.jpg` lief ins Leere. Ursache:
+  Der Fahrzeugcode `FZG-MB/8` (Mercedes-Benz /8) enthält einen Schrägstrich; die Route
+  `/api/images/:filename` endet dort, die Anfrage traf keinen Handler und beantwortete sich
+  mit 404 statt mit dem 1x1-Platzhalter. Beim HOCHLADEN filtert der Server dieselbe Kennung
+  mit `[^a-zA-Z0-9._-]` und legt `fleet-FZG-MB8.jpg` ab — Lese- und Schreibweg wichen
+  auseinander. `imgUrl()` filtert jetzt identisch. Eine Datei lag nicht vor; das Fahrzeug
+  zeigt nun korrekt „Foto hinzufügen" statt eines Konsolenfehlers.
+- **E2 Audit-Lücke 06.10., 20:20 UTC.** Diagnose, keine Änderung. Die drei Anlagen
+  (`lease_charge.create` #1382, `meter.create` #1383, `meter_reading.bulk_create` #1384,
+  alle `dashboard:biko`, drei verschiedene request_id) sind echte Bedienschritte aus dem
+  Formularpaket P3-B. Die Sequenzen stehen bei `last_value = 1, is_called = t` — je genau
+  eine Zeile angelegt und wieder entfernt. **Im Code gibt es keinen Pfad, der diese Zeilen
+  ohne Audit-Eintrag löschen kann:** `handleLeaseCharges` kennt nur GET und POST,
+  Zählerstände nur GET und POST, und Zähler nur `POST …/archive` — ein protokolliertes
+  Soft-Archiv. Kein Skript im Repo fasst die Tabellen an. Bleibt als Erklärung nur eine
+  Löschung von Hand an der Produktiv-DB; die ist nach C2 freigabe- und belegpflichtig.
+  Audit-Zeilen wurden **nicht** nachgetragen.
+- **E3 Berührungsziele unter 44 px.** Beide Fälle bei 390 px nachgestellt: der Link auf ein
+  verknüpftes Dokument unter „Reisen" (174x15 px) und „Öffnen ↗" im Bereich SharePoint
+  (53x19 px). Neue Klasse `.dok-link` (gleiche Lösung wie `.sp-aktionen a`), angewandt auf
+  alle fünf Dokumentlinks dieser Familie.
+- **E4 Leerzustand Private Equity.** `readPE()` fing jeden Fehler ab und lieferte `[]` —
+  fehlende Ablage, defekte Ablage und leere Liste sahen gleich aus. Neue lesende Route
+  `GET /api/pe-zustand` unterscheidet die drei Fälle; der Leerzustand nennt jetzt den
+  zutreffenden und den nächsten Schritt. `/api/pe` bleibt unverändert eine Liste.
+- **E5 Instagram-Vorschaubilder (12x 403).** Nicht der Proxy. Die Adressen stammen aus
+  `media-cache.json` (Stand 11.05.2026) und tragen das Ablauffeld `oe=` — nachgerechnet
+  abgelaufen am 16.05.2026; das CDN antwortet seither mit 403, der Proxy reicht ihn durch.
+  Der Medien-Cache wird in `src/modules/instagram/**` geholt (HDCC, außerhalb des Auftrags).
+  Behoben ist deshalb die Folge, nicht die Ursache: abgelaufene Adressen werden gar nicht
+  mehr angefragt (Platzhalter statt Fehler), und der Proxy antwortet auf eine erkennbar
+  abgelaufene Signatur mit 410 statt zehn Sekunden auf eine Absage zu warten.
+  **Offen als HDCC-Punkt:** Medien-Cache neu holen.
+- **E6 Statusdateien.** Diese Datei: Rote-Zone-Freigabe als erledigt nachgetragen (alle fünf
+  Core-Commits in `origin/master`, mit `git branch -r --contains` nachgeprüft).
+  Im Agent-Repo: `docs/TODO.md` (Hook-Versionierung erledigt, Sprint-6-Cleanup geklärt) und
+  `CLAUDE.md` §4 C6 / §8.
+
+**Geänderte Dateien**
+- `public/index.html` — `bildDateiSchluessel()` + `imgUrl()` (E1), `.dok-link` an fünf
+  Stellen (E3), Leerzustand Private Equity (E4), `instaVorschauAbgelaufen()` (E5)
+- `public/css/datenstand.css` — Klasse `.dok-link` (E3)
+- `server.mjs` — `GET /api/pe-zustand` (E4), `cdnSignaturAbgelaufen()` im Media-Proxy (E5)
+- `prompts/dashboard-ueberarbeitung/STATUS.md` — dieser Eintrag (E6)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `node --check server.mjs` | ok |
+| Inline-JS von `index.html` geparst | ok (1 Block, kein Fehler) |
+| `grep -n "x-if" public/js/*.js` | nur vorbestehende Stellen in `banking-connect.js`, nicht berührt |
+| Dienst-Neustart `openclaw-dashboard` | active |
+| Berührungsziele 390 px, Reisen / SharePoint / Fuhrpark / PE / Instagram | **0** unter 44 px (vorher 1 / 1) |
+| Fuhrpark 1440 px: HTTP ≥ 400 | **keine** (vorher 404); `fleet-FZG-MB8.jpg` liefert jetzt den 1x1-Platzhalter |
+| Instagram 1440 px: HTTP ≥ 400 | **keine** (vorher 12x 403) |
+| Private Equity: Text des Leerzustands | „Keine Daten — Die Ablage ist eingerichtet und enthält keine Beteiligung." |
+| Core-Gates (Agent-Repo) | build ok · verify:commands 120/120 · verify-schema ALL OK · `npm test` 807/0/0 · Smoke 31/31 |
+
+**Verbleibende Fehler**
+- Keine im Dashboard. Instagram-Vorschaubilder bleiben leer, bis der Medien-Cache neu geholt
+  wird (HDCC-Punkt, siehe E5).
+
+**Noch nicht verifiziert**
+- Die Wirkung von `.dok-link` in den Bereichen Immobilien und Verträge — dort waren zum
+  Messzeitpunkt keine verknüpften Dokumente gerendert.
+
+**Offene Entscheidungen**
+- E2: ob die Löschung vom 06.10. nachträglich belegt werden soll (Owner weiß, ob er sie
+  selbst vorgenommen hat).
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: ja (Dashboard, wegen `server.mjs`) — durchgeführt.
+- Rückweg: `git revert <commit>` + `systemctl --user restart openclaw-dashboard.service`.
+  Nicht zurückgedreht wird dabei nichts — es gab keine Datenänderung.
+
+**Commit:** siehe `git log` vom 10.10.2026, Betreff
+„fix(dashboard): Fahrzeugfoto, Berührungsziele, PE-Leerzustand, Instagram-Vorschau"
 
 ---
 

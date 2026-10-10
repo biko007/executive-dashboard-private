@@ -279,3 +279,21 @@
 .zustand-nicht-eingerichtet { border-left-color: var(--accent); }
 .zustand-veraltet { border-left-color: var(--yellow); }
 .zustand-fehler   { border-left-color: var(--red); }
+
+/* ── Dokumentlinks: 44 px Beruehrungshoehe (E3, 10.10.2026) ──────────────── */
+
+/* BEFUND Ist-Stand-Diagnose 10.10.2026: Bei 390 px Breite blieben genau zwei
+   Berührungsziele unter 44 px — der Link auf ein verknuepftes Dokument unter
+   „Reisen" (174x15 px) und „Öffnen ↗" im Bereich SharePoint (53x19 px).
+   Beides sind gewoehnliche Inline-Links; ihre Hoehe ist die Zeilenhoehe.
+
+   JETZT: dieselbe Loesung wie bei `.sp-aktionen a` weiter oben — der Link
+   wird zu einem inline-flex-Kasten mit 44 px Mindesthoehe. Der Textfluss
+   bleibt, nur die anklickbare Flaeche waechst nach oben und unten. Gilt
+   bewusst in jeder Breite: ein groesseres Ziel schadet am Schreibtisch
+   nicht, und eine Umschaltung per Medienabfrage waere eine zweite Stelle,
+   an der dieselbe Regel gepflegt werden muesste. */
+.dok-link {
+  display: inline-flex; align-items: center; min-height: 44px;
+  color: var(--accent);
+}

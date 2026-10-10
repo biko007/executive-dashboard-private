@@ -1132,8 +1132,31 @@ const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/B
 
 
 /* ── Image upload helpers ── */
+
+/* E1 (10.10.2026) — Dateiname eines Entitaetsbildes.
+
+   BEFUND: Im Fuhrpark lief `GET /dashboard/api/images/fleet-FZG-MB/8.jpg`
+   auf 404. Betroffen war genau ein Fahrzeug: der Mercedes-Benz /8 mit dem
+   Code `FZG-MB/8`.
+
+   URSACHE: Der Schraegstrich im Code landete ungefiltert im Pfad. Die
+   Serverroute ist `/api/images/:filename` und endet an einem Schraegstrich —
+   die Anfrage traf deshalb gar keinen Handler und beantwortete sich mit 404
+   statt mit dem 1x1-Platzhalter, den der Handler fuer fehlende Bilder
+   liefert. Beim HOCHLADEN filtert der Server die Entitaets-Kennung dagegen
+   mit `[^a-zA-Z0-9._-]` heraus und legt die Datei als `fleet-FZG-MB8.jpg`
+   ab. Lese- und Schreibweg wichen also auseinander.
+
+   JETZT: Der Lesepfad filtert mit demselben Muster wie der Server beim
+   Hochladen. Kennungen ohne Sonderzeichen — alle uebrigen Objekte und
+   Fahrzeuge — aendern sich dadurch nicht. */
+function bildDateiSchluessel(entityId) {
+  return String(entityId ?? '').replace(/[^a-zA-Z0-9._\-]/g, '');
+}
+
 function imgUrl(entityType, entityId) {
-  return `/dashboard/api/images/${entityType}-${entityId}.jpg?token=${encodeURIComponent(TOKEN)}&_t=${Date.now()}`;
+  const schluessel = bildDateiSchluessel(entityId);
+  return `/dashboard/api/images/${entityType}-${schluessel}.jpg?token=${encodeURIComponent(TOKEN)}&_t=${Date.now()}`;
 }
 
 /* D4 (Phase 3): Kachel ohne Foto.
@@ -1636,7 +1659,7 @@ async function loadTrips() {
             const lIcon = l.docType === 'sharepoint' ? '☁️' : '📁';
             const lName = l.docType === 'sharepoint' ? esc(l.spName || '') : esc(l.localName || '');
             const lLink = l.docType === 'sharepoint' && l.spWebUrl
-              ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${lName}</a>`
+              ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" class="dok-link" style="text-decoration:none">${lName}</a>`
               : lName;
             const lShowLabel = l.label && l.label !== (l.docType === 'sharepoint' ? (l.spName || '') : (l.localName || ''));
             return `<div class="seg-row" style="display:flex;align-items:center;gap:8px">
@@ -2219,7 +2242,7 @@ async function loadDrafts() {
       const dLinksHtml = dLinks.length ? dLinks.map(l => {
         const li = l.docType === 'sharepoint' ? '☁️' : '📁';
         const ln = l.docType === 'sharepoint' && l.spWebUrl
-          ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent)">${esc(l.spName||'')}</a>`
+          ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" class="dok-link">${esc(l.spName||'')}</a>`
           : esc(l.localName||'');
         return `${li}${esc(l.label)}:${ln}`;
       }).join(' ') : '';
@@ -2349,7 +2372,7 @@ async function loadCalendar() {
           const evLinksHtml = evLinks.length ? `<div class="ev-sub" style="margin-top:4px">${evLinks.map(l => {
             const li = l.docType === 'sharepoint' ? '☁️' : '📁';
             const ln = l.docType === 'sharepoint' && l.spWebUrl
-              ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(l.spName||'')}</a>`
+              ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" class="dok-link">${esc(l.spName||'')}</a>`
               : esc(l.localName||'');
             return `${li} ${esc(l.label)}: ${ln} <button aria-label="Verknüpfung lösen" title="Verknüpfung lösen" class="btn btn-danger" style="padding:1px 5px;font-size:13px" onclick="event.stopPropagation();unlinkAndReload('${esc(l.id)}')">✕</button>`;
           }).join(' &nbsp; ')}</div>` : '';
@@ -2788,7 +2811,7 @@ async function loadSharePoint() {
           style="display:inline-flex;align-items:center;gap:8px;padding:10px 18px;background:var(--accent);color:var(--on-accent);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s"
           onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">📂 Dokumente (bikolino GmbH)</button>
         <a href="https://bikolino.sharepoint.com/sites/dms/Freigegebene%20Dokumente" target="_blank" rel="noopener"
-          style="color:var(--accent);font-size:13px;white-space:nowrap">Öffnen ↗</a>
+          class="dok-link" style="font-size:13px;white-space:nowrap">Öffnen ↗</a>
       </div>
       <div style="display:flex;gap:12px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
         <!-- P2-8: min-height 44px — das Feld war 36 px hoch. -->
@@ -3391,7 +3414,7 @@ function renderLinksSection(links, entityType, entityId, refreshFn) {
     const icon = l.docType === 'sharepoint' ? '☁️' : '📁';
     const name = l.docType === 'sharepoint' ? esc(l.spName || '') : esc(l.localName || '');
     const nameHtml = l.docType === 'sharepoint' && l.spWebUrl
-      ? `<a href="${esc(l.spWebUrl)}" target="_blank" style="color:var(--accent);text-decoration:none">${name}</a>`
+      ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" class="dok-link" style="text-decoration:none">${name}</a>`
       : `<span>${name}</span>`;
     const showLabel = l.label && l.label !== (l.docType === 'sharepoint' ? (l.spName || '') : (l.localName || ''));
     return `<div class="seg-row" style="display:flex;align-items:center;gap:8px;padding:8px 12px">
@@ -3627,6 +3650,29 @@ const _INSTA_MOCK = {
 
 function _instaTypeIcon(t) { return { reel: '🎬', carousel: '📸', image: '🖼️', story: '📱' }[t] || '📄'; }
 
+/* E5 (10.10.2026) — Ist diese CDN-Adresse schon abgelaufen?
+
+   Instagram liefert Vorschaubilder nur ueber signierte Adressen. Das Feld
+   `oe` traegt den Ablaufzeitpunkt als Sekunden seit 1970, hexadezimal. Nach
+   Ablauf antwortet das CDN mit 403 — im Bereich Instagram waren das zwoelf
+   Fehlermeldungen in der Konsole, weil der Medien-Cache vom 11.05.2026
+   stammt und die Signaturen am 16.05.2026 abgelaufen sind.
+
+   Ist der Zeitpunkt vorbei, wird das Bild erst gar nicht angefragt und der
+   bestehende Platzhalter gezeigt. Fehlt oder missfaellt das Feld, wird wie
+   bisher angefragt — im Zweifel lieber ein Versuch als ein verschwiegenes
+   Bild. Den eigentlichen Mangel behebt das nicht: dafuer muss der
+   Medien-Cache neu geholt werden (Instagram-Modul, HDCC). */
+function instaVorschauAbgelaufen(adresse) {
+  try {
+    const oe = new URL(adresse, location.origin).searchParams.get('oe');
+    if (!oe || !/^[0-9A-Fa-f]{1,12}$/.test(oe)) return false;
+    const ablaufSek = parseInt(oe, 16);
+    if (!Number.isFinite(ablaufSek) || ablaufSek <= 0) return false;
+    return ablaufSek * 1000 < Date.now();
+  } catch { return false; }
+}
+
 function _instaStatusBadge(s) {
   const m = {
     idea: ['badge-muted','Idee'], draft: ['badge-blue','Entwurf'], review: ['badge-yellow','Review'],
@@ -3743,7 +3789,12 @@ async function loadInstagram() {
         <div class="insta-grid">
           ${feedItems.map(p => {
             const rawThumb = p.thumbnail_url || p.media_url || '';
-            const thumb = rawThumb ? '/dashboard/api/instagram/media-proxy?url=' + encodeURIComponent(rawThumb) + '&token=' + encodeURIComponent(TOKEN) : '';
+            /* E5: abgelaufene Signatur gar nicht erst anfragen — siehe
+               instaVorschauAbgelaufen(). Ohne Adresse greift unten der
+               Platzhalter mit Symbol und Herzzahl. */
+            const thumb = (rawThumb && !instaVorschauAbgelaufen(rawThumb))
+              ? '/dashboard/api/instagram/media-proxy?url=' + encodeURIComponent(rawThumb) + '&token=' + encodeURIComponent(TOKEN)
+              : '';
             const icon = _instaTypeIcon(p.media_type === 'VIDEO' ? 'reel' : p.media_type === 'CAROUSEL_ALBUM' ? 'carousel' : 'image');
             const likes = (p.like_count || 0).toLocaleString('de-DE');
             const placeholder = `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2);color:var(--muted)">
@@ -4818,8 +4869,28 @@ async function loadPrivateEquity() {
     _peCache = investments;
 
     if (!investments.length) {
-      c.innerHTML = `<div class="empty">Keine Private-Equity-Beteiligungen vorhanden.<br>
-        <button class="btn btn-primary" style="margin-top:12px" onclick="peNewModal()">+ Neue Beteiligung</button></div>`;
+      /* E4 (10.10.2026): Der Leerzustand sagt jetzt, WELCHER Leerzustand
+         gilt — die Ablage fehlt, sie ist defekt, oder sie ist da und leer.
+         Vorher stand hier ein Satz, der alle drei Faelle verdeckte. */
+      let z = null;
+      try { z = await apiFetch('/api/pe-zustand'); } catch { z = null; }
+      const neuKnopf = '<button class="btn btn-primary" onclick="peNewModal()">+ Neue Beteiligung</button>';
+      if (z && z.zustand === 'nicht_eingerichtet') {
+        c.innerHTML = zustandBlock('nicht_eingerichtet',
+          'Für Private Equity ist noch keine Ablage angelegt (' + z.ablage + '). '
+          + 'Sie entsteht automatisch mit der ersten Beteiligung.',
+          { aktion: neuKnopf });
+      } else if (z && z.zustand === 'fehler') {
+        c.innerHTML = zustandBlock('fehler',
+          'Die Ablage ' + z.ablage + ' ist vorhanden, aber nicht lesbar: ' + (z.grund || 'unbekannter Grund')
+          + '. Das heißt NICHT, dass keine Beteiligungen vorhanden sind.');
+      } else {
+        c.innerHTML = zustandBlock('keine_daten',
+          'Die Ablage ist eingerichtet und enthält keine Beteiligung. '
+          + 'Es fehlt also nichts am System — es ist nichts erfasst.',
+          { aktion: neuKnopf });
+      }
+      stamp();
       return;
     }
 

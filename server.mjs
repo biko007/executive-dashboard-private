@@ -694,6 +694,32 @@ app.get('/api/instagram/media', auth, (req, res) => {
 
 // ── API: Instagram Media Proxy ───────────────────────────────────────────────
 
+/* E5 (10.10.2026) — abgelaufene Vorschaubilder nicht mehr beim CDN anfragen.
+
+   BEFUND Ist-Stand-Diagnose: Der Instagram-Bereich erzeugte zwoelf Antworten
+   mit 403 auf `/api/instagram/media-proxy`.
+
+   URSACHE: Nicht der Proxy. Die Adressen stammen aus
+   `artifacts/personal/instagram/media-cache.json` (Stand 11.05.2026) und sind
+   signierte CDN-Adressen mit Ablauffeld `oe=` — nachgerechnet: abgelaufen am
+   16.05.2026. Das CDN antwortet seither mit 403, der Proxy reicht diesen
+   Status unveraendert durch. Behoben ist das erst, wenn der Medien-Cache neu
+   geholt wird; dieser Abruf liegt in `src/modules/instagram/**` (HDCC) und
+   damit ausserhalb dieses Auftrags.
+
+   JETZT: Eine erkennbar abgelaufene Signatur wird gar nicht erst ans CDN
+   geschickt. Der Proxy antwortet mit 410 und einer klaren Begruendung, statt
+   zehn Sekunden auf eine Absage zu warten. Die Oberflaeche fragt solche
+   Adressen ohnehin nicht mehr an (siehe `instaVorschauAbgelaufen`); 410
+   bleibt die ehrliche Antwort fuer jeden anderen Aufrufer. */
+function cdnSignaturAbgelaufen(parsed) {
+  const oe = parsed.searchParams.get('oe');
+  if (!oe || !/^[0-9A-Fa-f]{1,12}$/.test(oe)) return false;
+  const ablaufSek = parseInt(oe, 16);
+  if (!Number.isFinite(ablaufSek) || ablaufSek <= 0) return false;
+  return ablaufSek * 1000 < Date.now();
+}
+
 app.get('/api/instagram/media-proxy', auth, async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).json({ error: 'Missing url parameter' });
@@ -702,6 +728,12 @@ app.get('/api/instagram/media-proxy', auth, async (req, res) => {
   try { parsed = new URL(url); } catch { return res.status(400).json({ error: 'Invalid URL' }); }
   if (!parsed.hostname.match(/\.(cdninstagram\.com|fbcdn\.net)$/)) {
     return res.status(403).json({ error: 'Only Instagram CDN URLs allowed' });
+  }
+  if (cdnSignaturAbgelaufen(parsed)) {
+    return res.status(410).json({
+      error: 'Vorschaubild abgelaufen',
+      hinweis: 'Die Signatur der CDN-Adresse ist abgelaufen. Der Medien-Cache muss neu geholt werden.',
+    });
   }
   try {
     const upstream = await fetch(url, { signal: AbortSignal.timeout(10000) });
@@ -2438,6 +2470,49 @@ function makePEId(company, existingIds) {
 // List investments
 app.get('/api/pe', auth, (req, res) => {
   try { res.json(readPE()); } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+/* E4 (10.10.2026) — „nicht eingerichtet" von „keine Daten" unterscheiden.
+
+   BEFUND Ist-Stand-Diagnose: Der Bereich Private Equity zeigte einen sehr
+   duennen Leerzustand, der offenliess, ob die Ablage fehlt oder ob sie da
+   ist und nichts enthaelt.
+
+   URSACHE: `readPE()` faengt JEDEN Fehler ab und liefert `[]` — eine fehlende
+   Datei, eine defekte Datei und eine leere Liste sehen von aussen gleich aus.
+
+   JETZT: Diese Route sagt, welcher der drei Faelle vorliegt. `/api/pe` bleibt
+   unveraendert eine Liste, damit keine bestehende Auswertung bricht. Es wird
+   nichts angelegt — nur nachgesehen. */
+app.get('/api/pe-zustand', auth, (req, res) => {
+  const ablage = path.relative(HOME, PE_FILE);
+  if (!fs.existsSync(PE_FILE)) {
+    return res.json({ zustand: 'nicht_eingerichtet', anzahl: 0, ablage, stand: null });
+  }
+  let roh;
+  try {
+    roh = fs.readFileSync(PE_FILE, 'utf8');
+  } catch (e) {
+    return res.json({ zustand: 'fehler', anzahl: 0, ablage, stand: null, grund: e.message });
+  }
+  let liste;
+  try {
+    liste = JSON.parse(roh);
+  } catch (e) {
+    return res.json({ zustand: 'fehler', anzahl: 0, ablage, stand: null,
+      grund: 'Die Ablage ist kein gültiges JSON: ' + e.message });
+  }
+  if (!Array.isArray(liste)) {
+    return res.json({ zustand: 'fehler', anzahl: 0, ablage, stand: null,
+      grund: 'Die Ablage enthält keine Liste.' });
+  }
+  const stand = (() => {
+    try { return fs.statSync(PE_FILE).mtime.toISOString(); } catch { return null; }
+  })();
+  res.json({
+    zustand: liste.length ? 'daten' : 'keine_daten',
+    anzahl: liste.length, ablage, stand,
+  });
 });
 
 // Create investment
