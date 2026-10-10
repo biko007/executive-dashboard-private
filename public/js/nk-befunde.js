@@ -130,6 +130,26 @@ const NK_BEFUNDE = {
     schritt: 'Entweder passende Zähler erfassen oder den Verteilungsschlüssel dieser Kostenart ändern.',
     ziel: 'verteilung',
   },
+  CONSUMPTION_READING_MISSING: {
+    titel: 'Zählerstand für die Verbrauchsverteilung fehlt',
+    ursache: 'Die Kostenart wird nach gemessenem Verbrauch verteilt. Für den genannten Zähler fehlt '
+      + 'entweder der Stand zum Periodenende oder ein Anfangswert.',
+    auswirkung: 'Die Berechnung ist gesperrt. Ersatzweise nach Wohnfläche zu verteilen wäre falsch — '
+      + 'genau dafür sind die Zähler da.',
+    schritt: 'Den fehlenden Stand nachtragen. Stand der Zähler zu Beginn nachweislich auf null, genügt '
+      + 'ein hinterlegter Anfangswert am Zähler.',
+    ziel: 'zaehler',
+  },
+  CONSUMPTION_START_ASSUMED_ZERO: {
+    titel: 'Anfangsstand aus dem hinterlegten Anfangswert',
+    ursache: 'Für den genannten Zähler gibt es im Abrechnungszeitraum keine Ablesung vor Periodenbeginn. '
+      + 'Gerechnet wird mit dem am Zähler hinterlegten Anfangswert.',
+    auswirkung: 'Die Abrechnung ist rechenbar. Sie steht und fällt aber mit der Richtigkeit dieses '
+      + 'Anfangswerts — bei einem Einbau im laufenden Jahr ist er in der Regel null.',
+    schritt: 'Den Anfangswert am Zähler gegen die Unterlagen prüfen; künftige Jahre brauchen ihn nicht, '
+      + 'sobald eine Ablesung zum Jahreswechsel vorliegt.',
+    ziel: 'zaehler',
+  },
   MISSING_INTERIM_READING_FOR_CHANGEOVER: {
     titel: 'Zwischenablesung beim Mieterwechsel fehlt',
     ursache: 'Im Abrechnungszeitraum liegt ein Mieterwechsel, für den genannten Zähler fehlt die Ablesung zum Auszug.',
