@@ -28,7 +28,6 @@
      GET /api/instagram/media                    Alter des Medienbestands
      GET /api/banking/accounts                   Alter der Salden
      GET /api/assets/properties                  Objekte
-     GET /api/assets/properties/:code/nk-readiness?year=
      GET /api/assets/properties/:code/nk-period-obligations
 
    Es gibt KEINEN sammelnden Endpunkt und KEINEN neuen Datenspeicher. Fällt
@@ -168,52 +167,16 @@ function heutePostenFahrzeuge(fahrzeuge) {
   return posten;
 }
 
-/* C1 (Phase 3): Die sechs Nebenkosten-Zeilen standen einzeln in der Liste und
-   schoben alles andere nach unten. Sie werden jetzt zu EINER Zeile
-   gebuendelt — „6 Objekte mit Abrechnungsblockern" — die sich aufklappen
-   laesst. Die Einzelzeilen bleiben vollstaendig erhalten, auch ihre
-   Sprungziele; nur der Platz in der Grundansicht ist einer statt sechs. */
-function heutePostenNebenkosten(readiness, jahr) {
-  const einzel = [];
-  for (const r of readiness) {
-    if (!r || !r.daten) continue;
-    const d = r.daten;
-    const blocker = Number(d.blocking_count || 0);
-    if (!blocker) continue;
-    einzel.push({
-      stufe: 3, tage: null, symbol: '🏠', bereich: 'Nebenkosten',
-      titel: 'Nebenkosten ' + jahr + ' — ' + r.name + ': ' + blocker
-        + (blocker === 1 ? ' blockierender Befund' : ' blockierende Befunde'),
-      zusatz: 'Die Abrechnung kann erst nach Klärung berechnet werden.'
-        + (d.warning_count
-            ? ' Zusätzlich ' + d.warning_count + (d.warning_count === 1 ? ' Warnung.' : ' Warnungen.')
-            : ''),
-      /* A4: Objekt UND Jahr mitgeben — sonst landet der Sprung auf den
-         Vorgabewerten des Nebenkosten-Speichers. */
-      ziel: { tab: 'assets', parameter: { assets_subtab: 'nebenkosten', assets_prop: r.code, assets_year: jahr } },
-      zielText: 'Nebenkosten öffnen',
-    });
-  }
-  if (!einzel.length) return [];
-  if (einzel.length === 1) return einzel;
+/* Nebenkosten im Handlungsbedarf — entfallen (Owner-Entscheidung 10.10.2026).
 
-  const blockerGesamt = einzel.reduce((n, p) => {
-    const m = /: (\d+) blockierend/.exec(p.titel);
-    return n + (m ? Number(m[1]) : 0);
-  }, 0);
+   Bis dahin stand hier `heutePostenNebenkosten()`: eine gebündelte Zeile
+   „N Objekte mit Abrechnungsblockern" mit aufklappbaren Einzelzeilen je
+   Objekt (Befund C1 aus Phase 3). Die Funktion ist ersatzlos entfernt, weil
+   die Abrechnungsreife ein Dauerzustand der Datenpflege ist und nicht in die
+   Tagesliste gehört. Die Reife selbst bleibt unverändert abrufbar unter
+   Immobilien → Nebenkosten und Immobilien → Abrechnungsreife; dort wird sie
+   mit `nk-befunde.js` weiterhin im Klartext erklärt. */
 
-  return [{
-    stufe: 3, tage: null, symbol: '🏠', bereich: 'Nebenkosten',
-    titel: einzel.length + ' Objekte mit Abrechnungsblockern',
-    zusatz: 'Nebenkosten ' + jahr + ' · ' + blockerGesamt
-      + (blockerGesamt === 1 ? ' blockierender Befund' : ' blockierende Befunde')
-      + ' insgesamt. Keine dieser Abrechnungen kann vor der Klärung berechnet werden.',
-    ziel: { tab: 'assets', parameter: { assets_subtab: 'status' } },
-    zielText: 'Abrechnungsreife öffnen',
-    /* Aufklappbar: die Einzelzeilen stehen darin. */
-    unterposten: einzel,
-  }];
-}
 
 /* C1 (Phase 3): Zaehler je Dringlichkeitsstufe statt nur "offen/vorgemerkt".
    Gezaehlt werden die EINZELNEN Befunde, auch die in einer gebuendelten Zeile —
@@ -563,17 +526,13 @@ async function loadHeute() {
   const konten = wert(rKonten);
   const objekte = wert(rObjekte);
 
-  /* Nebenkosten: das letzte abgeschlossene Jahr ist das, das abgerechnet
-     werden muss. Pro Objekt ein lesender Abruf. */
-  const nkJahr = new Date().getFullYear() - 1;
-  let readiness = [];
+  /* §-556-Pflichten je Objekt — ein lesender Abruf je Objekt.
+     Der frühere Abruf von `nk-readiness` entfällt hier: seit der
+     Owner-Entscheidung vom 10.10.2026 erzeugt die Abrechnungsreife keinen
+     Handlungsbedarf mehr, und die Tagesübersicht hat damit auch keinen
+     Grund, sie abzurufen (sechs Anfragen weniger je Seitenaufbau). */
   let pflichtenGesamt = null;
   if (Array.isArray(objekte) && objekte.length) {
-    const ergebnisse = await Promise.allSettled(objekte.map(o =>
-      apiFetch('/api/assets/properties/' + encodeURIComponent(o.code) + '/nk-readiness?year=' + nkJahr)
-        .then(d => ({ code: o.code, name: o.name || o.code, daten: d }))));
-    readiness = ergebnisse.map(r => (r.status === 'fulfilled' ? r.value : null)).filter(Boolean);
-
     const pflichten = await Promise.allSettled(objekte.map(o =>
       apiFetch('/api/assets/properties/' + encodeURIComponent(o.code) + '/nk-period-obligations')));
     const gelungen = pflichten.filter(p => p.status === 'fulfilled');
@@ -583,10 +542,17 @@ async function loadHeute() {
   }
 
   /* ── Handlungsbedarf ── */
+  /* Owner-Entscheidung 10.10.2026: Die Nebenkosten-Blocker erzeugen hier
+     KEINEN Handlungsbedarf mehr — weder eine Zeile noch eine Zählung. Grund:
+     Die Abrechnungsreife ist ein Dauerzustand der Datenpflege, kein Ereignis
+     des Tages; sechs Objekte in der Tagesliste haben alles andere verdrängt.
+     Sichtbar bleibt die Reife unverändert im Bereich Immobilien
+     (Unterbereich „Nebenkosten" und „Abrechnungsreife"). Eine
+     Telegram-Meldung gab es aus dieser Quelle ohnehin nie: gemeldet werden
+     allein die §-556-Fristen aus `nk_period_obligations` (nk/alerts.ts). */
   const posten = [
     ...heutePostenGesundheit(alerts),
     ...heutePostenFahrzeuge(fahrzeuge),
-    ...heutePostenNebenkosten(readiness, nkJahr),
   ];
 
   /* ── Datenquellen ── */

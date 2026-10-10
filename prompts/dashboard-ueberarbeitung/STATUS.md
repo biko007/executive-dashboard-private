@@ -77,6 +77,7 @@ n24-w6-2024 auf „Beendet", Auszugsdatum 15.11.2025.
 | **Nachprüfung Montagslauf** | Bankabgleich am 12.10.2026 | S | offen, Auswertung vorbereitet | — | Telegram-Meldung ab 13:00; Auswertung automatisch um 15:00 durch `montagslauf-auswertung.timer` (Paket 1, 10.10.2026) |
 | **Rote-Zone-Freigabe** | `/arm push` für den Core-Anteil | — | **erledigt** | `5f65c4b` `5fdd300` `1749b36` `70c4f05` `3fac89d` | alle fünf in `origin/master`, nachgeprüft 10.10.2026 |
 | P4-1 | Aufräumen: Fahrzeugfoto, Audit-Lücke, Berührungsziele, PE-Leerzustand, Instagram-Vorschau | M | **erledigt** 10.10.2026 | siehe Eintrag unten | Report `~/bikosoc-spec/report-paket1-nk-datenbasis-mg24-20261010.md` |
+| P4-2 | Nebenkosten-Blocker aus dem Handlungsbedarf der Tagesübersicht entfernen | S | **erledigt** 10.10.2026 | siehe Eintrag unten | Report `~/bikosoc-spec/report-paket2-nk-uebernahme-mg24-20261010.md` |
 
 ---
 
@@ -2236,6 +2237,60 @@ Gesamtreport: `~/bikosoc-spec/report-paket1-nk-datenbasis-mg24-20261010.md`.
 
 **Commit:** siehe `git log` vom 10.10.2026, Betreff
 „fix(dashboard): Fahrzeugfoto, Berührungsziele, PE-Leerzustand, Instagram-Vorschau"
+
+---
+
+### P4-2 — Nebenkosten erzeugen keinen Handlungsbedarf mehr — 10.10.2026
+
+Owner-Entscheidung vom 10.10.2026 im Rahmen von Paket 2 (NK-Übernahme MG24).
+
+**Durchgeführt**
+- `heutePostenNebenkosten()` in `public/js/tagesuebersicht.js` ersatzlos entfernt. Die
+  Funktion erzeugte die gebündelte Zeile „N Objekte mit Abrechnungsblockern" samt
+  aufklappbaren Einzelzeilen (Befund C1 aus Phase 3).
+- Damit entfällt auch die Zählung: die Kopfzeile „HANDLUNGSBEDARF" zählt nur noch,
+  was tatsächlich in der Liste steht.
+- Der Abruf von `nk-readiness` je Objekt ist aus der Tagesübersicht entfernt — sechs
+  lesende Anfragen weniger je Seitenaufbau. Die §-556-Pflichten werden weiterhin
+  abgerufen; sie speisen die Zeile unter „Datenquellen".
+- **Nicht geändert:** Die Abrechnungsreife bleibt unverändert sichtbar unter
+  Immobilien → Nebenkosten → Vorprüfung und Immobilien → Status & Abrechnungsreife,
+  weiterhin mit den deutschen Erklärungen aus `nk-befunde.js`.
+- **Telegram:** Aus dieser Quelle gab es nie eine Meldung. Geprüft im Agent-Repo:
+  Die einzige NK-Benachrichtigung ist `src/modules/nk/alerts.ts` und meldet die
+  §-556-Fristen aus `nk_period_obligations` (Tabelle leer). Kein Code-Pfad meldet
+  `blocking_count`. Es war also nichts abzuschalten.
+
+**Geänderte Dateien**
+- `public/js/tagesuebersicht.js`
+- `prompts/dashboard-ueberarbeitung/STATUS.md` (dieser Eintrag)
+
+**Prüfungen und Resultate**
+
+| Prüfung | Resultat |
+|---|---|
+| `node --check public/js/tagesuebersicht.js` | ok |
+| Dienst-Neustart `openclaw-dashboard` | active |
+| Tagesübersicht live (1440 px) | „1 kritisch · 2 dringend · 6 vorgemerkt" — vorher zusätzlich „6 offen" aus den NK-Blockern; kein Treffer mehr auf „Nebenkosten"/„blockierend" |
+| Konsolenfehler / HTTP ≥ 400 | keine |
+| Immobilien → Nebenkosten → Vorprüfung (MG24, 2025) | lädt, zeigt „0 blockierende Befunde, 22 Warnungen" mit Klartext-Erklärungen |
+
+**Verbleibende Fehler**
+- keine
+
+**Noch nicht verifiziert**
+- Das Verhalten am iPhone; geprüft wurde am Desktop und zuvor bei 390 px.
+
+**Offene Entscheidungen**
+- keine
+
+**Live-Auswirkung und Rückweg**
+- Restart nötig: ja (Dashboard) — durchgeführt.
+- Rückweg: `git revert <commit>` + `systemctl --user restart openclaw-dashboard.service`.
+  Keine Datenänderung.
+
+**Commit:** siehe `git log` vom 10.10.2026, Betreff
+„feat(tagesuebersicht): Nebenkosten erzeugen keinen Handlungsbedarf mehr"
 
 ---
 
