@@ -130,6 +130,41 @@ const NK_BEFUNDE = {
     schritt: 'Entweder passende Zähler erfassen oder den Verteilungsschlüssel dieser Kostenart ändern.',
     ziel: 'verteilung',
   },
+  NUTZERWECHSEL_9B_AUFTEILUNG: {
+    titel: 'Nutzerwechsel ohne Zwischenablesung — Aufteilung nach § 9b',
+    ursache: 'Das Mietverhältnis beginnt oder endet mitten im Abrechnungszeitraum. § 9b Abs. 1 '
+      + 'HeizkostenV verlangt dafür eine Ablesung zum Wechsel; sie liegt nicht vor und lässt '
+      + 'sich nachträglich nicht nachholen.',
+    auswirkung: 'Gerechnet wird nach § 9b Abs. 3 HeizkostenV: Wärme nach Gradtagszahlen, '
+      + 'Warmwasser und Wasser nach Zeitabschnitten. Der auf die Leerstandszeit entfallende '
+      + 'Teil bleibt beim Eigentümer. Gradtagszahlen sind der gesetzlich vorgesehene Weg, aber '
+      + 'kein Messwert — der tatsächliche Verbrauch kann abweichen.',
+    schritt: 'Bei künftigen Mieterwechseln zum Übergabetermin ablesen und den Stand erfassen. '
+      + 'Liegt für diesen Zeitraum später eine echte Ablesung vor, ersetzt sie die Aufteilung '
+      + 'automatisch.',
+    ziel: 'zaehler',
+  },
+  NUTZERWECHSEL_OHNE_AUFTEILUNG: {
+    titel: 'Nutzerwechsel ohne jede Aufteilungsgrundlage',
+    ursache: 'Für ein unterjähriges Mietverhältnis gibt es weder eine Zwischenablesung noch '
+      + 'eine anwendbare Aufteilung nach § 9b Abs. 3 HeizkostenV.',
+    auswirkung: 'Die Abrechnung ist gesperrt. Ohne Grundlage entstünde eine Zahl, die wie ein '
+      + 'Messwert aussieht und keiner ist.',
+    schritt: 'Mietbeginn und Mietende des betroffenen Vertrags prüfen; bei einem gültigen '
+      + 'Zeitraum greift die Aufteilung von selbst.',
+    ziel: 'vertrag',
+  },
+  HEAT_METER_NO_DOCUMENTED_START: {
+    titel: 'Wärmemengenzähler ohne belegten Anfangsstand',
+    ursache: 'Für den genannten Zähler gibt es keine Ablesung zum Periodenbeginn und keinen '
+      + 'hinterlegten Anfangswert aus einem Einbau im Zeitraum.',
+    auswirkung: 'Ohne Anfangsstand würde der gesamte Zählerstand seit Einbau als Verbrauch '
+      + 'dieses Zeitraums abgerechnet — einschließlich Estrichtrocknung, Bauheizung und '
+      + 'Leerstand. Die Abrechnung ist deshalb gesperrt.',
+    schritt: 'Anfangsstand belegen: Ablesung zum Jahreswechsel nachtragen oder aus dem '
+      + 'Jahreszähler der Gebäudeleittechnik ableiten (Stand − Jahr aktuell − Vorjahr).',
+    ziel: 'zaehler',
+  },
   INTERIM_BILLING_PERIOD: {
     titel: 'Zwischenabrechnung, keine Schlussabrechnung',
     ursache: 'Gerechnet wurde bis zu einem Stichtag mitten im Jahr, nicht über das volle '

@@ -241,6 +241,14 @@ document.addEventListener('alpine:init', () => {
             + `${esc(abrGeld(Math.abs(Number(e.saldo))))} ${esc(abrSaldoWort(e.saldo))}</span>`)
         + '</div>';
 
+      /* § 9b-Hinweis direkt auf der Karte: Wer liest, was er zahlt, soll an
+         derselben Stelle sehen, dass der Anteil aufgeteilt und nicht
+         abgelesen wurde. */
+      if (e.aufteilung_9b) {
+        html += '<div style="margin-top:10px;padding:8px 10px;background:#fff8e1;'
+          + `border-radius:6px;font-size:13px;color:#7a5900">${esc(e.aufteilung_9b)}</div>`;
+      }
+
       // Verbrauch
       const aktive = (e.zaehler || []).filter(z => z.aktiv);
       const stille = (e.zaehler || []).filter(z => !z.aktiv);
