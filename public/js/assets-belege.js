@@ -176,6 +176,15 @@ document.addEventListener('alpine:init', () => {
         + `<tr><td>Kostenbuchungen im Zeitraum</td><td>${esc(String(ds.kostenbuchungen_im_zeitraum ?? '—'))}</td></tr>`
         + '</tbody></table></div>';
 
+      // Offene Punkte, die keine Belege sind
+      if ((b.hinweise || []).length > 0) {
+        html += '<div class="card card-pad" style="margin-bottom:12px">'
+          + '<h3 style="font-size:15px;margin-bottom:12px">Offene Punkte</h3>'
+          + '<ul style="line-height:1.7;padding-left:20px">';
+        for (const h of b.hinweise) html += `<li>${esc(h)}</li>`;
+        html += '</ul></div>';
+      }
+
       // Blocker
       if ((b.blocker || []).length > 0) {
         html += '<div class="card card-pad" style="margin-bottom:12px">'
