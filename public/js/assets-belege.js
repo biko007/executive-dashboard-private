@@ -44,13 +44,16 @@ document.addEventListener('alpine:init', () => {
 
   Alpine.data('belegeTab', () => ({
     loaded: false,
-    abschnitt: 'belege',   // belege | strom
+    abschnitt: 'bereitschaft',   // bereitschaft | belege | strom
     objekt: '',
     objekte: [],
     belege: [],
     archivVorhanden: true,
     buchungen: [],
     zaehler: [],
+    mieterstrom: {},
+    bereitschaft: null,
+    jahr: new Date().getFullYear() - 1,
     laeuft: false,
 
     async init() {
@@ -74,16 +77,21 @@ document.addEventListener('alpine:init', () => {
       this.laeuft = true;
       this.rendern();
       try {
-        const [b, e, m] = await Promise.all([
+        const [b, e, m, s] = await Promise.all([
           csrf.fetch(`/api/assets/properties/${encodeURIComponent(this.objekt)}/belege`),
           csrf.fetch(`/api/assets/properties/${encodeURIComponent(this.objekt)}/expense-bookings`),
           csrf.fetch(`/api/assets/meters?property_id=${encodeURIComponent(this.objektId())}`),
+          csrf.fetch(`/api/assets/properties/${encodeURIComponent(this.objekt)}/mieterstrom`),
         ]);
         const bd = b.ok ? await b.json() : { belege: [], archiv_vorhanden: false };
         this.belege = bd.belege || [];
         this.archivVorhanden = bd.archiv_vorhanden !== false;
         this.buchungen = e.ok ? await e.json() : [];
         this.zaehler = m.ok ? await m.json() : [];
+        this.mieterstrom = s.ok ? (await s.json()).jahre || {} : {};
+        const br = await csrf.fetch(
+          `/api/assets/properties/${encodeURIComponent(this.objekt)}/abrechnungsbereitschaft?jahr=${this.jahr}`);
+        this.bereitschaft = br.ok ? await br.json() : null;
       } catch (err) {
         Alpine.store('toast').error('Fehler: ' + netzFehlerText(err));
       }
@@ -107,7 +115,8 @@ document.addEventListener('alpine:init', () => {
         html += `<option value="${esc(p.code)}"${sel}>${esc(p.name || p.code)}</option>`;
       }
       html += '</select></label>';
-      for (const [k, t] of [['belege', 'Belege'], ['strom', 'Strom & Mieterstrom']]) {
+      for (const [k, t] of [['bereitschaft', 'Abrechnungsbereitschaft'],
+        ['belege', 'Belege'], ['strom', 'Strom & Mieterstrom']]) {
         const aktiv = this.abschnitt === k ? 'btn-primary' : '';
         html += `<button class="btn ${aktiv}" onclick="belegeAbschnitt('${k}')">${esc(t)}</button>`;
       }
@@ -115,8 +124,99 @@ document.addEventListener('alpine:init', () => {
 
       if (this.laeuft) { ziel.innerHTML = html + '<div class="spinner">Laden&#8230;</div>'; return; }
 
-      html += this.abschnitt === 'belege' ? this.renderBelege() : this.renderStrom();
+      html += this.abschnitt === 'bereitschaft' ? this.renderBereitschaft()
+        : this.abschnitt === 'belege' ? this.renderBelege() : this.renderStrom();
       ziel.innerHTML = html;
+    },
+
+    // ── Abschnitt 0: Abrechnungsbereitschaft ───────────────────────────────
+    //
+    // Die Vorprüfung sagt, ob die ERFASSTEN Daten stimmig sind. Sie kann aber
+    // nicht wissen, ob eine Rechnung fehlt, die niemand erfasst hat — und genau
+    // daran scheitert eine Abrechnung in der Praxis. Deshalb stehen hier beide
+    // Seiten nebeneinander, dazu der Datenstand.
+    renderBereitschaft() {
+      const b = this.bereitschaft;
+      if (!b) {
+        return '<div class="card card-pad"><div class="empty">Keine Bereitschaftsdaten '
+          + 'verf&#252;gbar.</div></div>';
+      }
+
+      const farbe = { gruen: '#1a7f37', gelb: '#9a6700', rot: '#b42318' }[b.ampel] || '#57606a';
+      const text = {
+        gruen: 'Abrechnungsbereit — keine Blocker, keine offenen Belege.',
+        gelb: 'Fast bereit — rechnen ist m&#246;glich, es fehlen aber Belege oder es gibt Hinweise.',
+        rot: 'Nicht abrechnungsbereit — es bestehen Blocker.',
+      }[b.ampel] || '';
+
+      let html = '<div class="card card-pad" style="margin-bottom:12px">'
+        + '<div class="filters-row" style="margin-bottom:12px">'
+        + '<label>Abrechnungsjahr <select class="form-input" id="bereit-jahr" '
+        + 'onchange="belegeJahrWechseln()" style="width:120px">';
+      const jetzt = new Date().getFullYear();
+      for (let j = jetzt; j >= jetzt - 4; j--) {
+        html += `<option value="${j}"${j === Number(b.jahr) ? ' selected' : ''}>${j}</option>`;
+      }
+      html += '</select></label>'
+        + `<button class="btn btn-primary" onclick="belegeProbeAbrechnung()">Probe-Abrechnung</button>`
+        + `<button class="btn" onclick="belegeEingabeblatt()">Casameta-Eingabeblatt erzeugen</button>`
+        + '</div>'
+        + `<div style="font-size:17px;font-weight:600;color:${farbe}">${esc(b.jahr + ' — ' + b.ampel.toUpperCase())}</div>`
+        + `<div style="margin-top:4px">${text}</div>`
+        + '</div>';
+
+      // Datenstand
+      const ds = b.datenstand || {};
+      html += '<div class="card card-pad" style="margin-bottom:12px">'
+        + '<h3 style="font-size:15px;margin-bottom:12px">Datenstand</h3>'
+        + '<table class="assets-table"><tbody>'
+        + `<tr><td>letzter Z&#228;hlerstand</td><td>${esc(belegDatum(ds.letzter_zaehlerstand))}</td></tr>`
+        + `<tr><td>letzter Bankumsatz</td><td>${esc(belegDatum(ds.letzter_bankumsatz))}</td></tr>`
+        + `<tr><td>j&#252;ngste Rechnung im Zeitraum</td><td>${esc(belegDatum(ds.letzte_rechnung))}</td></tr>`
+        + `<tr><td>Kostenbuchungen im Zeitraum</td><td>${esc(String(ds.kostenbuchungen_im_zeitraum ?? '—'))}</td></tr>`
+        + '</tbody></table></div>';
+
+      // Blocker
+      if ((b.blocker || []).length > 0) {
+        html += '<div class="card card-pad" style="margin-bottom:12px">'
+          + `<h3 style="font-size:15px;margin-bottom:12px;color:#b42318">${b.blocker.length} Blocker</h3>`
+          + '<ul style="line-height:1.7;padding-left:20px">';
+        for (const f of b.blocker) html += `<li>${esc(f.message)}</li>`;
+        html += '</ul></div>';
+      }
+
+      // Belegbedarf
+      const bedarf = b.belegbedarf || [];
+      if (bedarf.length === 0) {
+        html += '<div class="card card-pad" style="margin-bottom:12px"><div class="empty">'
+          + 'F&#252;r dieses Objekt und Jahr ist keine Belegliste hinterlegt.</div></div>';
+      } else {
+        const label = {
+          vorhanden: ['vorhanden', '#1a7f37'],
+          zahlung_belegt_rechnung_fehlt: ['Zahlung belegt, Rechnung fehlt', '#9a6700'],
+          fehlt: ['fehlt', '#b42318'],
+          nicht_zutreffend: ['nicht zutreffend', '#57606a'],
+          owner_frage: ['Owner-Frage', '#9a6700'],
+        };
+        html += '<div class="card card-pad">'
+          + `<h3 style="font-size:15px;margin-bottom:12px">Belegbedarf — ${b.offene_belege} von `
+          + `${bedarf.length} Posten offen</h3>`
+          + '<div style="overflow-x:auto"><table class="assets-table"><thead><tr>'
+          + '<th>Kostenart</th><th>Status</th><th style="text-align:right">Betrag</th>'
+          + '<th>Quelle</th><th>Bemerkung</th></tr></thead><tbody>';
+        for (const p of bedarf) {
+          const [lt, lc] = label[p.status] || [p.status, '#57606a'];
+          html += '<tr>'
+            + `<td>${esc(p.posten)}</td>`
+            + `<td style="color:${lc};font-weight:600">${esc(lt)}</td>`
+            + `<td style="text-align:right">${p.betrag == null ? '—' : esc(belegGeld(p.betrag))}</td>`
+            + `<td style="font-size:12px">${esc(p.quelle || '')}</td>`
+            + `<td style="font-size:12px">${esc(p.bemerkung || '')}</td>`
+            + '</tr>';
+        }
+        html += '</tbody></table></div></div>';
+      }
+      return html;
     },
 
     // ── Abschnitt 1: Belege ────────────────────────────────────────────────
@@ -243,20 +343,47 @@ document.addEventListener('alpine:init', () => {
       }
       html += '</div>';
 
+      // Mengen aus der Kundenanlagenabrechnung
+      const jahre = Object.keys(this.mieterstrom).sort().reverse();
+      for (const jahr of jahre) {
+        const j = this.mieterstrom[jahr] || {};
+        const mg = j.mengen_kwh || {};
+        const kwh = (v) => v == null ? '—'
+          : Number(v).toLocaleString('de-DE', { maximumFractionDigits: 0 }) + ' kWh';
+        html += `<div class="card card-pad" style="margin-bottom:12px">`
+          + `<h3 style="font-size:15px;margin-bottom:12px">Kundenanlage ${esc(jahr)} `
+          + `&#183; ${esc(j.betreiber || '')}</h3>`
+          + '<div style="overflow-x:auto"><table class="assets-table"><tbody>'
+          + `<tr><td>PV-Erzeugung</td><td style="text-align:right">${esc(kwh(mg.pv_erzeugung))}</td></tr>`
+          + `<tr><td>Reststrombezug aus dem Netz</td><td style="text-align:right">${esc(kwh(mg.reststrombezug))}</td></tr>`
+          + `<tr><td>Mieterstrom gesamt</td><td style="text-align:right">${esc(kwh(mg.mieterstrom_gesamt))}</td></tr>`
+          + `<tr><td>davon Allgemeinstrom <em>(der einzige Teil in den Nebenkosten)</em></td>`
+          + `<td style="text-align:right"><strong>${esc(kwh(mg.allgemeinstrom))}</strong></td></tr>`;
+        for (const [w, v] of Object.entries(mg.wohnungen || {})) {
+          html += `<tr><td>davon Wohnung ${esc(w)}</td><td style="text-align:right">${esc(kwh(v))}</td></tr>`;
+        }
+        html += '</tbody></table></div>';
+        for (const h of j.hinweise || []) {
+          html += `<div style="margin-top:8px;font-size:13px;line-height:1.5">${esc(h)}</div>`;
+        }
+        if (j.quelle) {
+          html += `<div style="margin-top:8px;font-size:12px;color:#57606a">Quelle: ${esc(j.quelle)}</div>`;
+        }
+        html += '</div>';
+      }
+
       // Was fehlt
       html += '<div class="card card-pad">'
         + '<h3 style="font-size:15px;margin-bottom:12px">Was f&#252;r eine vollst&#228;ndige '
         + 'Strom&#252;bersicht noch fehlt</h3>'
         + '<ul style="line-height:1.7;padding-left:20px">'
-        + '<li>Die <strong>Kundenanlagenabrechnung von energiekonzept</strong> f&#252;r 2025 — '
-        + 'erst sie belegt, welche Mengen den Mietern weiterberechnet wurden. Solange sie '
-        + 'fehlt, stehen die Bez&#252;ge der Kundenanlage als Arbeitsannahme auf „nicht '
-        + 'umlagef&#228;hig".</li>'
-        + '<li><strong>PV-Erzeugung und Mieterstrommengen je Wohnung</strong> — daf&#252;r gibt es '
-        + 'im Bestand keine Tabelle; sie sind bisher nur in den energiekonzept-Belegen '
-        + 'enthalten.</li>'
-        + '<li>Der <strong>Allgemeinstromz&#228;hler 1LGZ0075661371</strong> ist noch nicht als '
-        + 'Z&#228;hler erfasst; die 954 kWh f&#252;r 2025 stammen aus einem Beleg.</li>'
+        + (jahre.length === 0
+          ? '<li>Die <strong>Kundenanlagenabrechnung</strong> ist f&#252;r dieses Objekt nicht '
+            + 'hinterlegt.</li>'
+          : '<li>Eine <strong>Kontrollrechnung</strong> gegen die Kundenanlagenabrechnung — die '
+            + 'Mengen stehen hier als Belegwerte, nicht als nachgerechnete Gr&#246;&#223;en.</li>')
+        + '<li>Die <strong>Stromz&#228;hler sind nicht im Z&#228;hlerbestand erfasst</strong>; ihre '
+        + 'Werte stammen aus den Belegen. Damit l&#228;sst sich kein Monatsverlauf zeigen.</li>'
         + '</ul></div>';
 
       return html;
@@ -276,6 +403,66 @@ function belegeAbschnitt(name) {
   if (!d) return;
   d.abschnitt = name;
   d.rendern();
+}
+
+function belegeJahrWechseln() {
+  const d = belegeDaten();
+  const feld = document.getElementById('bereit-jahr');
+  if (!d || !feld) return;
+  d.jahr = parseInt(feld.value, 10);
+  d.lade();
+}
+
+/* Probe-Abrechnung: rechnet und zeigt die Salden. Es wird NICHTS finalisiert —
+   die Vorschau erzeugt kein Dokument und verschickt nichts. */
+async function belegeProbeAbrechnung() {
+  const csrf = Alpine.store('csrf');
+  const d = belegeDaten();
+  if (!d) return;
+  try {
+    const res = await csrf.fetch('/api/assets/nk-statements/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ property_code: d.objekt, year: d.jahr }),
+    });
+    if (!res.ok) {
+      const f = await res.json().catch(() => ({}));
+      Alpine.store('toast').error('Probe-Abrechnung: ' + (f.error || res.status));
+      return;
+    }
+    const p = await res.json();
+    const zeilen = (p.statements || []).map(s => {
+      const wer = s.is_owner_block ? 'Eigentümer' : 'Vertrag ' + s.lease_id;
+      return `${wer}: Kosten ${belegGeld(s.costs_total)}, Saldo ${belegGeld(s.balance)}`;
+    });
+    Alpine.store('toast').success('Probe-Abrechnung ' + d.jahr + ' — ' + zeilen.join(' · '));
+  } catch (e) {
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(e));
+  }
+}
+
+/* Eingabeblatt für das Casameta-Portal. Die Datei enthält Mieternamen und
+   bleibt deshalb auf dem Server; hier erscheint nur der Pfad. */
+async function belegeEingabeblatt() {
+  const csrf = Alpine.store('csrf');
+  const d = belegeDaten();
+  if (!d) return;
+  try {
+    const res = await csrf.fetch(
+      `/api/assets/properties/${encodeURIComponent(d.objekt)}/casameta-eingabeblatt?jahr=${d.jahr}`,
+      { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    if (!res.ok) {
+      const f = await res.json().catch(() => ({}));
+      Alpine.store('toast').error('Eingabeblatt: ' + (f.error || res.status));
+      return;
+    }
+    const e = await res.json();
+    Alpine.store('toast').success(
+      `Eingabeblatt erzeugt: ${e.luecken.length} Lücken, umlagefähig `
+      + `${belegGeld(e.summe_umlagefaehig)}. Datei: ${e.pfad_md}`);
+  } catch (err) {
+    Alpine.store('toast').error('Fehler: ' + netzFehlerText(err));
+  }
 }
 
 function belegeObjektWechseln() {

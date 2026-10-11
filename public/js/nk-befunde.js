@@ -130,6 +130,19 @@ const NK_BEFUNDE = {
     schritt: 'Entweder passende Zähler erfassen oder den Verteilungsschlüssel dieser Kostenart ändern.',
     ziel: 'verteilung',
   },
+  HEATING_SPLIT_OUTSIDE_HEIZKOSTENV: {
+    titel: 'Heizkostenverteilung außerhalb des Rahmens der Heizkostenverordnung',
+    ursache: '§ 7 Abs. 1 HeizkostenV sieht 50 bis 70 Prozent Verbrauchsanteil vor. Diese '
+      + 'Abrechnung verteilt anders — bei MG24 zu 100 Prozent nach Verbrauch, also ohne '
+      + 'Grundkostenanteil.',
+    auswirkung: 'Der Mieter kann die Heizkosten nach § 12 HeizkostenV um 15 Prozent kürzen, '
+      + 'sofern im Mietvertrag keine wirksame abweichende Vereinbarung steht. Rechnerisch '
+      + 'ist die Verteilung korrekt; es geht allein um die Verordnungskonformität.',
+    schritt: 'Entweder einen Grundkostenanteil zwischen 30 und 50 Prozent setzen oder die '
+      + 'Abweichung rechtlich prüfen lassen. Ob und wie sich der Verteilschlüssel wirksam '
+      + 'abweichend vereinbaren lässt, ist eine Rechtsfrage und hier nicht beurteilt.',
+    ziel: 'verteilung',
+  },
   CONSUMPTION_UNMEASURED_REMAINDER: {
     titel: 'Teil des Verbrauchs ist keiner Wohnung zugeordnet',
     ursache: 'Der Hauptzähler am Hausanschluss weist mehr aus als die Wohnungszähler zusammen. '
