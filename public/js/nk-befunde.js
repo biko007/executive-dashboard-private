@@ -154,6 +154,21 @@ const NK_BEFUNDE = {
       + 'Zeitraum greift die Aufteilung von selbst.',
     ziel: 'vertrag',
   },
+  HEAT_METER_START_FROM_GLT_DERIVATION: {
+    titel: 'Anfangsstand abgeleitet, nicht abgelesen',
+    ursache: 'Der Zählerstand zum Jahresbeginn stammt aus einer Rechnung über die GLT-Spalte '
+      + '„Vorjahr" (Stand − Jahr aktuell − Vorjahr) und ergab null. Für einen Zähler des '
+      + 'Hauses ist diese Ableitung durch ein Foto widerlegt: Er stand zum Jahreswechsel auf '
+      + '2.772 kWh.',
+    auswirkung: 'Liegt der wahre Anfangsstand über null, ist der ausgewiesene Verbrauch des '
+      + 'Zeitraums zu hoch — und mit ihm der Anteil der betroffenen Wohnung. Ein Hinweis '
+      + 'darauf, dass der Jahresnutzungsgrad des Kessels bei 98 Prozent läge, was für einen '
+      + 'Pelletkessel nicht sein kann: Die gemessene Wärme ist insgesamt zu hoch.',
+    schritt: 'Stichtagswerte an den Zählern ablesen (Anzeigeschleife 1-03 und, wenn vorhanden, '
+      + 'der Monatsspeicher) und den Stand zum Jahreswechsel eintragen. Danach entfällt dieser '
+      + 'Hinweis von selbst.',
+    ziel: 'zaehler',
+  },
   HEAT_METER_NO_DOCUMENTED_START: {
     titel: 'Wärmemengenzähler ohne belegten Anfangsstand',
     ursache: 'Für den genannten Zähler gibt es keine Ablesung zum Periodenbeginn und keinen '
