@@ -241,6 +241,14 @@ const NK_BEFUNDE = {
       + 'ihnen zurechnen kann.',
     schritt: 'Die Differenz klären: Zählerstände gegen die Versorgerrechnung halten, bei '
       + 'großer Abweichung den physischen Zähler ablesen und die Messtechnik prüfen lassen.',
+    /* Stand MG24 11.10.2026: Der Abrechnungszähler der Stadtwerke ist durch eine
+       Ablesung des Eigentümers vor Ort bestätigt (884,9 m³) — die Versorgerrechnung
+       2025 stimmt, die Differenz liegt nicht an ihr. */
+    nachtrag: 'MG24: Der Abrechnungszähler der Stadtwerke (8ZRI2316739802) ist am '
+      + '11.10.2026 vom Eigentümer vor Ort abgelesen und damit bestätigt. Der Endstand '
+      + '451 m³ zum 31.12.2025 und die Wasserrechnung 2025 sind richtig. Der ungemessene '
+      + 'Rest ist also kein Rechnungsfehler. Er bleibt beim Eigentümer, bis die Ursache '
+      + 'geklärt ist.',
     ziel: 'zaehler',
   },
   CONSUMPTION_MAIN_METER_BELOW_UNITS: {

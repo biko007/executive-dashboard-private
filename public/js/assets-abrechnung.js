@@ -171,6 +171,7 @@ document.addEventListener('alpine:init', () => {
 
       html += this.renderKopf();
       for (const e of this.daten.einheiten) html += this.renderEinheit(e);
+      html += this.renderObjektzaehler();
       html += this.renderEigentuemer();
       html += this.renderBefunde();
       ziel.innerHTML = html;
@@ -357,6 +358,70 @@ document.addEventListener('alpine:init', () => {
       return html;
     },
 
+    renderObjektzaehler() {
+      /* Die Zähler des Objekts stehen in keiner Wohnung, sind aber die
+         Kontrollwerte der ganzen Abrechnung: Was der Versorger berechnet,
+         was durch den Hausanschluss lief, was die Heizzentrale erzeugt hat.
+         Ohne sie lässt sich die Verteilung nicht gegenprüfen. */
+      const zs = this.daten.objektzaehler || [];
+      if (zs.length === 0) return '';
+      let html = '<div class="card card-pad" style="margin-bottom:14px">'
+        + '<h4 style="font-size:15px;margin-bottom:4px">Z&#228;hler des Objekts</h4>'
+        + '<div style="color:#57606a;font-size:13px;margin-bottom:12px">'
+        + 'Abrechnungsz&#228;hler des Versorgers, Hausanschluss und Heizzentrale — die '
+        + 'Kontrollwerte dieser Abrechnung. Sie geh&#246;ren keiner Wohnung.</div>'
+        + '<div><table class="assets-table"><thead><tr>'
+        + '<th>Z&#228;hler</th><th>Medium</th><th style="text-align:right">Stand Anfang</th>'
+        + '<th style="text-align:right">Stand Ende</th><th style="text-align:right">Verbrauch</th>'
+        + '</tr></thead><tbody>';
+      for (const z of zs) {
+        html += `<tr${z.gesperrt ? ' style="background:#fff1f0"' : ''}>`
+          + `<td style="font-size:13px">${esc(z.nummer)}`
+          + (z.aktiv ? '' : '<br><span style="color:#9a6700;font-size:12px">abgeschaltet</span>')
+          + '</td>'
+          + `<td>${esc(z.medium_name)}`
+          + (ABR_ZWECK[z.zweck] ? `<br><span style="font-size:12px;color:#57606a">${ABR_ZWECK[z.zweck]}</span>` : '')
+          + '</td>'
+          + `<td style="text-align:right">${z.stand_anfang === null ? '—' : esc(abrZahl(z.stand_anfang, 2))}`
+          + (z.stand_anfang_am ? `<br><span style="color:#57606a;font-size:12px">${esc(abrDatum(z.stand_anfang_am))}</span>` : '')
+          + '</td>'
+          + `<td style="text-align:right">${z.stand_ende === null ? '—' : esc(abrZahl(z.stand_ende, 2))}`
+          + (z.stand_ende_am ? `<br><span style="color:#57606a;font-size:12px">${esc(abrDatum(z.stand_ende_am))}</span>` : '')
+          + '</td>'
+          + `<td style="text-align:right"><strong>${esc(abrZahl(z.verbrauch, 2))} ${esc(z.einheit)}</strong></td>`
+          + '</tr>';
+      }
+      html += '</tbody></table></div>' + this.renderWasserbilanz() + '</div>';
+      return html;
+    },
+
+    renderWasserbilanz() {
+      /* Die eine Zahl, auf die es beim Wasser ankommt: Wie viel von dem, was
+         der Versorger berechnet, ist in den Wohnungen gemessen? Der Rest
+         bleibt beim Eigentümer, und wie groß er ist, gehört sichtbar neben
+         die Zähler — nicht nur in einen Befundtext. */
+      const zs = this.daten.objektzaehler || [];
+      const haupt = zs.find(z => /^8ZRI/.test(z.nummer) || /HAUSANSCHLUSS/.test(z.nummer));
+      if (!haupt || !(haupt.verbrauch > 0)) return '';
+
+      let wohnungen = 0;
+      for (const e of this.daten.einheiten) {
+        for (const z of (e.zaehler || [])) {
+          if (z.aktiv && (z.medium === 'cold_water' || z.medium === 'warm_water')) {
+            wohnungen += Number(z.verbrauch) || 0;
+          }
+        }
+      }
+      if (wohnungen <= 0) return '';
+      const rest = haupt.verbrauch - wohnungen;
+      const anteil = (rest / haupt.verbrauch) * 100;
+      return '<div style="margin-top:12px;padding:10px;background:#f6f8fa;border-radius:6px;font-size:13px">'
+        + `<strong>Wasserbilanz:</strong> ${esc(abrZahl(haupt.verbrauch, 2))} m&#179; `
+        + `abgerechnet, ${esc(abrZahl(wohnungen, 2))} m&#179; in den Wohnungen gemessen — `
+        + `<strong>${esc(abrZahl(rest, 2))} m&#179; ungemessen (${esc(abrZahl(anteil, 1))} %)</strong>. `
+        + 'Der ungemessene Teil bleibt beim Eigent&#252;mer.</div>';
+    },
+
     renderEigentuemer() {
       const ei = this.daten.eigentuemer;
       if (!ei || Math.abs(Number(ei.kosten_summe)) < 0.005) return '';
@@ -420,6 +485,10 @@ document.addEventListener('alpine:init', () => {
           : `<br>${esc(g.texte.join(' · '))}`;
         if (g.betroffen.length > 0) {
           html += `<br><span style="color:#57606a;font-size:13px">Betrifft: ${esc(g.betroffen.join(', '))}</span>`;
+        }
+        if (bekannt && erkl.nachtrag) {
+          // Objektbezogener Stand, der den allgemeinen Befundtext ergänzt.
+          html += `<br><span style="color:#1a7f37;font-size:13px">${esc(erkl.nachtrag)}</span>`;
         }
         if (bekannt && erkl.schritt) {
           html += `<br><span style="color:#57606a;font-size:13px">N&#228;chster Schritt: ${esc(erkl.schritt)}</span>`;
