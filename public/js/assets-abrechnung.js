@@ -185,16 +185,21 @@ document.addEventListener('alpine:init', () => {
         + '<div style="display:flex;flex-wrap:wrap;gap:18px;margin-top:12px">'
         + `<div><div style="color:#57606a;font-size:13px">Zeitraum</div>`
         + `<strong>${esc(abrDatum(d.zeitraum.von))} – ${esc(abrDatum(d.zeitraum.bis))}</strong></div>`
-        + `<div><div style="color:#57606a;font-size:13px">Kosten gesamt</div>`
-        + `<strong>${esc(abrGeld(d.summe_objekt))}</strong></div>`
+        + (d.blockiert ? '' : `<div><div style="color:#57606a;font-size:13px">Kosten gesamt</div>`
+          + `<strong>${esc(abrGeld(d.summe_objekt))}</strong></div>`)
         + `<div><div style="color:#57606a;font-size:13px">Wohnungen</div>`
         + `<strong>${d.einheiten.length}</strong></div>`
         + (h ? `<div><div style="color:#57606a;font-size:13px">Heizkosten</div>`
           + `<strong>${esc(abrZahl(h.grundkosten_prozent, 0))} % Fl&#228;che / `
           + `${esc(abrZahl(h.verbrauch_prozent, 0))} % Verbrauch</strong></div>` : '')
         + '</div>'
+        + (d.blockiert ? this.renderSperre() : '')
         + '<div style="margin-top:12px;padding:10px;background:#fff8e1;border-radius:6px;font-size:13px">'
-        + (d.zwischenabrechnung
+        + (d.blockiert
+          ? '<strong>Keine Abrechnung.</strong> Die Vorpr&#252;fung hat gesperrt. Unten stehen die '
+            + 'Z&#228;hlerst&#228;nde, damit Sie sehen, woran es liegt — Betr&#228;ge werden bewusst '
+            + 'keine gezeigt.'
+          : d.zwischenabrechnung
           ? '<strong>Zwischenabrechnung zum ' + esc(abrDatum(d.zeitraum.bis)) + '.</strong> '
             + 'Keine Schlussabrechnung: Kosten, die erst sp&#228;ter im Jahr anfallen oder '
             + 'abgerechnet werden, fehlen. Anteilig gerechnete Posten und veraltete '
@@ -202,6 +207,19 @@ document.addEventListener('alpine:init', () => {
           : '<strong>Vorschau.</strong> Diese Darstellung rechnet mit dem heutigen Datenstand. '
             + 'Es entsteht kein Dokument, und es wird nichts versendet.')
         + '</div></div>';
+    },
+
+    renderSperre() {
+      const d = this.daten;
+      let html = '<div style="margin-top:12px;padding:12px;background:#fff1f0;'
+        + 'border:1px solid #f3b0a8;border-radius:6px">'
+        + `<div style="color:#b42318;font-weight:600;margin-bottom:6px">`
+        + `Abrechnung gesperrt — ${d.blocker.length} `
+        + `${d.blocker.length === 1 ? 'Grund' : 'Gr&#252;nde'}</div>`
+        + '<ul style="margin:0 0 0 18px;line-height:1.6;font-size:13px">';
+      for (const b of d.blocker) html += `<li>${esc(b)}</li>`;
+      html += '</ul></div>';
+      return html;
     },
 
     renderEinheit(e) {
@@ -213,11 +231,14 @@ document.addEventListener('alpine:init', () => {
         + `<span style="font-size:17px;font-weight:600">${esc(e.einheit)}</span>`
         + (e.lage ? `<span style="color:#57606a">${esc(e.lage)}</span>` : '')
         + (e.wohnflaeche !== null ? `<span style="color:#57606a">${esc(abrZahl(e.wohnflaeche))} m&#178;</span>` : '')
-        + `<span style="color:#57606a">${e.tage} von ${e.tage_im_jahr} Tagen`
-        + `${this.daten.zwischenabrechnung ? ' im Zeitraum' : ''}</span>`
+        + (this.daten.blockiert ? ''
+          : `<span style="color:#57606a">${e.tage} von ${e.tage_im_jahr} Tagen`
+            + `${this.daten.zwischenabrechnung ? ' im Zeitraum' : ''}</span>`)
         + '<span style="flex:1"></span>'
-        + `<span style="color:${farbe};font-size:17px;font-weight:600">`
-        + `${esc(abrGeld(Math.abs(Number(e.saldo))))} ${esc(abrSaldoWort(e.saldo))}</span>`
+        + (this.daten.blockiert
+          ? '<span style="color:#b42318;font-weight:600">kein Ergebnis — gesperrt</span>'
+          : `<span style="color:${farbe};font-size:17px;font-weight:600">`
+            + `${esc(abrGeld(Math.abs(Number(e.saldo))))} ${esc(abrSaldoWort(e.saldo))}</span>`)
         + '</div>';
 
       // Verbrauch
@@ -232,11 +253,13 @@ document.addEventListener('alpine:init', () => {
         for (const z of aktive) {
           const anfang = z.stand_anfang === null ? '—'
             : abrZahl(z.stand_anfang, 2) + (z.anfang_aus_anfangswert ? ' *' : '');
-          html += '<tr>'
+          html += `<tr${z.gesperrt ? ' style="background:#fff1f0"' : ''}>`
             + `<td>${esc(z.medium_name)}`
             + (ABR_ZWECK[z.zweck] ? `<br><span style="font-size:12px;color:#57606a">${ABR_ZWECK[z.zweck]}</span>` : '')
             + '</td>'
-            + `<td style="font-size:12px">${esc(z.nummer)}</td>`
+            + `<td style="font-size:12px">${z.gesperrt
+              ? `<span style="color:#b42318;font-weight:600">${esc(z.nummer)}</span>`
+              : esc(z.nummer)}</td>`
             + `<td style="text-align:right">${esc(anfang)}`
             + (z.stand_anfang_am ? `<br><span style="color:#57606a;font-size:12px">${esc(abrDatum(z.stand_anfang_am))}</span>` : '')
             + '</td>'
@@ -269,6 +292,14 @@ document.addEventListener('alpine:init', () => {
       }
 
       // Kosten
+      if (this.daten.blockiert) {
+        html += '<div style="margin-top:12px;font-size:13px;color:#b42318">'
+          + 'Die rot markierten Z&#228;hler haben keinen belegten Anfangsstand. Solange er fehlt, '
+          + 'w&#252;rde der gesamte Z&#228;hlerstand seit Einbau als Verbrauch dieses Zeitraums '
+          + 'abgerechnet — also auch Estrichtrocknung, Bauheizung und Leerstand.</div></div>';
+        return html;
+      }
+
       /* Fünf Spalten, nicht sechs: Ab sechs stellt responsiv.js schmal auf
          einen seitlichen Scrollbereich um, und die Hauptsache der Seite läge
          dann auf dem Telefon halb außerhalb des Bildes. Die Belege stehen
