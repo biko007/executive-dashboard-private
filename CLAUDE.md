@@ -69,6 +69,25 @@ Migrationen werden im Agent-Repo verwaltet (nicht im Dashboard). Zwei Patterns:
 **Drift-Detector:** Im Agent-Repo: `npm run verify-schema`. Exit 0 = clean.
 Sprint-Cut-Checkliste: Drift-Detector mit Exit 0 ist Pflicht vor jedem Release.
 
+### Abrechnung je Wohnung (Stand 2026-10-11)
+
+Unterbereich „Abrechnung je Wohnung" im Immobilien-Tab (`public/js/assets-abrechnung.js`).
+Quelle: `GET /api/assets/properties/:code/abrechnung-ansicht?jahr=&bis=` (Core, via
+`/api/assets/*`-Proxy). Je Wohnung Zählerstände mit Verbrauch, Kostenarten mit
+Klartext-Verteilschlüssel, Vorauszahlung, Saldo, Belege; dazu Eigentümeranteil und
+die nach Prüfcode gebündelten Befunde.
+
+Ein gesetzter `Stichtag` macht daraus eine Zwischenabrechnung — Schätzanteile
+(anteilige Rechnungen, veraltete oder fehlende Zählerstände) stehen als eigene
+Befunde in der Ansicht. Die deutschen Texte dazu liegen wie alle übrigen in
+`public/js/nk-befunde.js`; eine zweite Liste in der Abrechnungsansicht würde sich
+von jener fortbewegen.
+
+**Spaltenzahl ist hier eine Gestaltungsentscheidung:** `responsiv.js` stellt
+Tabellen ab sechs Spalten schmal auf einen seitlichen Scrollbereich um. Die
+Kostentabelle hat deshalb fünf Spalten, die Belege stehen als Zeile unter der
+Kostenart.
+
 ### Offene TODOs
 
 - ~~n8n-Postgres separat im Borg-Backup (Spec §15.4)~~ — erledigt 2026-05-11

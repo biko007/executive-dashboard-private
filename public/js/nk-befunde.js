@@ -130,6 +130,59 @@ const NK_BEFUNDE = {
     schritt: 'Entweder passende Zähler erfassen oder den Verteilungsschlüssel dieser Kostenart ändern.',
     ziel: 'verteilung',
   },
+  INTERIM_BILLING_PERIOD: {
+    titel: 'Zwischenabrechnung, keine Schlussabrechnung',
+    ursache: 'Gerechnet wurde bis zu einem Stichtag mitten im Jahr, nicht über das volle '
+      + 'Kalenderjahr.',
+    auswirkung: 'Kosten, die erst später im Jahr anfallen oder abgerechnet werden — '
+      + 'Jahresrechnungen des Versorgers, die Brennstoffbestellung im Herbst, die '
+      + 'Heizkostenabrechnung — fehlen vollständig. Das Ergebnis ist eine Auskunft über den '
+      + 'Stand, keine Grundlage für eine Forderung.',
+    schritt: 'Für eine verbindliche Abrechnung das volle Kalenderjahr wählen, sobald alle '
+      + 'Jahresrechnungen vorliegen.',
+    ziel: null,
+  },
+  INTERIM_COST_PRORATED: {
+    titel: 'Rechnungen nur anteilig enthalten',
+    ursache: 'Einzelne Rechnungen decken einen Zeitraum ab, der über den Stichtag '
+      + 'hinausreicht. Enthalten ist der taggenaue Anteil bis zum Stichtag.',
+    auswirkung: 'Taggenau ist nicht verbrauchsgerecht: Heizkosten fallen im Januar anders '
+      + 'an als im Juli. Bei Heizung und Warmwasser ist der Anteil deshalb im Winter zu '
+      + 'niedrig und im Sommer zu hoch angesetzt.',
+    schritt: 'Den Hinweis in der Auskunft an den Mieter übernehmen; für die Schlussabrechnung '
+      + 'spielt er keine Rolle.',
+    ziel: 'ausgaben',
+  },
+  INTERIM_READING_MISSING: {
+    titel: 'Zähler ohne jede Ablesung bis zum Stichtag',
+    ursache: 'Für die genannten Zähler liegt bis zum Stichtag überhaupt kein Stand vor.',
+    auswirkung: 'Gerechnet wird mit Verbrauch 0. Das ist keine Messung, sondern eine Lücke — '
+      + 'die verbrauchsabhängigen Kosten verteilen sich dadurch auf die übrigen Wohnungen '
+      + 'oder bleiben beim Eigentümer hängen.',
+    schritt: 'Die Zähler ablesen und die Stände nachtragen, bevor die Auskunft verwendet wird.',
+    ziel: 'zaehler',
+  },
+  INTERIM_READING_STALE: {
+    titel: 'Zählerstände zum Stichtag nicht aktuell',
+    ursache: 'Für die genannten Zähler liegt zum Stichtag keine Ablesung vor; die letzte ist '
+      + 'mehr als einen Monat alt.',
+    auswirkung: 'Gerechnet wird mit dem letzten vorhandenen Stand. Der Verbrauch der Zeit '
+      + 'danach fehlt — die verbrauchsabhängigen Posten sind dadurch zu niedrig.',
+    schritt: 'Zum Stichtag ablesen lassen, wenn die Auskunft belastbar sein soll.',
+    ziel: 'zaehler',
+  },
+  HEATING_WW_MEASURED: {
+    titel: 'Warmwasserwärme gemessen statt geschätzt',
+    ursache: 'Für die Warmwasserbereitung liegt ein eigener Wärmemengenzähler vor. '
+      + 'Gerechnet wird mit seinem Messwert, nicht mit der Schätzformel des '
+      + '§ 9 Abs. 2 HeizkostenV (2,5 × Wassermenge × Temperaturdifferenz).',
+    auswirkung: 'Das ist der gesetzlich vorgesehene Weg: Die Formel gilt ausdrücklich nur, '
+      + 'wenn die Wärmemenge NICHT gemessen wird. Weicht der Messwert deutlich von der '
+      + 'Formel ab, verschiebt sich der Anteil zwischen Heizung und Warmwasser spürbar.',
+    schritt: 'Keine Aktion nötig. Bei großer Abweichung zwischen Messwert und Formel lohnt '
+      + 'ein Blick auf die Plausibilität des Zählers.',
+    ziel: 'zaehler',
+  },
   HEATING_SPLIT_OUTSIDE_HEIZKOSTENV: {
     titel: 'Heizkostenverteilung außerhalb des Rahmens der Heizkostenverordnung',
     ursache: '§ 7 Abs. 1 HeizkostenV sieht 50 bis 70 Prozent Verbrauchsanteil vor. Diese '

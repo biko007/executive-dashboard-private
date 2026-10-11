@@ -836,6 +836,7 @@ pre, code { overflow-wrap: anywhere; }
 <script defer src="/dashboard/js/assets-status.js"></script>
 <script defer src="/dashboard/js/assets-vorschlaege.js"></script>
 <script defer src="/dashboard/js/assets-belege.js"></script>
+<script defer src="/dashboard/js/assets-abrechnung.js"></script>
 <script defer src="/dashboard/js/assets-mietverhaeltnisse.js"></script>
 <script defer src="/dashboard/js/nk-befunde.js"></script>
 <script defer src="/dashboard/js/assets-wizard.js"></script>
@@ -3550,6 +3551,7 @@ async function loadAssets() {
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('stammdaten') }" x-on:click="switchSubTab('stammdaten')">Stammdaten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('vertraege') }" x-on:click="switchSubTab('vertraege')">Vertr&#228;ge &amp; Kosten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('nebenkosten') }" x-on:click="switchSubTab('nebenkosten')">Nebenkosten</button>
+            <button class="subtab-btn" x-bind:class="{ active: isSubTab('abrechnung') }" x-on:click="switchSubTab('abrechnung')">Abrechnung je Wohnung</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('vorschlaege') }" x-on:click="switchSubTab('vorschlaege')">Kostenvorschl&#228;ge</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('belege') }" x-on:click="switchSubTab('belege')">Belege &amp; Abrechnung</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('status') }" x-on:click="switchSubTab('status')">Status &amp; Abrechnungsreife</button>
@@ -3564,6 +3566,9 @@ async function loadAssets() {
           </div>
           <div x-show="isSubTab('nebenkosten')" x-data="nebenkostenTab" x-init="init()">
             <div x-ref="nebenkostenContent"></div>
+          </div>
+          <div x-show="isSubTab('abrechnung')" x-data="abrechnungTab" x-init="init()">
+            <div x-ref="abrechnungContent"></div>
           </div>
           <div x-show="isSubTab('vorschlaege')" x-data="vorschlaegeTab" x-init="init()">
             <div x-ref="vorschlaegeContent"></div>
