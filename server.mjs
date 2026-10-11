@@ -2440,6 +2440,45 @@ app.get('/api/assets/leases/:id/parteien', requireSession, async (req, res) => {
 // All /api/assets/* routes are proxied to Core (18789) via trust-boundary.
 // Reads pass through with auth only. Mutations require session + CSRF.
 
+// ── Belegarchiv: archivierte Rechnung ausliefern ───────────────────────────
+//
+// Dieselbe Mechanik wie bei den Wiki-Anhaengen: Die Metadaten kommen vom Core,
+// die Datei schickt der Dashboard-Server selbst. Der Pfad wird gegen das
+// Belegverzeichnis geprueft — ohne diese Pruefung waere jeder Pfad im Dateisystem
+// erreichbar, sobald jemand eine Verknuepfung anlegen kann.
+const BELEG_DIR = path.join(HOME, '.openclaw/workspace/artifacts/personal/assets/belege');
+
+app.get('/api/belege/:linkCode', requireSession, async (req, res) => {
+  const code = String(req.params.linkCode || '');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(code)) {
+    return res.status(400).json({ error: 'Ungültiger Code' });
+  }
+  try {
+    const core = await fetch(`${CORE_BASE}/api/links/by-code/${encodeURIComponent(code)}`, {
+      headers: { Authorization: `Bearer ${CORE_SERVICE_TOKEN}` },
+    });
+    if (!core.ok) return res.status(core.status).json({ error: 'Beleg nicht gefunden' });
+    const link = await core.json();
+    const relOrAbs = link.localPath || link.local_path;
+    if (!relOrAbs) return res.status(404).json({ error: 'Keine lokale Datei zu dieser Verknüpfung' });
+
+    const absPath = path.resolve(relOrAbs);
+    if (absPath !== BELEG_DIR && !absPath.startsWith(BELEG_DIR + path.sep)) {
+      return res.status(400).json({ error: 'Pfad außerhalb des Belegverzeichnisses' });
+    }
+    if (!fs.existsSync(absPath)) return res.status(404).json({ error: 'Datei nicht vorhanden' });
+
+    res.setHeader('Content-Type', absPath.endsWith('.pdf') ? 'application/pdf' : 'application/octet-stream');
+    res.setHeader('Cache-Control', 'private, max-age=600');
+    res.setHeader('Content-Disposition',
+      `inline; filename*=UTF-8''${encodeURIComponent(path.basename(absPath))}`);
+    res.sendFile(absPath);
+  } catch (e) {
+    console.error(`[dashboard] Beleg ${code}: ${e.message}`);
+    res.status(502).json({ error: 'Core nicht erreichbar', detail: e.message });
+  }
+});
+
 app.get('/api/assets/*', requireSession, proxyToCore);
 app.post('/api/assets/*', requireSession, requireCsrf, proxyToCore);
 app.patch('/api/assets/*', requireSession, requireCsrf, proxyToCore);

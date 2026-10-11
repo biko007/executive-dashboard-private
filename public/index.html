@@ -835,6 +835,7 @@ pre, code { overflow-wrap: anywhere; }
 <script defer src="/dashboard/js/assets-nebenkosten.js"></script>
 <script defer src="/dashboard/js/assets-status.js"></script>
 <script defer src="/dashboard/js/assets-vorschlaege.js"></script>
+<script defer src="/dashboard/js/assets-belege.js"></script>
 <script defer src="/dashboard/js/assets-mietverhaeltnisse.js"></script>
 <script defer src="/dashboard/js/nk-befunde.js"></script>
 <script defer src="/dashboard/js/assets-wizard.js"></script>
@@ -3550,6 +3551,7 @@ async function loadAssets() {
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('vertraege') }" x-on:click="switchSubTab('vertraege')">Vertr&#228;ge &amp; Kosten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('nebenkosten') }" x-on:click="switchSubTab('nebenkosten')">Nebenkosten</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('vorschlaege') }" x-on:click="switchSubTab('vorschlaege')">Kostenvorschl&#228;ge</button>
+            <button class="subtab-btn" x-bind:class="{ active: isSubTab('belege') }" x-on:click="switchSubTab('belege')">Belege &amp; Strom</button>
             <button class="subtab-btn" x-bind:class="{ active: isSubTab('status') }" x-on:click="switchSubTab('status')">Status &amp; Abrechnungsreife</button>
           </div>
 
@@ -3565,6 +3567,9 @@ async function loadAssets() {
           </div>
           <div x-show="isSubTab('vorschlaege')" x-data="vorschlaegeTab" x-init="init()">
             <div x-ref="vorschlaegeContent"></div>
+          </div>
+          <div x-show="isSubTab('belege')" x-data="belegeTab" x-init="init()">
+            <div x-ref="belegeContent"></div>
           </div>
           <div x-show="isSubTab('status')" x-data="statusTab" x-init="init()">
             <div x-ref="statusContent"></div>

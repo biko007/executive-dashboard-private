@@ -130,6 +130,39 @@ const NK_BEFUNDE = {
     schritt: 'Entweder passende Zähler erfassen oder den Verteilungsschlüssel dieser Kostenart ändern.',
     ziel: 'verteilung',
   },
+  CONSUMPTION_UNMEASURED_REMAINDER: {
+    titel: 'Teil des Verbrauchs ist keiner Wohnung zugeordnet',
+    ursache: 'Der Hauptzähler am Hausanschluss weist mehr aus als die Wohnungszähler zusammen. '
+      + 'Die Differenz kann vieles sein: Allgemeinverbrauch, Bauwasser, ein Leck oder ein '
+      + 'falsch skalierter Zähler.',
+    auswirkung: 'Diese Differenz wird NICHT auf die Mieter verteilt, sondern bleibt beim '
+      + 'Eigentümer. Würde man sie mitverteilen, zahlten die Mieter Wasser, das niemand '
+      + 'ihnen zurechnen kann.',
+    schritt: 'Die Differenz klären: Zählerstände gegen die Versorgerrechnung halten, bei '
+      + 'großer Abweichung den physischen Zähler ablesen und die Messtechnik prüfen lassen.',
+    ziel: 'zaehler',
+  },
+  CONSUMPTION_MAIN_METER_BELOW_UNITS: {
+    titel: 'Hauptzähler zeigt weniger als die Wohnungszähler',
+    ursache: 'Der Hauptzähler weist eine kleinere Menge aus als die Wohnungszähler zusammen. '
+      + 'Das ist physikalisch nicht möglich und deutet auf einen fehlenden '
+      + 'Skalierungsfaktor, einen Zählertausch oder einen anderen Messpunkt hin.',
+    auswirkung: 'Der Hauptzähler wird für die Verteilung nicht verwendet; verteilt wird über '
+      + 'die Summe der Wohnungszähler. Ein ungemessener Anteil bleibt dadurch unerkannt.',
+    schritt: 'Messtechnik prüfen lassen und den Zähler gegen die Versorgerrechnung abgleichen.',
+    ziel: 'zaehler',
+  },
+  CONSUMPTION_NO_MAIN_METER: {
+    titel: 'Kein Hauptzähler für dieses Medium',
+    ursache: 'Für die Kostenart gibt es Wohnungszähler, aber keinen Zähler am Hausanschluss, '
+      + 'gegen den sich die Versorgerrechnung abgleichen lässt.',
+    auswirkung: 'Der Rechnungsbetrag wird vollständig nach den Wohnungszählern verteilt. Eine '
+      + 'Differenz zwischen Rechnung und Wohnungszählern bliebe dabei unbemerkt bei den '
+      + 'Mietern.',
+    schritt: 'Den Abrechnungszähler des Versorgers als Hauptzähler erfassen und seine Stände '
+      + 'zu Jahresbeginn und Jahresende eintragen.',
+    ziel: 'zaehler',
+  },
   CONSUMPTION_READING_MISSING: {
     titel: 'Zählerstand für die Verbrauchsverteilung fehlt',
     ursache: 'Die Kostenart wird nach gemessenem Verbrauch verteilt. Für den genannten Zähler fehlt '
