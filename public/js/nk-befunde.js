@@ -309,9 +309,14 @@ const NK_BEFUNDE = {
   },
   MISSING_INTERIM_READING_FOR_CHANGEOVER: {
     titel: 'Zwischenablesung beim Mieterwechsel fehlt',
-    ursache: 'Im Abrechnungszeitraum liegt ein Mieterwechsel, für den genannten Zähler fehlt die Ablesung zum Auszug.',
-    auswirkung: 'Der Verbrauch lässt sich nicht auf Vor- und Nachmieter aufteilen; die Abrechnung wird ungenau.',
-    schritt: 'Zwischenablesung zum Auszugsdatum nachtragen.',
+    ursache: 'Im Abrechnungszeitraum endet ein Mietverhältnis, und für den genannten Zähler fehlt '
+      + 'eine Ablesung zum Nutzerwechsel (± 3 Tage). Maßgeblich ist das Vertragsende, nicht der '
+      + 'Übergabetermin — bis zum Vertragsende trägt der Vormieter die Kosten.',
+    auswirkung: 'Der Verbrauch lässt sich nicht messen, sondern nur nach § 9b HeizkostenV aufteilen: '
+      + 'Wärme nach Gradtagszahlen, Warmwasser und Wasser nach Zeitabschnitten. Das ist der '
+      + 'gesetzliche Ersatzweg, aber ungenauer als eine Ablesung.',
+    schritt: 'Ablesung zum Vertragsende nachtragen. Eine Ablesung vom Übergabetermin genügt nicht, '
+      + 'wenn die beiden Daten auseinanderfallen — sie schneidet die Abrechnung an der falschen Stelle.',
     ziel: 'vertrag',
   },
   MISSING_SERVICE_PERIOD_HEATING: {
