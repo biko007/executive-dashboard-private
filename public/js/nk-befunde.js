@@ -307,6 +307,20 @@ const NK_BEFUNDE = {
       + 'sobald eine Ablesung zum Jahreswechsel vorliegt.',
     ziel: 'zaehler',
   },
+  HAUPTZAEHLER_OHNE_ENDSTAND: {
+    titel: 'Hauptzähler ohne Stand zum Jahresende',
+    ursache: 'Der Zähler am Hausanschluss hat im Abrechnungszeitraum keinen Ablesewert. '
+      + 'Ein Stand aus dem Vorjahr genügt nicht — damit ergäbe die Rechnung einen Verbrauch '
+      + 'von null.',
+    auswirkung: 'Der Hauptzähler ist der Nenner der Verbrauchsverteilung: Jede Wohnung zahlt '
+      + 'ihre gemessene Menge, der ungemessene Rest bleibt beim Eigentümer. Fehlt er, würde '
+      + 'der volle Rechnungsbetrag auf die Wohnungszähler verteilt und die Differenz den '
+      + 'Mietern zugerechnet. Wird das Medium nicht nach Verbrauch verteilt, fehlt nur der '
+      + 'Abgleich mit der Versorgerrechnung.',
+    schritt: 'Stand zum Jahresende ablesen oder aus der Versorgerrechnung übernehmen und '
+      + 'nachtragen.',
+    ziel: 'zaehler',
+  },
   MISSING_INTERIM_READING_FOR_CHANGEOVER: {
     titel: 'Zwischenablesung beim Mieterwechsel fehlt',
     ursache: 'Im Abrechnungszeitraum endet ein Mietverhältnis, und für den genannten Zähler fehlt '
