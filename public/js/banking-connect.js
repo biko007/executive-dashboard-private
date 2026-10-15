@@ -1251,10 +1251,15 @@ async function bankingUmsaetzeRendern(konto, mehr) {
         : '';
       const wert = t.valueDate && t.valueDate !== t.bookingDate
         ? ' <span class="bank-umsatz-wert">(Wertstellung ' + esc(fmtDate(t.valueDate)) + ')</span>' : '';
+      /* Ohne Zuordnung steht dort, was der Owner zu diesem wiederkehrenden
+         Eingang hinterlegt hat — etwa „Garage Marktgasse 22 – Vertrag nicht
+         angelegt". Erst wenn auch das fehlt, heisst es „nicht zugeordnet". */
       const zuo = Array.isArray(t.zuordnung) && t.zuordnung.length
         ? t.zuordnung.map(z => esc(z.objekt.toUpperCase() + ' ' + z.einheit + ' · ' + z.mieter
             + ' · ' + z.monat)).join(' | ')
-        : '<span class="bank-umsatz-offen">nicht zugeordnet</span>';
+        : t.hinweis
+          ? '<span class="bank-umsatz-notiz">' + esc(t.hinweis) + '</span>'
+          : '<span class="bank-umsatz-offen">nicht zugeordnet</span>';
       const quelle = t.source === 'pdf_import' ? 'Kontoauszug' : 'FinTS';
       return '<li class="bank-umsatz-eintrag">'
         + '<div class="bank-umsatz-z1">'
