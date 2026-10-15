@@ -630,6 +630,38 @@ nav button { min-height: 44px; min-width: 44px; }
 .bank-umsatz-kopf .btn { min-height: 44px; }
 .bank-umsatz-hinweis { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
 .bank-umsatz-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+/* Dreizeilige Umsatzanzeige (Owner 15.10.2026). Je Umsatz ein Block: oben
+   Datum, Gegenseite und Betrag, darunter der volle Verwendungszweck, unten
+   Buchungsart, Zuordnung und Quelle. Am Telefon bricht die Kopfzeile um,
+   der Betrag bleibt rechts. */
+.bank-umsatz-liste { list-style: none; margin: 0; padding: 0; }
+.bank-umsatz-eintrag { padding: 10px 0; border-bottom: 1px solid var(--border, #e3e3e3); }
+.bank-umsatz-eintrag:last-child { border-bottom: 0; }
+.bank-umsatz-z1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.bank-umsatz-datum { color: var(--muted); white-space: nowrap; }
+.bank-umsatz-wert { font-size: 12px; }
+.bank-umsatz-gegen { font-weight: 600; }
+.bank-umsatz-betrag { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.bank-umsatz-z2 { margin-top: 3px; overflow-wrap: anywhere; }
+.bank-umsatz-z3 { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 3px;
+                  font-size: 13px; color: var(--muted); }
+.bank-umsatz-quelle { margin-left: auto; }
+.bank-umsatz-offen { color: var(--warn, #b26a00); }
+
+/* Laempchen: nur gruen und rot, so hat der Owner es entschieden. Der Punkt
+   traegt zusaetzlich einen Text — Farbe allein ist keine Information. */
+.miet-ampel { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.miet-ampel-punkt { width: 11px; height: 11px; border-radius: 50%; flex: 0 0 auto; }
+.miet-ampel-gruen .miet-ampel-punkt { background: #1a7f37; }
+.miet-ampel-rot  .miet-ampel-punkt { background: #c62828; }
+.miet-ampel-gruen { color: #1a7f37; }
+.miet-ampel-rot  { color: #c62828; font-weight: 600; }
+.miet-ampel-sub { color: var(--muted); font-weight: 400; font-size: 13px; }
+.miet-ampel-zeile { cursor: pointer; padding: 2px 0; }
+.miet-ampel-zeile:hover { text-decoration: underline; }
+.entity-tile__ampel { margin-top: 8px; font-size: 13px; }
+#miet-ampel-detail:not(:empty) { margin: 16px 0; padding: 12px;
+  border: 1px solid var(--border, #e3e3e3); border-radius: 8px; background: var(--card, #fff); }
 .bank-umsatz-mehr { margin-top: 12px; }
 .bank-umsatz-mehr .btn { min-height: 44px; }
 
@@ -842,6 +874,7 @@ pre, code { overflow-wrap: anywhere; }
 <script defer src="/dashboard/js/assets-wizard.js"></script>
 <script defer src="/dashboard/js/fleet-stores.js"></script>
 <script defer src="/dashboard/js/fleet-detail.js"></script>
+<script defer src="/dashboard/js/miet-ampel.js"></script>
 <script defer src="/dashboard/js/banking-connect.js"></script>
 <script defer src="/dashboard/js/wiki.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>

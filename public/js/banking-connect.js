@@ -1228,31 +1228,51 @@ async function bankingUmsaetzeRendern(konto, mehr) {
   const sichtbar = sortiert.slice(0, _bankUmsatzAnzahl);
   const juengste = sortiert[0] ? sortiert[0].bookingDate : null;
 
-  const tabelle = '<table class="data-table" data-tabelle="karten">'
-    + '<thead><tr><th>Buchung</th><th>Gegenseite</th><th>Verwendungszweck</th>'
-    + '<th style="text-align:right">Betrag</th></tr></thead><tbody>'
+  /* Dreizeilig statt vierspaltig (Owner 15.10.2026).
+     Der Owner sah im Oktober 2026 scheinbar vertauschte Spalten: Gegenseite,
+     Zweck und Buchungsart standen durcheinander. Die Ursache lag nicht hier,
+     sondern in den Daten — 235 aus Kontoauszuegen nachgetragene Zeilen kamen
+     mit vertauschten Feldern an, und 40 Buchungen standen doppelt im Bestand
+     (einmal nachgetragen, einmal spaeter von FinTS geliefert). Der Core
+     liefert jetzt jede Buchung genau einmal; hier steht sie so, dass die drei
+     Angaben nicht mehr miteinander verwechselt werden koennen:
+
+       Zeile 1  Datum (Wertstellung) · Gegenseite · Betrag
+       Zeile 2  vollstaendiger Verwendungszweck
+       Zeile 3  Buchungsart · Zuordnung · Quelle                               */
+  const liste = '<ul class="bank-umsatz-liste">'
     + sichtbar.map(t => {
       const betrag = Number(t.amount);
       const klasse = betrag < 0 ? 'bank-saldo-minus' : 'bank-saldo-plus';
       const iban = String(t.counterpartyIban || '');
       const maskiert = iban
-        ? '<span class="iban-masked">***' + esc(iban.slice(-4)) + '</span> '
+        ? ' <span class="iban-masked">***' + esc(iban.slice(-4)) + '</span> '
           + '<button class="iban-reveal" onclick="assetsRevealIban(this, \'' + esc(iban) + '\')">Anzeigen</button>'
         : '';
-      return '<tr>'
-        + '<td>' + esc(fmtDate(t.bookingDate))
-          + (t.valueDate && t.valueDate !== t.bookingDate
-              ? '<div class="bank-umsatz-sub">Wertstellung ' + esc(fmtDate(t.valueDate)) + '</div>' : '')
-        + '</td>'
-        + '<td>' + esc(t.counterpartyName || 'nicht angegeben')
-          + (maskiert ? '<div class="bank-umsatz-sub">' + maskiert + '</div>' : '') + '</td>'
-        + '<td>' + esc(t.reference || '–')
-          + (t.transactionCode ? '<div class="bank-umsatz-sub">' + esc(t.transactionCode) + '</div>' : '')
-        + '</td>'
-        + '<td style="text-align:right" class="' + klasse + '">'
-          + esc(betrag.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (t.currency || ''))
-        + '</td></tr>';
-    }).join('') + '</tbody></table>';
+      const wert = t.valueDate && t.valueDate !== t.bookingDate
+        ? ' <span class="bank-umsatz-wert">(Wertstellung ' + esc(fmtDate(t.valueDate)) + ')</span>' : '';
+      const zuo = Array.isArray(t.zuordnung) && t.zuordnung.length
+        ? t.zuordnung.map(z => esc(z.objekt.toUpperCase() + ' ' + z.einheit + ' · ' + z.mieter
+            + ' · ' + z.monat)).join(' | ')
+        : '<span class="bank-umsatz-offen">nicht zugeordnet</span>';
+      const quelle = t.source === 'pdf_import' ? 'Kontoauszug' : 'FinTS';
+      return '<li class="bank-umsatz-eintrag">'
+        + '<div class="bank-umsatz-z1">'
+          + '<span class="bank-umsatz-datum">' + esc(fmtDate(t.bookingDate)) + wert + '</span>'
+          + '<span class="bank-umsatz-gegen">' + esc(t.counterpartyName || 'ohne Angabe') + maskiert + '</span>'
+          + '<span class="bank-umsatz-betrag ' + klasse + '">'
+            + esc(betrag.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' ' + (t.currency || ''))
+          + '</span>'
+        + '</div>'
+        + '<div class="bank-umsatz-z2">' + esc(t.reference || 'kein Verwendungszweck') + '</div>'
+        + '<div class="bank-umsatz-z3">'
+          + '<span>' + esc(t.transactionCode && t.transactionCode !== 'null'
+              ? t.transactionCode : 'Buchungsart unbekannt') + '</span>'
+          + '<span>' + zuo + '</span>'
+          + '<span class="bank-umsatz-quelle">' + esc(quelle) + '</span>'
+        + '</div>'
+        + '</li>';
+    }).join('') + '</ul>';
 
   const mehrKnopf = sortiert.length > sichtbar.length
     ? '<div class="bank-umsatz-mehr"><button class="btn" onclick="bankingUmsaetzeMehr()">'
@@ -1268,7 +1288,7 @@ async function bankingUmsaetzeRendern(konto, mehr) {
     + '<div class="bank-umsatz-hinweis">' + esc(
       'Stand des letzten FinTS-Abgleichs — nicht der aktuelle Stand bei der Bank. '
       + 'Ein Abgleich wird nicht aus dem Dashboard ausgelöst.') + '</div>'
-    + tabelle + mehrKnopf;
+    + liste + mehrKnopf;
   bankingDetailAnzeigen(ziel, mehr);
 }
 

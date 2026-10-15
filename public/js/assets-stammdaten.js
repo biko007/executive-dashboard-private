@@ -92,6 +92,13 @@ document.addEventListener('alpine:init', () => {
         return;
       }
 
+      /* Laempchen (Owner 15.10.2026): Die Auskunft kommt einmal und wird in
+         den Kacheln nachgetragen, sobald sie da ist — die Liste soll nicht auf
+         den Abruf warten. */
+      if (typeof mietAmpelDaten === 'function') {
+        mietAmpelDaten().then(d => this.mietAmpelNachtragen(d)).catch(() => {});
+      }
+
       html += '<div class="entity-grid">';
       /* D2 (Phase 3): Die eigene Zuordnung schrieb "Oel", "Waermepumpe" und
          "Fernwaerme" ohne Umlaute. Sie ist entfallen; die Begriffe stehen
@@ -118,15 +125,68 @@ document.addEventListener('alpine:init', () => {
                 <span class="label">Energie</span><span class="value">${energy}</span>
                 <span class="label">Kaufpreis</span><span class="value">${kaufpreis}</span>
                 <span class="label">Verkehrswert</span><span class="value">${verkehrswert}</span>
-                <span class="label">Miete/Mo</span><span class="value">${miete}</span>
-                <span class="label">Miete/Jahr</span><span class="value">${mieteJahr}</span>
+                <span class="label">Miete/Mo</span><span class="value" data-miete-soll="${esc(p.code)}">${miete}</span>
+                <span class="label">Miete/Jahr</span><span class="value" data-miete-jahr="${esc(p.code)}">${mieteJahr}</span>
               </div>
+              <div class="entity-tile__ampel" data-miet-ampel="${esc(p.code)}"></div>
             </div>
           </div>
         `;
       }
       html += '</div>';
       target.innerHTML = html;
+    },
+
+    /* Traegt Laempchen und das Gesamtsoll in die fertigen Kacheln nach.
+       Bisher stand unter „Miete/Mo" nur die Kaltmiete — bei I83 also 1.000 €
+       statt der tatsaechlich vereinbarten 1.330 €. Jetzt steht dort die Summe
+       aus dem Mietvertrag, die Aufschluesselung als Titel am Element. */
+    mietAmpelNachtragen(daten) {
+      if (!daten) return;
+      const geld = n => Number(n || 0).toLocaleString('de-DE',
+        { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+      for (const el of document.querySelectorAll('[data-miet-ampel]')) {
+        const code = el.getAttribute('data-miet-ampel');
+        el.innerHTML = typeof mietAmpelObjekt === 'function' ? mietAmpelObjekt(daten, code) : '';
+      }
+      /* Gesamtsoll je Objekt aus den Mieter-Laempchen: Summe der Monatssollen
+         der laufenden Vertraege. */
+      const proObjekt = new Map();
+      for (const m of (daten.mieter || [])) {
+        const o = proObjekt.get(m.objekt) || { soll: 0, teile: [] };
+        o.soll += Number(m.monatssoll || 0);
+        if (m.monatssoll) o.teile.push(m.einheit + ' ' + geld(m.monatssoll));
+        proObjekt.set(m.objekt, o);
+      }
+      for (const el of document.querySelectorAll('[data-miete-soll]')) {
+        const code = String(el.getAttribute('data-miete-soll') || '').toLowerCase();
+        const o = proObjekt.get(code);
+        if (!o || !o.soll) continue;
+        el.textContent = geld(o.soll);
+        el.title = 'Gesamtsoll laut Mietvertraegen: ' + o.teile.join(' · ');
+        const jahr = document.querySelector('[data-miete-jahr="' + CSS.escape(code.toUpperCase()) + '"]')
+          || document.querySelector('[data-miete-jahr="' + CSS.escape(code) + '"]');
+        if (jahr) jahr.textContent = geld(o.soll * 12);
+      }
+    },
+
+    /* Je Mieterzeile ein Laempchen. Hat eine Person mehrere Mietverhaeltnisse
+       — bei vier Personen der Fall —, steht je Vertrag eines da, mit Objekt
+       und Einheit davor. Ein Klick oeffnet die Monatsuebersicht. */
+    mietAmpelMieterNachtragen(daten) {
+      if (!daten) return;
+      for (const el of document.querySelectorAll('[data-miet-ampel-mieter]')) {
+        const tid = Number(el.getAttribute('data-miet-ampel-mieter'));
+        const treffer = (daten.mieter || []).filter(m => (m.tenant_ids || []).includes(tid));
+        if (!treffer.length) { el.innerHTML = '<span class="bank-umsatz-sub">kein Vertrag</span>'; continue; }
+        el.innerHTML = treffer.map(m =>
+          '<div class="miet-ampel-zeile" onclick="event.stopPropagation();mietAmpelDetail('
+          + m.lease_id + ', \'' + esc(m.objekt.toUpperCase() + ' ' + m.einheit + ' · ' + m.mieter) + '\')">'
+          + (treffer.length > 1
+              ? '<span class="bank-umsatz-sub">' + esc(m.objekt.toUpperCase() + ' ' + m.einheit) + '</span> ' : '')
+          + (typeof mietAmpelMieter === 'function' ? mietAmpelMieter(daten, m.lease_id) : '')
+          + '</div>').join('');
+      }
     },
 
     renderTenantsList() {
@@ -153,12 +213,18 @@ document.addEventListener('alpine:init', () => {
         return;
       }
 
+      /* Laempchen auch hier nachtragen, sobald die Auskunft da ist. */
+      if (typeof mietAmpelDaten === 'function') {
+        mietAmpelDaten().then(d => this.mietAmpelMieterNachtragen(d)).catch(() => {});
+      }
+
       html += `<div class="card"><table class="assets-table" data-tabelle="karten">
         <thead><tr>
           <th>Name / Firma</th>
           <th>Kontakt</th>
           <th>IBAN</th>
           <th>Verträge</th>
+          <th>Mietzahlungen</th>
         </tr></thead>
         <tbody id="tenants-tbody">`;
 
@@ -177,6 +243,7 @@ document.addEventListener('alpine:init', () => {
           <td>${esc(t.email || '–')}<br><span style="color:var(--muted);font-size:13px">${esc(t.phone || '')}</span></td>
           <td><span class="iban-masked">${ibanMasked}</span> ${t.iban ? '<button class="iban-reveal" onclick="event.stopPropagation();assetsRevealIban(this,\'' + esc(t.iban) + '\')">Anzeigen</button>' : ''}</td>
           <td>${t.active_lease_count || 0}</td>
+          <td data-miet-ampel-mieter="${t.id}"></td>
         </tr>`;
       }
 
