@@ -657,6 +657,9 @@ nav button { min-height: 44px; min-width: 44px; }
 .miet-ampel-gruen { color: #1a7f37; }
 .miet-ampel-rot  { color: #c62828; font-weight: 600; }
 .miet-ampel-sub { color: var(--muted); font-weight: 400; font-size: 13px; }
+/* Grau gibt es nur in der Monatszeile: Monat ohne Bankdaten, nicht bewertet.
+   Das Laempchen selbst bleibt gruen oder rot — Owner-Vorgabe. */
+.miet-ampel-grau td { color: var(--muted); font-style: italic; }
 .miet-ampel-zeile { cursor: pointer; padding: 2px 0; }
 .miet-ampel-zeile:hover { text-decoration: underline; }
 .entity-tile__ampel { margin-top: 8px; font-size: 13px; }

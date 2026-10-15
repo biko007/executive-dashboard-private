@@ -115,9 +115,14 @@ async function mietAmpelDetail(leaseId, titel) {
     + '<th style="text-align:right">Ist</th><th>Zahlung</th><th>Stand</th>'
     + '</tr></thead><tbody>'
     + zeilen.map(z => {
-      const offen = Number(z.soll) - Number(z.ist) > 0.005 && !z.gilt_als_bezahlt;
+      /* Ein Monat ohne Bankdaten wird nicht bewertet: Er ist weder bezahlt
+         noch offen, sondern grau. Juli und August 2026 liegen nur als
+         Kontoauszug vor; vorher las sich jeder solche Monat wie ein
+         Rueckstand. */
+      const grau = z.bankdaten === false;
+      const offen = !grau && Number(z.soll) - Number(z.ist) > 0.005 && !z.gilt_als_bezahlt;
       const stand = z.gilt_als_bezahlt ? 'Hauptmieter Owner'
-        : offen ? 'offen' : 'bezahlt';
+        : grau ? 'keine Bankdaten' : offen ? 'offen' : 'bezahlt';
       const zahlungen = (z.zahlungen || []).map(p =>
         esc(fmtDate(p.datum) + ' · ' + geld(p.betrag) + ' € · ' + (p.zahler || 'ohne Angabe'))).join('<br>');
       const bestandteile = [
@@ -127,7 +132,7 @@ async function mietAmpelDetail(leaseId, titel) {
         z.garage ? 'Garage ' + geld(z.garage) : null,
         z.kueche ? 'Küche ' + geld(z.kueche) : null,
       ].filter(Boolean).join(' · ');
-      return '<tr class="' + (offen ? 'miet-ampel-rot' : '') + '">'
+      return '<tr class="' + (offen ? 'miet-ampel-rot' : grau ? 'miet-ampel-grau' : '') + '">'
         + '<td>' + esc(z.monat) + (Number(z.anteil) < 1
             ? '<div class="bank-umsatz-sub">anteilig ' + esc(String(Math.round(Number(z.anteil) * 100)) + ' %') + '</div>' : '')
           + '</td>'
@@ -135,7 +140,9 @@ async function mietAmpelDetail(leaseId, titel) {
         + '<td style="text-align:right">' + esc(geld(z.soll))
           + (bestandteile ? '<div class="bank-umsatz-sub">' + esc(bestandteile) + '</div>' : '') + '</td>'
         + '<td style="text-align:right">' + esc(geld(z.ist)) + '</td>'
-        + '<td>' + (zahlungen || '<span class="bank-umsatz-offen">keine</span>') + '</td>'
+        + '<td>' + (zahlungen
+            || (grau ? '<span class="bank-umsatz-sub">kein Kontoauszug fuer diesen Monat</span>'
+                     : '<span class="bank-umsatz-offen">keine</span>')) + '</td>'
         + '<td>' + esc(stand) + (z.erzeugt ? '' : '<div class="bank-umsatz-sub">von Hand</div>') + '</td>'
         + '</tr>';
     }).join('') + '</tbody></table>';
