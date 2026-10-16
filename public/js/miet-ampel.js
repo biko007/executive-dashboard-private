@@ -71,7 +71,15 @@ function mietAmpelMieter(daten, leaseId) {
   const m = (daten.mieter || []).find(x => x.lease_id === Number(leaseId));
   if (!m) return '';
   if (m.owner_hauptmieter) return mietAmpelHtml('gruen', 'bezahlt', 'Hauptmieter Owner');
-  if (m.farbe === 'gruen') return mietAmpelHtml('gruen', 'bezahlt', null);
+  /* Guthaben steht auch bei grün — mehr gezahlt als geschuldet ist eine
+     Information, keine Nebensache: Dahinter steckt entweder eine Überzahlung
+     oder ein zu niedrig hinterlegtes Soll. */
+  const geldK = n => Number(n || 0).toLocaleString('de-DE', { minimumFractionDigits: 2 });
+  if (m.farbe === 'gruen') {
+    return Number(m.guthaben || 0) > 0.004
+      ? mietAmpelHtml('gruen', 'bezahlt', 'Guthaben ' + geldK(m.guthaben) + ' €')
+      : mietAmpelHtml('gruen', 'bezahlt', null);
+  }
   const monate = m.offene_monate.length <= 3
     ? m.offene_monate.join(', ')
     : m.offene_monate.slice(0, 3).join(', ') + ' +' + (m.offene_monate.length - 3);
@@ -85,8 +93,10 @@ function mietAmpelMieter(daten, leaseId) {
           : '')
       + '</span>'
     : '';
+  const gut = Number(m.guthaben || 0) > 0.004
+    ? ' <span class="miet-ampel-guthaben">Guthaben ' + geldK(m.guthaben) + ' €</span>' : '';
   return mietAmpelHtml('rot',
-    m.saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' € offen', monate) + unb;
+    m.saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' € offen', monate) + unb + gut;
 }
 
 /* ── Monatsübersicht ────────────────────────────────────────────────────── */
@@ -131,9 +141,13 @@ async function mietAmpelDetail(leaseId, titel) {
          Rueckstand. */
       const grau = z.bankdaten === false;
       const offen = !grau && Number(z.soll) - Number(z.ist) > 0.005 && !z.gilt_als_bezahlt;
+      /* Mehr gezahlt als geschuldet: Das steht als Guthaben da und wird nicht
+         auf das Soll gekappt. */
+      const ueber = !grau && Number(z.ist) - Number(z.soll) > 0.005;
       const stand = z.gilt_als_bezahlt ? 'Hauptmieter Owner'
         : grau ? 'keine Bankdaten'
-        : offen ? (z.unbestaetigt ? 'offen · unbestätigt' : 'offen') : 'bezahlt';
+        : offen ? (z.unbestaetigt ? 'offen · unbestätigt' : 'offen')
+        : ueber ? 'bezahlt · Guthaben ' + geld(Number(z.ist) - Number(z.soll)) : 'bezahlt';
       const zahlungen = (z.zahlungen || []).map(p =>
         esc(fmtDate(p.datum) + ' · ' + geld(p.betrag) + ' € · ' + (p.zahler || 'ohne Angabe'))).join('<br>');
       const bestandteile = [
