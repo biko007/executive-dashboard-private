@@ -75,8 +75,18 @@ function mietAmpelMieter(daten, leaseId) {
   const monate = m.offene_monate.length <= 3
     ? m.offene_monate.join(', ')
     : m.offene_monate.slice(0, 3).join(', ') + ' +' + (m.offene_monate.length - 3);
+  /* Ein offener Posten, den die Buchhaltung noch nicht bestätigt hat, steht
+     sichtbar als „unbestätigt" neben dem roten Punkt. Das Lämpchen bleibt rot
+     — Owner-Vorgabe —, aber niemand soll daraus eine Mahnung ableiten. */
+  const unb = Number(m.unbestaetigt || 0) > 0.004
+    ? ' <span class="miet-ampel-unbestaetigt">unbestätigt'
+      + (Math.abs(Number(m.unbestaetigt) - m.saldo) > 0.004
+          ? ' ' + Number(m.unbestaetigt).toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €'
+          : '')
+      + '</span>'
+    : '';
   return mietAmpelHtml('rot',
-    m.saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' € offen', monate);
+    m.saldo.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' € offen', monate) + unb;
 }
 
 /* ── Monatsübersicht ────────────────────────────────────────────────────── */
@@ -122,7 +132,8 @@ async function mietAmpelDetail(leaseId, titel) {
       const grau = z.bankdaten === false;
       const offen = !grau && Number(z.soll) - Number(z.ist) > 0.005 && !z.gilt_als_bezahlt;
       const stand = z.gilt_als_bezahlt ? 'Hauptmieter Owner'
-        : grau ? 'keine Bankdaten' : offen ? 'offen' : 'bezahlt';
+        : grau ? 'keine Bankdaten'
+        : offen ? (z.unbestaetigt ? 'offen · unbestätigt' : 'offen') : 'bezahlt';
       const zahlungen = (z.zahlungen || []).map(p =>
         esc(fmtDate(p.datum) + ' · ' + geld(p.betrag) + ' € · ' + (p.zahler || 'ohne Angabe'))).join('<br>');
       const bestandteile = [
@@ -138,7 +149,10 @@ async function mietAmpelDetail(leaseId, titel) {
           + '</td>'
         + '<td>' + esc(fmtDate(z.faellig)) + '</td>'
         + '<td style="text-align:right">' + esc(geld(z.soll))
-          + (bestandteile ? '<div class="bank-umsatz-sub">' + esc(bestandteile) + '</div>' : '') + '</td>'
+          + (bestandteile ? '<div class="bank-umsatz-sub">' + esc(bestandteile) + '</div>' : '')
+          + (Number(z.vz_entfallen || 0) > 0.004
+              ? '<div class="bank-umsatz-sub">ohne NK-Vorauszahlung ' + esc(geld(z.vz_entfallen))
+                + ' (nur gezahlte werden angerechnet)</div>' : '') + '</td>'
         + '<td style="text-align:right">' + esc(geld(z.ist)) + '</td>'
         + '<td>' + (zahlungen
             || (grau ? '<span class="bank-umsatz-sub">kein Kontoauszug fuer diesen Monat</span>'

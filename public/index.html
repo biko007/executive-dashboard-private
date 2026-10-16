@@ -663,6 +663,11 @@ nav button { min-height: 44px; min-width: 44px; }
 /* Grau gibt es nur in der Monatszeile: Monat ohne Bankdaten, nicht bewertet.
    Das Laempchen selbst bleibt gruen oder rot — Owner-Vorgabe. */
 .miet-ampel-grau td { color: var(--muted); font-style: italic; }
+/* Offener Posten ohne Bestätigung der Buchhaltung: rot bleibt rot, der
+   Zusatz macht sichtbar, dass daraus keine Mahnung folgt. */
+.miet-ampel-unbestaetigt { margin-left: 6px; padding: 1px 6px; border-radius: 9px;
+  background: var(--warn-bg, #fff4e0); color: var(--warn, #b26a00);
+  font-size: 12px; font-weight: 600; white-space: nowrap; }
 .miet-ampel-zeile { cursor: pointer; padding: 2px 0; }
 .miet-ampel-zeile:hover { text-decoration: underline; }
 .entity-tile__ampel { margin-top: 8px; font-size: 13px; }
