@@ -234,6 +234,67 @@ tbody tr:hover td { background: var(--row-hover); }
 .seg-row { font-size: 13px; padding: 5px 0; border-bottom: 1px solid var(--border-soft); display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .seg-row:last-child { border-bottom: none; }
 
+/* ── Reisen-Tab: Reiseblock (Import des Reiseassistenten) ──────────────────
+   Mobil zuerst: alles einspaltig und umbruchfaehig ab 320 px. Die
+   Verbreiterungen stehen weiter unten in @media (min-width: 640px). */
+.reise-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.kpi-grid { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+.kpi { background: var(--surface-2); border-radius: var(--r); padding: 8px 10px;
+       display: flex; align-items: center; gap: 8px; }
+.kpi-text { min-width: 0; flex: 1; }
+.kpi-label { display: block; font-size: 12px; color: var(--muted); }
+.kpi-wert { font-size: 14px; font-weight: 600; word-break: break-word; }
+.kpi-kopie { flex: none; padding: 2px 7px; font-size: 13px; line-height: 1.4; }
+
+/* Flugkette. Die Zeitspalte ist fest, damit Abflug und Ankunft untereinander
+   stehen; der Rest darf umbrechen. */
+.flug { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+.flug:last-child { border-bottom: none; }
+.flug-zeit { flex: none; width: 58px; font-variant-numeric: tabular-nums; font-size: 13px; }
+.flug-zeit b { display: block; font-size: 15px; }
+.flug-zeit span { color: var(--muted); }
+.flug-kern { min-width: 0; flex: 1; }
+.flug-kopf { font-weight: 600; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.flug-zeile { font-size: 13px; color: var(--text-soft); margin-top: 2px; }
+.flug-notiz { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.umstieg { margin: 6px 0 6px 68px; padding: 7px 10px; border-left: 3px solid var(--yellow);
+           background: var(--yellow-weak); border-radius: 0 var(--r) var(--r) 0; font-size: 13px; }
+.umstieg b { color: var(--yellow); }
+
+/* Dokumentenkarten. Der Rahmen traegt die Gueltigkeitsfarbe, damit sie auch
+   ohne Farbsehen durch den Text verstaendlich bleibt. */
+.dok-karten { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+.dok-karte { border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--r);
+             padding: 10px; background: var(--surface); }
+.dok-karte.gut   { border-left-color: var(--green); }
+.dok-karte.bald  { border-left-color: var(--yellow); }
+.dok-karte.alt   { border-left-color: var(--red); }
+.dok-karte.offen { border-left-color: var(--border-strong); }
+.dok-titel { font-weight: 600; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.dok-zeile { font-size: 13px; color: var(--text-soft); margin-top: 3px; word-break: break-word; }
+.dok-knopf { margin-top: 8px; display: inline-block; }
+
+/* Fristen und Einreise */
+.frist { display: flex; gap: 10px; align-items: baseline; padding: 7px 0;
+         border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.frist:last-child { border-bottom: none; }
+.frist-tag { flex: none; width: 82px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.frist.faellig .frist-tag { color: var(--red); }
+.frist.nah .frist-tag { color: var(--yellow); }
+.frist.erledigt { opacity: .6; }
+.frist-text { min-width: 0; flex: 1; }
+.frist-notiz { color: var(--muted); }
+.reise-liste { margin: 0; padding-left: 20px; font-size: 13px; }
+.reise-liste li { margin: 3px 0; }
+.reise-fuss { margin-top: 10px; font-size: 13px; color: var(--muted); word-break: break-all; }
+
+@media (min-width: 640px) {
+  .kpi-grid  { grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); }
+  .dok-karten { grid-template-columns: repeat(auto-fill, minmax(285px, 1fr)); }
+  .flug-zeit { width: 64px; }
+  .umstieg   { margin-left: 74px; }
+}
+
 /* ── Abgeschlossene Reisen (eingeklappt) ── */
 .traveled-section { margin-top: 24px; }
 .traveled-section summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; padding: 10px 0; border-top: 1px solid var(--border); list-style: none; display: flex; align-items: center; gap: 8px; }
@@ -1431,7 +1492,7 @@ async function uploadImage(input, entityType, entityId) {
   input.value = '';
 }
 
-const DOC_CAT_LABELS = { vertraege: 'Verträge', rechnungen: 'Rechnungen', notizen: 'Notizen', sonstiges: 'Sonstiges' };
+const DOC_CAT_LABELS = { vertraege: 'Verträge', rechnungen: 'Rechnungen', notizen: 'Notizen', reise: 'Reise', sonstiges: 'Sonstiges' };
 /* D1 (Phase 3): "1.5 KB" -> "1,5 KB", mit geschuetztem Leerzeichen. */
 function fmtSize(bytes) {
   if (bytes == null) return '–';
@@ -1642,6 +1703,296 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal()
 /* ═══════════════════════════════════════════════════════════════════════════
    TRIPS
 ═══════════════════════════════════════════════════════════════════════════ */
+/* ── Reiseblock (Import des Reiseassistenten, Schema bikosoc.reise/1) ──────
+   Die Felder liegen unter `trip.reise` und sind alle freiwillig. Jede
+   Funktion hier gibt leeren Text zurueck, wenn ihr Teil fehlt — eine Reise in
+   der Planungsphase zeigt dann einfach weniger an.
+
+   Keine Pass- und keine Kartennummern: das Schema hat dafuer kein Feld, der
+   Import weist solche Felder ab. Was an Nummern hier erscheint, sind
+   Buchungscode, Ticket-, ESTA- und eTA-Nummer sowie die letzten vier Stellen
+   der Vielfliegerkarte. */
+
+const REISE_TON = { green: 'badge-green', blue: 'badge-blue', amber: 'badge-yellow',
+                    red: 'badge-red', muted: 'badge-muted' };
+
+/* Tage von heute bis zum ISO-Datum. Negativ heisst: liegt zurueck. */
+function reiseTage(iso, heute) {
+  if (!iso) return null;
+  const a = Date.parse(iso + 'T00:00:00Z'), b = Date.parse(heute + 'T00:00:00Z');
+  if (Number.isNaN(a) || Number.isNaN(b)) return null;
+  return Math.round((a - b) / 86400000);
+}
+
+function reiseBetrag(n, waehrung) {
+  if (n == null) return '';
+  const z = Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return waehrung ? z + ' ' + waehrung : z;
+}
+
+/* Eine Kachel. `wert` ist Klartext; mit `kopie` erscheint der Kopierknopf. */
+function reiseKachel(label, wert, kopie) {
+  if (!wert) return '';
+  const knopf = kopie
+    ? `<button class="btn btn-primary kpi-kopie" data-kopie="${esc(kopie)}"
+        data-kopie-name="${esc(label)}" aria-label="${esc(label)} kopieren"
+        title="${esc(label)} kopieren">\u{1F4CB}</button>`
+    : '';
+  return `<div class="kpi"><div class="kpi-text"><span class="kpi-label">${esc(label)}</span>
+    <span class="kpi-wert">${esc(wert)}</span></div>${knopf}</div>`;
+}
+
+/* Kennzahlen aus den Buchungen. Buchungscode und Ticketnummer sind die zwei
+   Angaben, die der Owner am Schalter oder am Telefon vorlesen muss — deshalb
+   haben genau sie einen Kopierknopf. */
+function reiseKennzahlen(reise) {
+  const buchungen = reise.buchungen || [];
+  if (!buchungen.length) return '';
+  const kacheln = buchungen.map(b => [
+    reiseKachel('Buchungscode', b.code, b.code),
+    reiseKachel('Ticketnummer', b.ticket, b.ticket),
+    reiseKachel('Anbieter', b.anbieter),
+    reiseKachel('Preis', reiseBetrag(b.preis, b.waehrung)),
+    reiseKachel('Tarif', b.tarif),
+    reiseKachel('Vielflieger', [b.vielflieger, b.status].filter(Boolean).join(' · ')),
+    reiseKachel('Ausgestellt', b.ausgestellt
+      ? fmtDate(b.ausgestellt) + (b.ausgestellt_ueber ? ' · ' + b.ausgestellt_ueber : '')
+      : ''),
+  ].join('')).join('');
+  const verwalten = buchungen.filter(b => b.verwalten_url).map(b =>
+    `<a class="btn btn-primary dok-knopf" href="${esc(b.verwalten_url)}" target="_blank"
+      rel="noopener">\u{1F517} Buchung ${esc(b.code || '')} verwalten</a>`).join(' ');
+  const notizen = buchungen.filter(b => b.notiz)
+    .map(b => `<div class="flug-notiz">${esc(b.notiz)}</div>`).join('');
+  return `<div class="segments"><div class="seg-header">\u{1F3AB} Buchung</div>
+    <div class="kpi-grid">${kacheln}</div>${notizen}
+    ${verwalten ? `<div style="margin-top:8px">${verwalten}</div>` : ''}</div>`;
+}
+
+/* Flugkette mit den Umstiegshinweisen dazwischen. Der Kalenderknopf kommt aus
+   dem zugehoerigen Segment — Segmente und Fluege entstehen beim Import aus
+   derselben Liste, zugeordnet wird aber ueber den Titel, damit eine spaeter
+   im Dashboard bearbeitete Segmentliste nichts verschiebt. */
+function reiseFluege(t, reise) {
+  const fluege = reise.fluege || [];
+  if (!fluege.length) return '';
+  const umstiege = reise.umstiege || [];
+  const segmente = t.segments || [];
+
+  const zeilen = fluege.map((f, i) => {
+    const titel = `${f.flugnummer} ${f.von} → ${f.nach}`;
+    const seg = segmente.find(sg => sg.title === titel);
+    const kalender = seg
+      ? (seg.calendarEventId
+        ? `<a href="${esc(seg.calendarWebLink || '')}" target="_blank" rel="noopener"
+            title="Kalendereintrag öffnen" style="text-decoration:none">\u{1F4C5}</a>`
+        : `<button class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)"
+            aria-label="Flug in den Kalender eintragen" title="Kalendereintrag erstellen"
+            onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(seg.id)}')">\u{1F4C5}+</button>`)
+      : '';
+    const strecke = [
+      `${esc(f.von)}${f.von_terminal ? ' ' + esc(f.von_terminal) : ''}`,
+      `${esc(f.nach)}${f.nach_terminal ? ' ' + esc(f.nach_terminal) : ''}`,
+    ].join(' → ');
+    const zusatz = [
+      f.dauer && esc(f.dauer),
+      f.flugzeug && esc(f.flugzeug),
+      f.klasse && esc(f.klasse) + (f.buchungsklasse ? ' (' + esc(f.buchungsklasse) + ')' : ''),
+      f.gepaeck && '\u{1F9F3} ' + esc(f.gepaeck),
+    ].filter(Boolean).join(' · ');
+    const flug = `<div class="flug">
+      <div class="flug-zeit"><b>${esc(f.ab_ortszeit || '')}</b>
+        <span>${esc(f.an_ortszeit || '')}${f.an_datum ? ' +1' : ''}</span></div>
+      <div class="flug-kern">
+        <div class="flug-kopf">${esc(f.flugnummer)} ${kalender}
+          <span style="color:var(--muted);font-weight:400;font-size:13px">${esc(fmtDate(f.datum))}</span></div>
+        <div class="flug-zeile">${strecke}</div>
+        ${zusatz ? `<div class="flug-zeile">${zusatz}</div>` : ''}
+        ${f.betrieben_von ? `<div class="flug-notiz">Betrieben von ${esc(f.betrieben_von)}</div>` : ''}
+        ${f.notiz ? `<div class="flug-notiz">${esc(f.notiz)}</div>` : ''}
+      </div></div>`;
+    /* Der Umstieg gehoert zwischen zwei Fluege am selben Ort. */
+    const u = umstiege.find(x => i + 1 < fluege.length
+      && String(x.flughafen || '').toUpperCase().indexOf(String(f.nach).toUpperCase()) === 0);
+    const umstieg = u ? `<div class="umstieg"><b>Umstieg ${esc(u.flughafen)}</b>${u.dauer ? ' · ' + esc(u.dauer) : ''}
+      ${u.einreise ? `<div>${esc(u.einreise)}</div>` : ''}
+      ${u.puffer ? `<div>Puffer: ${esc(u.puffer)}</div>` : ''}
+      ${u.backup ? `<div>Ausweichflug: ${esc(u.backup)}</div>` : ''}
+      ${u.notiz ? `<div>${esc(u.notiz)}</div>` : ''}</div>` : '';
+    return flug + umstieg;
+  }).join('');
+
+  return `<div class="segments"><div class="seg-header">✈️ Flüge (${fluege.length})</div>
+    ${zeilen}</div>`;
+}
+
+/* Dokumente mit Gueltigkeitsfarbe. Nur wo der Import die Datei wirklich
+   uebernommen hat (`pfad`), erscheint der Knopf — sonst zeigt die Karte den
+   Ablageort als Text und keinen toten Knopf. */
+function reiseDokumente(reise, heute) {
+  const dok = reise.dokumente || [];
+  if (!dok.length) return '';
+  const karten = dok.map(d => {
+    const tage = reiseTage(d.gueltig_bis, heute);
+    const klasse = tage == null ? 'offen' : tage < 0 ? 'alt' : tage < 90 ? 'bald' : 'gut';
+    const gueltig = d.gueltig_bis
+      ? (tage < 0
+        ? `<span class="badge badge-red">abgelaufen ${fmtDate(d.gueltig_bis)}</span>`
+        : tage < 90
+          ? `<span class="badge badge-yellow">läuft ab ${fmtDate(d.gueltig_bis)}</span>`
+          : `<span class="badge badge-green">gültig bis ${fmtDate(d.gueltig_bis)}</span>`)
+      : '';  /* Ein E-Ticket hat kein Ablaufdatum — dann auch kein Abzeichen. */
+    const url = d.pfad
+      ? '/dashboard/api/documents/download/' + encodeURIComponent(d.pfad)
+        + '?inline=1&token=' + encodeURIComponent(TOKEN)
+      : '';
+    return `<div class="dok-karte ${klasse}">
+      <div class="dok-titel">${esc(d.titel)} ${gueltig}</div>
+      ${d.nummer ? `<div class="dok-zeile">Nr. ${esc(d.nummer)}</div>` : ''}
+      ${d.status ? `<div class="dok-zeile">Status: ${esc(d.status)}</div>` : ''}
+      ${d.erteilt ? `<div class="dok-zeile">erteilt ${esc(fmtDate(d.erteilt))}</div>` : ''}
+      ${d.notiz ? `<div class="dok-zeile">${esc(d.notiz)}</div>` : ''}
+      ${url
+        ? `<a class="btn btn-primary dok-knopf" href="${esc(url)}" target="_blank" rel="noopener">\u{1F4C4} PDF öffnen</a>`
+        : (d.ablage ? `<div class="dok-zeile">Original: ${esc(d.ablage)}</div>` : '')}
+    </div>`;
+  }).join('');
+  return `<div class="segments"><div class="seg-header">\u{1F6C2} Reisedokumente (${dok.length})</div>
+    <div class="dok-karten">${karten}</div></div>`;
+}
+
+function reiseFristen(reise, heute) {
+  const fristen = reise.fristen || [];
+  if (!fristen.length) return '';
+  const offen = fristen.filter(f => f.status !== 'erledigt').length;
+  const zeilen = fristen.map(f => {
+    const tage = reiseTage(f.faellig, heute);
+    const klasse = f.status === 'erledigt' ? 'erledigt'
+      : tage != null && tage < 0 ? 'faellig'
+        : tage != null && tage <= 7 ? 'nah' : '';
+    const rest = f.status === 'erledigt' ? 'erledigt'
+      : tage == null ? ''
+        : tage < 0 ? `vor ${Math.abs(tage)} Tg.`
+          : tage === 0 ? 'heute' : `in ${tage} Tg.`;
+    return `<div class="frist ${klasse}">
+      <span class="frist-tag">${esc(fmtDate(f.faellig))}</span>
+      <span class="frist-text">${esc(f.titel)}
+        ${f.notiz ? `<span class="frist-notiz">— ${esc(f.notiz)}</span>` : ''}</span>
+      <span style="color:var(--muted);flex:none">${esc(rest)}</span></div>`;
+  }).join('');
+  return `<div class="segments"><div class="seg-header">⏰ Fristen (${offen} offen)</div>
+    ${zeilen}</div>`;
+}
+
+function reiseEinreise(reise) {
+  const liste = reise.einreise || [];
+  if (!liste.length) return '';
+  const zeilen = liste.map(e => `<div class="seg-row">
+    <span class="badge badge-blue">${esc(e.land)}</span>
+    <span>${esc(e.dokument || '')}</span>
+    ${e.wo ? `<span style="color:var(--muted)">${esc(e.wo)}</span>` : ''}
+    ${e.notiz ? `<span style="color:var(--muted)">${esc(e.notiz)}</span>` : ''}</div>`).join('');
+  return `<div class="segments"><div class="seg-header">\u{1F6C2} Einreise</div>${zeilen}</div>`;
+}
+
+function reiseKontakte(reise) {
+  const liste = reise.kontakte || [];
+  if (!liste.length) return '';
+  const zeilen = liste.map(k => {
+    const tel = String(k.telefon || '').split('/')[0].trim();
+    return `<div class="seg-row">
+      <span style="font-weight:600">${esc(k.name)}</span>
+      ${k.telefon
+        ? `<a href="tel:${esc(tel.replace(/[^+0-9]/g, ''))}" style="color:var(--accent)">${esc(k.telefon)}</a>`
+        : ''}
+      ${k.url ? `<a href="${esc(k.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Website</a>` : ''}
+      ${k.notiz ? `<span style="color:var(--muted)">${esc(k.notiz)}</span>` : ''}</div>`;
+  }).join('');
+  return `<div class="segments"><div class="seg-header">☎️ Kontakte</div>${zeilen}</div>`;
+}
+
+/* Miles & More. Leere Zahlenfelder zeigen „offen" statt zu verschwinden —
+   sonst sieht ein nicht gepflegter Kontostand aus wie ein Kontostand null. */
+function reiseMeilen(reise) {
+  const m = reise.meilen;
+  if (!m) return '';
+  const zahl = n => (n == null ? 'offen' : Number(n).toLocaleString('de-DE'));
+  const kacheln = [
+    reiseKachel('Programm', [m.programm, m.karte_letzte4 ? '…' + m.karte_letzte4 : '']
+      .filter(Boolean).join(' ')),
+    reiseKachel('Status', [m.status, m.status_gueltig_bis ? 'bis ' + fmtDate(m.status_gueltig_bis) : '']
+      .filter(Boolean).join(' · ')),
+    reiseKachel('Prämienmeilen', zahl(m.praemienmeilen)),
+    reiseKachel('Statuspunkte', zahl(m.statuspunkte)),
+    reiseKachel('Qualifikationspunkte', zahl(m.qualifikationspunkte)),
+    reiseKachel('eVoucher', zahl(m.evoucher)),
+    reiseKachel('Meilenverfall', m.meilen_verfall ? fmtDate(m.meilen_verfall) : ''),
+  ].join('');
+  const segmente = (m.segmente || []).map(s => {
+    const abzeichen = s.gutgeschrieben
+      ? `<span class="badge badge-green">gutgeschrieben${s.gutschrift_am ? ' ' + fmtDate(s.gutschrift_am) : ''}</span>`
+      : s.nachforderung_offen
+        ? '<span class="badge badge-yellow">Nachforderung offen</span>'
+        : '<span class="badge badge-muted">offen</span>';
+    const erwartet = [
+      s.erwartete_meilen != null && zahl(s.erwartete_meilen) + ' Meilen',
+      s.erwartete_punkte != null && zahl(s.erwartete_punkte) + ' Punkte',
+    ].filter(Boolean).join(' · ');
+    return `<div class="seg-row"><span style="font-weight:600">${esc(s.flugnummer)}</span>
+      ${abzeichen}${erwartet ? `<span style="color:var(--muted)">${esc(erwartet)}</span>` : ''}</div>`;
+  }).join('');
+  const upgrades = (m.upgrades || []).map(u => {
+    const preis = [
+      u.meilen != null && zahl(u.meilen) + ' Meilen',
+      u.evoucher != null && u.evoucher + ' eVoucher',
+    ].filter(Boolean).join(' oder ');
+    return `<div class="seg-row"><span style="font-weight:600">${esc(u.flugnummer)}
+      → ${esc(u.ziel_klasse)}</span>
+      ${preis ? `<span>${esc(preis)}</span>` : ''}
+      ${u.warteliste ? `<span style="color:var(--muted)">Warteliste: ${esc(u.warteliste)}</span>` : ''}</div>`;
+  }).join('');
+  const stand = [m.quelle ? 'Quelle: ' + m.quelle : 'Quelle offen',
+    m.stand ? 'Stand ' + fmtDate(m.stand) : ''].filter(Boolean).join(' · ');
+  return `<div class="segments"><div class="seg-header">✈️ Miles &amp; More</div>
+    <div class="kpi-grid">${kacheln}</div>
+    ${segmente ? `<div style="margin-top:8px">${segmente}</div>` : ''}
+    ${upgrades ? `<div style="margin-top:8px">${upgrades}</div>` : ''}
+    <div class="reise-fuss">${esc(stand)}</div></div>`;
+}
+
+function reiseOffen(reise) {
+  const liste = reise.offen || [];
+  if (!liste.length) return '';
+  return `<div class="segments"><div class="seg-header">\u{1F6A7} Noch offen (${liste.length})</div>
+    <ul class="reise-liste">${liste.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
+}
+
+function reiseFuss(reise) {
+  const teile = [
+    reise.notiz ? esc(reise.notiz) : '',
+    reise.quelle_md ? 'Reisedokument: ' + esc(reise.quelle_md) : '',
+    reise.importiert_am ? 'importiert ' + esc(fmtDate(reise.importiert_am)) : '',
+  ].filter(Boolean);
+  return teile.length ? `<div class="reise-fuss">${teile.join(' · ')}</div>` : '';
+}
+
+/* Kopieren per Ereignis-Delegation — so braucht keine Kachel einen
+   Zeichenketten-Parameter im onclick-Attribut. */
+document.addEventListener('click', e => {
+  const knopf = e.target.closest('[data-kopie]');
+  if (!knopf) return;
+  e.stopPropagation();
+  const wert = knopf.dataset.kopie;
+  const name = knopf.dataset.kopieName || 'Wert';
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(wert)
+      .then(() => meldung(name + ' kopiert: ' + wert))
+      .catch(() => meldung(name + ': ' + wert));
+  } else {
+    meldung(name + ': ' + wert);
+  }
+});
+
 async function loadTrips() {
   const c = document.getElementById('content');
   try {
@@ -1652,6 +2003,10 @@ async function loadTrips() {
     const today = new Date().toISOString().slice(0,10);
 
     function renderTripCard(t) {
+      /* Der Reiseblock kommt vom Import des Reiseassistenten. Reisen, die im
+         Dashboard selbst angelegt wurden, haben ihn nicht — dann bleibt alles
+         wie vorher. */
+      const reise = t.reise || null;
       const active   = t.start_date <= today && t.end_date >= today;
       const upcoming = !active && t.start_date > today;
       const badge = active
@@ -1659,6 +2014,11 @@ async function loadTrips() {
         : upcoming
           ? '<span class="badge badge-blue">Geplant</span>'
           : '<span class="badge badge-muted">Vergangen</span>';
+
+      const chips = (reise?.chips || []).length
+        ? `<div class="reise-chips">${reise.chips.map(ch =>
+          `<span class="badge ${REISE_TON[ch.ton] || 'badge-muted'}">${esc(ch.text)}</span>`).join('')}</div>`
+        : '';
 
       const meta = [
         t.currency         && `<div class="mi"><span class="ml">💶 Währung </span>${esc(t.currency)}</div>`,
@@ -1671,7 +2031,8 @@ async function loadTrips() {
         `<div class="mi"><span class="ml">🎯 Aktivitäten </span>${esc((t.activities||[]).join(', '))||'–'}</div>`,
       ].filter(Boolean).join('');
 
-      const segs = t.segments?.length ? `
+      const eigeneFluege = (reise?.fluege || []).length > 0;
+      const segs = (!eigeneFluege && t.segments?.length) ? `
         <div class="segments">
           <div class="seg-header">Segmente (${t.segments.length})</div>
           ${t.segments.map(s => `<div class="seg-row">
@@ -1686,7 +2047,10 @@ async function loadTrips() {
           </div>`).join('')}
         </div>` : '';
 
-      const tripDocs = docs.filter(d => d.tripId === t.id);
+      /* Dokumente, die schon als Reisedokument-Karte erscheinen, hier nicht
+         ein zweites Mal auflisten. */
+      const reisePfade = (reise?.dokumente || []).map(d => d.pfad).filter(Boolean);
+      const tripDocs = docs.filter(d => d.tripId === t.id && !reisePfade.includes(d.path));
       const docsSection = tripDocs.length ? `
         <div class="segments">
           <div class="seg-header">📁 Dokumente (${tripDocs.length})</div>
@@ -1729,6 +2093,7 @@ async function loadTrips() {
             <h3>${esc(t.name)} ${badge}</h3>
             <!-- P2-8: Hier standen die rohen ISO-Datumsangaben (2026-02-24). -->
             <div class="trip-dates">📅 ${esc(fmtDate(t.start_date))} → ${esc(fmtDate(t.end_date))} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
+            ${chips}
           </div>
           <!-- P2-8: flex-wrap, sonst wird die letzte Schaltflaeche bei 360 px
                abgeschnitten statt umzubrechen. -->
@@ -1740,9 +2105,18 @@ async function loadTrips() {
           </div>
         </div>
         <div class="trip-grid">${meta}</div>
+        ${reise ? reiseKennzahlen(reise) : ''}
+        ${reise ? reiseFluege(t, reise) : ''}
+        ${reise ? reiseDokumente(reise, today) : ''}
+        ${reise ? reiseFristen(reise, today) : ''}
+        ${reise ? reiseEinreise(reise) : ''}
+        ${reise ? reiseKontakte(reise) : ''}
+        ${reise ? reiseMeilen(reise) : ''}
+        ${reise ? reiseOffen(reise) : ''}
         ${segs}
         ${docsSection}
         ${linksSection}
+        ${reise ? reiseFuss(reise) : ''}
         </div>
       </div>`;
     }

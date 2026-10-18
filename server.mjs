@@ -63,7 +63,10 @@ const HEALTH_LOG  = path.join(HOME, '.openclaw/workspace/artifacts/personal/heal
 const DRAFTS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/mail-drafts');
 const DOCS_DIR    = path.join(HOME, '.openclaw/workspace/artifacts/personal/documents');
 const DOCS_META   = path.join(DOCS_DIR, 'metadata.json');
-const DOCS_CATEGORIES = ['vertraege', 'rechnungen', 'notizen', 'sonstiges'];
+/* `reise` kommt vom Reise-Import (scripts/reise-import.ts im Agenten) und
+   liegt in DOCS_DIR/reise/. Ohne den Eintrag hier landeten die PDFs in der
+   Dokumentenliste unter „Sonstiges". */
+const DOCS_CATEGORIES = ['vertraege', 'rechnungen', 'notizen', 'reise', 'sonstiges'];
 const FLEET_DIR   = path.join(HOME, '.openclaw/workspace/artifacts/personal/fleet');
 const FLEET_FILE  = path.join(FLEET_DIR, 'vehicles.json');
 // Links constants removed — Sprint 9: proxied to Core API
@@ -1972,6 +1975,17 @@ app.get('/api/documents/download/:path(*)', auth, (req, res) => {
       return res.status(400).json({ error: 'Invalid path' });
     }
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'File not found' });
+    /* `?inline=1` zeigt ein PDF im Browser an, statt es herunterzuladen — der
+       Reisen-Tab oeffnet Reisedokumente so mit einem Klick, auch auf dem
+       Telefon. Andere Dateitypen bleiben Download, damit nichts Unerwartetes
+       im Browser gerendert wird. */
+    const istPdf = path.extname(filePath).toLowerCase() === '.pdf';
+    if (req.query.inline && istPdf) {
+      res.type('application/pdf');
+      res.setHeader('Content-Disposition',
+        'inline; filename="' + path.basename(filePath).replace(/[^\x20-\x7e]/g, '_') + '"');
+      return fs.createReadStream(filePath).pipe(res);
+    }
     res.download(filePath, path.basename(filePath));
   } catch (e) {
     res.status(500).json({ error: e.message });
