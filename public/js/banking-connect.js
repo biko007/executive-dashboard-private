@@ -108,7 +108,60 @@ async function bankingAbgleichJetzt(accountId) {
 
 // ── Banking Connect Form — Alpine Component ─────────────────────────────────
 
+/* ── Unterstützte Banken (20.10.2026) ───────────────────────────────────────
+
+   Die Server-Adresse ist je Bank hinterlegt und wird nie vom Owner
+   eingetippt; das Backend prüft dieselbe Liste noch einmal
+   (src/modules/banking/banken.ts im Core). TAN-Verfahren, Platzhalter und
+   App-Hinweis folgen der gewählten Bank.
+
+   KSK: unverändert gegenüber dem erfolgreichen Verbinden vom 20.10.2026,
+   11:11 — gleiche BLZ, gleicher Name, gleiche Adresse, S-pushTAN. */
+const BANKING_BANKEN = [
+  {
+    blz: '64350070',
+    name: 'Kreissparkasse Tuttlingen',
+    fintsUrl: 'https://banking-bw1.s-fints-pt-bw.de/fints30',
+    tanVerfahren: [
+      { value: 'pushTAN1', label: 'S-pushTAN (empfohlen)' },
+      { value: 'smsTAN', label: 'smsTAN' },
+    ],
+    anmeldePlatzhalter: 'Benutzerkennung',
+    freigabeHinweis: 'Bitte Freigabe in der S-pushTAN App bestätigen.',
+  },
+  {
+    blz: '64390130',
+    name: 'Volksbank Schwarzwald-Donau-Neckar eG',
+    fintsUrl: 'https://fints1.atruvia.de/cgi-bin/hbciservlet',
+    tanVerfahren: [
+      { value: 'SecureGo', label: 'SecureGo plus (App-Freigabe)' },
+    ],
+    anmeldePlatzhalter: 'VR-NetKey oder Alias',
+    freigabeHinweis: 'Bitte Freigabe in der SecureGo plus App bestätigen.',
+  },
+];
+
+function bankingBank(blz) {
+  return BANKING_BANKEN.find(b => b.blz === blz) || BANKING_BANKEN[0];
+}
+
+/** Anfrage für „Bank verbinden" — PIN nur im POST-Body, nie in URL/Speicher. */
+function bankingVerbindenBody(blz, userId, pin, tanMedium) {
+  const bank = bankingBank(blz);
+  return {
+    blz: bank.blz,
+    bank_name: bank.name,
+    fints_url: bank.fintsUrl,
+    user_id: userId,
+    pin,
+    tan_medium: tanMedium,
+  };
+}
+
 function bankingConnectFormHtml() {
+  const bankOptionen = BANKING_BANKEN
+    .map(b => `<option value="${b.blz}">${b.name} (${b.blz})</option>`)
+    .join('\n              ');
   return `
     <div class="card card-pad" style="max-width:520px">
       <h3 style="margin-bottom:16px">Bank verbinden</h3>
@@ -118,16 +171,16 @@ function bankingConnectFormHtml() {
         <form @submit.prevent="submitConnect()" autocomplete="off">
           <div class="form-group">
             <label class="form-label">Bank / BLZ</label>
-            <select class="form-select" x-model="blz" disabled>
-              <option value="64350070">Kreissparkasse Tuttlingen (64350070)</option>
+            <select class="form-select" x-model="blz" @change="bankGewechselt()">
+              ${bankOptionen}
             </select>
-            <div class="form-hint">Weitere Banken werden später unterstützt.</div>
+            <div class="form-hint">Die Server-Adresse der Bank ist hinterlegt.</div>
           </div>
 
           <div class="form-group">
             <label class="form-label">Anmeldename</label>
             <input class="form-input" type="text" x-model="userId" required
-                   placeholder="Benutzerkennung" autocomplete="off" />
+                   :placeholder="anmeldePlatzhalter" autocomplete="off" />
           </div>
 
           <div class="form-group">
@@ -141,8 +194,9 @@ function bankingConnectFormHtml() {
           <div class="form-group">
             <label class="form-label">TAN-Verfahren</label>
             <select class="form-select" x-model="tanMedium">
-              <option value="pushTAN1">S-pushTAN (empfohlen)</option>
-              <option value="smsTAN">smsTAN</option>
+              <template x-for="v in tanVerfahrenListe" :key="v.value">
+                <option :value="v.value" x-text="v.label"></option>
+              </template>
             </select>
           </div>
 
@@ -167,9 +221,7 @@ function bankingConnectFormHtml() {
             <div>
               <template x-if="!pushTanTimedOut">
                 <div>
-                  <div class="alert alert-info" style="margin-bottom:12px">
-                    Bitte Freigabe in der S-pushTAN App bestätigen.
-                  </div>
+                  <div class="alert alert-info" style="margin-bottom:12px" x-text="freigabeHinweis"></div>
                   <div x-show="connectResult.message" style="color:var(--muted);font-size:13px;margin-bottom:12px"
                        x-text="connectResult.message"></div>
                   <div x-show="pushTanRetryMsg" class="alert alert-warning" style="margin-bottom:12px"
@@ -240,7 +292,8 @@ function bankingConnectFormHtml() {
           <template x-if="connectResult.status === 'error'">
             <div>
               <div class="alert alert-error" style="margin-bottom:12px">
-                Connect fehlgeschlagen — Details im Audit-Log.
+                Verbinden fehlgeschlagen.
+                <div x-show="connectResult.error" x-text="connectResult.error" style="margin-top:6px"></div>
               </div>
               <button class="btn btn-ghost" @click="resetForm()">Erneut versuchen</button>
             </div>
@@ -468,6 +521,10 @@ document.addEventListener('alpine:init', () => {
     userId: '',
     pin: '',
     tanMedium: 'pushTAN1',
+    // folgen der gewählten Bank (bankGewechselt)
+    tanVerfahrenListe: BANKING_BANKEN[0].tanVerfahren,
+    anmeldePlatzhalter: BANKING_BANKEN[0].anmeldePlatzhalter,
+    freigabeHinweis: BANKING_BANKEN[0].freigabeHinweis,
     submitting: false,
     connectError: null,
     connectResult: null,
@@ -926,7 +983,7 @@ document.addEventListener('alpine:init', () => {
       this.clearPushTanTimeout();
       this.userId = '';
       this.pin = '';
-      this.tanMedium = 'pushTAN1';
+      this.bankGewechselt();
       this.submitting = false;
       this.connectError = null;
       this.connectResult = null;
@@ -937,6 +994,15 @@ document.addEventListener('alpine:init', () => {
       this.connectInProgress = false;
       this.pushTanTimedOut = false;
       this.pushTanRetryMsg = null;
+    },
+
+    /** Übernimmt TAN-Verfahren, Platzhalter und App-Hinweis der gewählten Bank. */
+    bankGewechselt() {
+      const bank = bankingBank(this.blz);
+      this.tanVerfahrenListe = bank.tanVerfahren;
+      this.tanMedium = bank.tanVerfahren[0].value;
+      this.anmeldePlatzhalter = bank.anmeldePlatzhalter;
+      this.freigabeHinweis = bank.freigabeHinweis;
     },
 
     clearPushTanTimeout() {
@@ -952,14 +1018,7 @@ document.addEventListener('alpine:init', () => {
       this.connectError = null;
 
       // Build body — PIN only in POST body, never in URL/storage
-      const body = {
-        blz: this.blz,
-        bank_name: 'Kreissparkasse Tuttlingen',
-        fints_url: 'https://banking-bw1.s-fints-pt-bw.de/fints30',
-        user_id: this.userId,
-        pin: this.pin,
-        tan_medium: this.tanMedium,
-      };
+      const body = bankingVerbindenBody(this.blz, this.userId, this.pin, this.tanMedium);
 
       try {
         const result = await bankingApprovalMutation(

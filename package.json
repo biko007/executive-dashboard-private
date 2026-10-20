@@ -6,7 +6,8 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "build": "node --check server.mjs && echo 'Build OK'"
+    "build": "node --check server.mjs && echo 'Build OK'",
+    "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
     "express": "^4.21.2",
