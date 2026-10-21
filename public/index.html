@@ -1724,6 +1724,21 @@ function reiseTage(iso, heute) {
   return Math.round((a - b) / 86400000);
 }
 
+/* Naechste offene Frist fuer den Kopf der Reisekarte (Auftrag 18.10.2026,
+   Punkt 1). Die frueheste nicht erledigte gewinnt, auch eine ueberfaellige —
+   gerade die soll oben auffallen. Ohne Datum zaehlt eine Frist nicht. */
+function reiseNaechsteFrist(reise, heute) {
+  const offen = (reise?.fristen || [])
+    .filter(f => f.status !== 'erledigt' && reiseTage(f.faellig, heute) != null)
+    .sort((x, y) => String(x.faellig).localeCompare(String(y.faellig)));
+  if (!offen.length) return '';
+  const f = offen[0];
+  const tage = reiseTage(f.faellig, heute);
+  const ton = tage < 0 ? 'badge-red' : tage <= 7 ? 'badge-yellow' : 'badge-muted';
+  const rest = tage < 0 ? `überfällig seit ${Math.abs(tage)} Tg.` : tage === 0 ? 'heute' : `in ${tage} Tg.`;
+  return `<span class="badge ${ton}">⏰ Nächste Frist ${esc(fmtDate(f.faellig))} (${rest}): ${esc(f.titel)}</span>`;
+}
+
 function reiseBetrag(n, waehrung) {
   if (n == null) return '';
   const z = Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -2015,8 +2030,10 @@ async function loadTrips() {
           ? '<span class="badge badge-blue">Geplant</span>'
           : '<span class="badge badge-muted">Vergangen</span>';
 
-      const chips = (reise?.chips || []).length
-        ? `<div class="reise-chips">${reise.chips.map(ch =>
+      const naechsteFrist = reise ? reiseNaechsteFrist(reise, today) : '';
+      const chips = (reise?.chips || []).length || naechsteFrist
+        // Die naechste Frist zuerst: hinter acht Chips saehe man sie mobil nicht
+        ? `<div class="reise-chips">${naechsteFrist}${(reise?.chips || []).map(ch =>
           `<span class="badge ${REISE_TON[ch.ton] || 'badge-muted'}">${esc(ch.text)}</span>`).join('')}</div>`
         : '';
 
