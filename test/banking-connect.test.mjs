@@ -22,7 +22,7 @@ function lade() {
   };
   vm.createContext(kontext);
   const code = readFileSync(new URL('../public/js/banking-connect.js', import.meta.url), 'utf8');
-  vm.runInContext(code + '\n;globalThis.__f = { bankingConnectFormHtml, bankingVerbindenBody, BANKING_BANKEN };', kontext);
+  vm.runInContext(code + '\n;globalThis.__f = { bankingConnectFormHtml, bankingVerbindenBody, BANKING_BANKEN, bankingFreigabeHinweis };', kontext);
   return { ...kontext.__f, komponente };
 }
 
@@ -123,10 +123,53 @@ test('nach dem Verbinden: Hinweis zur zweiten Freigabe, solange die Bank wartet,
   assert.equal(komponente.abrufPhase, null);
 });
 
-test('Formular zeigt den Hinweistext genau in der Phase „warte_auf_freigabe"', () => {
+test('Formular zeigt den Freigabe-Hinweis genau in der Phase „warte_auf_freigabe"', () => {
   const { bankingConnectFormHtml } = lade();
   const html = bankingConnectFormHtml();
-  assert.match(html, /x-show="abrufPhase === 'warte_auf_freigabe'"[^>]*>\s*Bitte zweite Freigabe in der App bestätigen – lädt Umsätze ab 2015/);
+  assert.match(html, /x-show="abrufPhase === 'warte_auf_freigabe'"[^>]*>\s*<div x-text="abrufHinweis"><\/div>/);
+  assert.match(html, /x-show="abrufAbbrechbar"[\s\S]*@click="abrufAbbrechen\(\)"/);
+});
+
+test('Hinweistext: Freigabe n von m – Konto …xxxx', () => {
+  const { bankingFreigabeHinweis } = lade();
+  assert.equal(bankingFreigabeHinweis({ phase: 'warte_auf_freigabe', n: 2, m: 8, konto: '0133' }),
+    'Freigabe 2 von 8 in der App bestätigen – Konto …0133');
+  assert.equal(bankingFreigabeHinweis({ phase: 'laeuft', n: 2, m: 8, konto: '0133' }), '');
+  assert.equal(bankingFreigabeHinweis({ phase: 'warte_auf_freigabe' }), 'Freigabe in der App bestätigen');
+});
+
+test('Kennung wird ohne Leerraum gesendet, PIN unverändert', () => {
+  const { bankingVerbindenBody } = lade();
+  const body = bankingVerbindenBody('64350070', ' KENNUNG\u00A0\t', ' GEHEIM ', 'pushTAN1');
+  assert.equal(body.user_id, 'KENNUNG');
+  assert.equal(body.pin, ' GEHEIM ');
+});
+
+test('Formulartext beschreibt die verschlüsselte Speicherung der PIN', () => {
+  const { bankingConnectFormHtml } = lade();
+  const html = bankingConnectFormHtml();
+  assert.match(html, /PIN wird verschlüsselt übertragen und verschlüsselt gespeichert/);
+  assert.doesNotMatch(html, /nicht gespeichert/);
+});
+
+test('Abbrechen während der Freigaben schickt DELETE an die Sitzung, einmal', async () => {
+  const aufrufe = [];
+  let komponente = null;
+  const kontext = {
+    ENDPOINT_MAP: {}, console, approvalMutation: async () => ({}),
+    document: { addEventListener: (_e, fn) => fn() },
+    Alpine: { data: (_n, f) => { komponente = f(); }, store: () => ({ fetch: async (url, opt) => { aufrufe.push([url, opt && opt.method]); return { ok: true }; } }) },
+    window: {}, setTimeout, clearTimeout,
+  };
+  vm.createContext(kontext);
+  vm.runInContext(readFileSync(new URL('../public/js/banking-connect.js', import.meta.url), 'utf8'), kontext);
+  komponente.sessionId = 25;
+  komponente.abrufAbbrechbar = true;
+  await komponente.abrufAbbrechen();
+  await komponente.abrufAbbrechen();
+  assert.deepEqual(aufrufe, [['/api/banking/session/25', 'DELETE']]);
+  assert.equal(komponente.abrufAbbrechbar, false);
+  assert.equal(komponente.abrufAbbruchGesendet, true);
 });
 
 test('Ansicht inzwischen gewechselt: keine Weiterleitung', async () => {

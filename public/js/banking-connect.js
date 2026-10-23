@@ -152,10 +152,21 @@ function bankingVerbindenBody(blz, userId, pin, tanMedium) {
     blz: bank.blz,
     bank_name: bank.name,
     fints_url: bank.fintsUrl,
-    user_id: userId,
+    // Kennung ohne Leerraum am Anfang/Ende: das automatische Ausfüllen des
+    // Browsers hängte am 23.10.2026 ein Leerzeichen an (KSK lehnte mit 9340 ab).
+    // Die PIN bleibt unverändert.
+    user_id: String(userId ?? '').trim(),
     pin,
     tan_medium: tanMedium,
   };
+}
+
+/** Hinweistext beim Warten auf eine Freigabe für die Historie (23.10.2026). */
+function bankingFreigabeHinweis(status) {
+  if (!status || status.phase !== 'warte_auf_freigabe') return '';
+  const konto = status.konto ? ` – Konto …${String(status.konto).slice(-4)}` : '';
+  if (status.n && status.m) return `Freigabe ${status.n} von ${status.m} in der App bestätigen${konto}`;
+  return `Freigabe in der App bestätigen${konto}`;
 }
 
 function bankingConnectFormHtml() {
@@ -188,7 +199,7 @@ function bankingConnectFormHtml() {
             <input class="form-input" type="password" x-model="pin" required
                    placeholder="Online-Banking PIN" autocomplete="new-password"
                    x-ref="pinInput" />
-            <div class="form-hint">PIN wird nur verschlüsselt übertragen und nicht gespeichert.</div>
+            <div class="form-hint">PIN wird verschlüsselt übertragen und verschlüsselt gespeichert, damit der wöchentliche Abgleich ohne erneute Eingabe läuft.</div>
           </div>
 
           <div class="form-group">
@@ -284,10 +295,15 @@ function bankingConnectFormHtml() {
                   <span x-text="connectResult.accountCount"></span> Konto(en) gefunden.
                 </span>
               </div>
-              <!-- Abruf nach dem Verbinden (23.10.2026): Hinweis zur zweiten Freigabe -->
+              <!-- Abruf nach dem Verbinden (23.10.2026): Freigabe je Konto -->
               <div x-show="abrufPhase === 'warte_auf_freigabe'" class="alert alert-info" style="margin-bottom:12px">
-                Bitte zweite Freigabe in der App bestätigen – lädt Umsätze ab 2015
+                <div x-text="abrufHinweis"></div>
+                <div style="font-size:12px;margin-top:4px">Lädt die Umsätze ab 2015. Ohne Bestätigung nach 2 Minuten: dieses Konto mit 89 Tagen, weiter mit dem nächsten.</div>
               </div>
+              <div x-show="abrufAbbrechbar" style="margin-bottom:12px;display:flex;justify-content:flex-end">
+                <button type="button" class="btn btn-ghost" @click="abrufAbbrechen()">Abbrechen</button>
+              </div>
+              <div x-show="abrufAbbruchGesendet" style="color:var(--muted);font-size:13px;margin-bottom:8px">Abbruch angefordert – keine weitere Freigabe; die übrigen Konten kommen mit 89 Tagen.</div>
               <div x-show="abrufPhase === 'laeuft'" style="color:var(--muted);font-size:13px">Umsätze werden abgerufen…</div>
               <div x-show="abrufPhase === 'bereit'" style="color:var(--muted);font-size:13px">Umsätze werden abgerufen…</div>
               <div x-show="abrufPhase === 'fertig'" style="color:var(--muted);font-size:13px">Umsätze abgerufen – das Ergebnis kommt per Telegram. Weiterleitung…</div>
@@ -551,6 +567,9 @@ document.addEventListener('alpine:init', () => {
     // Abruf nach dem Verbinden (23.10.2026): bereit | laeuft | warte_auf_freigabe | fertig | unbekannt
     abrufPhase: null,
     abrufTimerId: null,
+    abrufHinweis: '',
+    abrufAbbrechbar: false,
+    abrufAbbruchGesendet: false,
 
     // Bulk-selection state (c2)
     bulkMode: false,
@@ -1008,12 +1027,16 @@ document.addEventListener('alpine:init', () => {
       if (this.abrufTimerId) clearTimeout(this.abrufTimerId);
       this.abrufTimerId = null;
       this.abrufPhase = null;
+      this.abrufHinweis = '';
+      this.abrufAbbrechbar = false;
+      this.abrufAbbruchGesendet = false;
     },
 
     /* Nach „verbunden" ruft das Gateway sofort die Umsätze ab. Verlangt die Bank
-       für die Historie ab 2015 eine zweite Freigabe, zeigt das Formular den
-       Hinweis dazu, solange der Sidecar darauf wartet (höchstens zwei Minuten).
-       Danach wie bisher zur Übersicht; das Ergebnis kommt per Telegram. */
+       für die Historie ab 2015 je Konto eine Freigabe, zeigt das Formular
+       „Freigabe n von m … – Konto …xxxx", solange der Sidecar darauf wartet
+       (je Konto höchstens zwei Minuten). Abbrechen beendet die Reihe. Danach
+       wie bisher zur Übersicht; das Ergebnis kommt per Telegram. */
     beobachteAbruf() {
       const csrf = Alpine.store('csrf');
       const sid = this.sessionId;
@@ -1027,19 +1050,36 @@ document.addEventListener('alpine:init', () => {
         this.loadOverview();
       };
       const frage = async () => {
-        let phase = 'unbekannt';
+        let status = { phase: 'unbekannt' };
         try {
           const res = await csrf.fetch('/api/banking/abruf-status/' + encodeURIComponent(sid));
-          if (res.ok) phase = (await res.json()).phase || 'unbekannt';
+          if (res.ok) status = (await res.json()) || status;
         } catch (e) { /* Hinweis ist Komfort — ohne Antwort einfach weiter */ }
         if (this.sessionId !== sid) return;   // Formular inzwischen zurückgesetzt
+        const phase = status.phase || 'unbekannt';
         this.abrufPhase = phase;
+        this.abrufHinweis = bankingFreigabeHinweis(status);
+        this.abrufAbbrechbar = !this.abrufAbbruchGesendet && (phase === 'warte_auf_freigabe' || phase === 'laeuft');
+        // Höchstens 32 Minuten: bis zu zehn Freigaben à 2 Minuten plus Abruf
+        // (das Gateway wartet 30 Minuten auf den Sidecar).
+        // „bereit" so lange heisst: Das Gateway hat den Abruf gar nicht erst gestartet.
         const vorbei = phase === 'fertig'
           || (phase === 'unbekannt' && Date.now() - beginn > 6000)
-          || Date.now() - beginn > 240000;
+          || (phase === 'bereit' && Date.now() - beginn > 150 * 1000)
+          || Date.now() - beginn > 32 * 60 * 1000;
         this.abrufTimerId = setTimeout(vorbei ? weiter : frage, 2000);
       };
       frage();
+    },
+
+    /** Abbrechen während des Abrufs: keine weitere Freigabe anfordern. */
+    async abrufAbbrechen() {
+      if (!this.sessionId || this.abrufAbbruchGesendet) return;
+      this.abrufAbbruchGesendet = true;
+      this.abrufAbbrechbar = false;
+      try {
+        await Alpine.store('csrf').fetch('/api/banking/session/' + encodeURIComponent(this.sessionId), { method: 'DELETE' });
+      } catch (e) { /* der Sidecar beendet die Reihe spätestens nach Ablauf der Wartezeit */ }
     },
 
     /** Übernimmt TAN-Verfahren, Platzhalter und App-Hinweis der gewählten Bank. */
