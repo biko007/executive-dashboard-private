@@ -183,3 +183,38 @@ test('Ansicht inzwischen gewechselt: keine Weiterleitung', async () => {
   zeitgeber.shift()();
   assert.equal(komponente.view, 'accounts');
 });
+
+/* Paket Abend 23.10.2026: Darlehen getrennt, neu gemeldete Konten getrennt. */
+function kontenKomponente() {
+  const { komponente } = lade();
+  komponente.accounts = [
+    { id: 1, status: 'active', accountType: 'giro', currency: 'EUR', currentBalance: 1000 },
+    { id: 2, status: 'active', accountType: 'darlehen', currency: 'EUR', currentBalance: -638625.53 },
+    { id: 3, status: 'archived', accountType: 'kaution', currency: 'EUR', currentBalance: 3580 },
+    { id: 4, status: 'neu', accountType: null, currency: 'EUR', currentBalance: 50 },
+  ];
+  return komponente;
+}
+
+test('Darlehen zählt nicht zur Kontensumme, steht getrennt als Verbindlichkeit', () => {
+  const k = kontenKomponente();
+  assert.equal(k.summenZeilen().length, 1);
+  assert.match(k.summenZeilen()[0].text, /^Summe der aktiven Konten: 1\.000,00/);
+  assert.match(k.summeHinweis(), /^1 aktives Konto/);
+  assert.match(k.verbindlichkeitZeilen()[0].text, /^Verbindlichkeiten \(Darlehen\): -638\.625,53/);
+  assert.match(k.kontoZusatz(k.accounts[1]), /Darlehen, nicht in der Summe/);
+});
+
+test('neu gemeldete Konten: nicht in Summe, nicht im Archiv, eigener Block', () => {
+  const k = kontenKomponente();
+  assert.deepEqual(k.neueKonten().map(a => a.id), [4]);
+  assert.deepEqual(k.archivierteKonten().map(a => a.id), [3]);
+  assert.equal(k.neuTitel(), '1 neu gemeldetes Konto – Zuordnung offen');
+  assert.match(k.kontoZusatz(k.accounts[3]), /^Neu – Zuordnung offen/);
+});
+
+test('ohne Darlehen keine Zeile Verbindlichkeiten', () => {
+  const k = kontenKomponente();
+  k.accounts = k.accounts.filter(a => a.accountType !== 'darlehen');
+  assert.equal(k.verbindlichkeitZeilen().length, 0);
+});

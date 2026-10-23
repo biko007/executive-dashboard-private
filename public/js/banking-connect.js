@@ -141,6 +141,11 @@ const BANKING_BANKEN = [
   },
 ];
 
+/* Darlehen (Kontoart 'darlehen', 23.10.2026) zählen nicht zur Kontensumme. */
+function istDarlehen(acct) {
+  return String(acct.accountType || '').toLowerCase() === 'darlehen';
+}
+
 function bankingBank(blz) {
   return BANKING_BANKEN.find(b => b.blz === blz) || BANKING_BANKEN[0];
 }
@@ -455,6 +460,35 @@ function bankingOverviewHtml() {
                 </template>
                 <div class="bank-summe-hinweis" x-text="summeHinweis()"></div>
               </div>
+              <!-- Darlehen (23.10.2026): nicht in der Kontensumme, getrennt als
+                   Verbindlichkeit ausgewiesen. -->
+              <div class="bank-summe" x-show="verbindlichkeitZeilen().length > 0">
+                <template x-for="z in verbindlichkeitZeilen()" :key="z.waehrung">
+                  <div class="bank-summe-zeile">
+                    <span class="bank-summe-text" x-text="z.text"></span>
+                  </div>
+                </template>
+                <div class="bank-summe-hinweis" x-text="verbindlichkeitHinweis()"></div>
+              </div>
+
+              <!-- Von der Bank neu gemeldete Konten (23.10.2026): ausgeblendet,
+                   nicht abgerufen, nicht in Summen, bis der Owner sie zuordnet. -->
+              <details class="bank-archiv" x-show="neueKonten().length > 0">
+                <summary x-text="neuTitel()"></summary>
+                <div>
+                  <template x-for="acct in neueKonten()" :key="acct.id">
+                    <div class="bank-konto-zeile bank-konto-archiv">
+                      <span class="bank-konto-iban">
+                        <span class="bank-konto-name" x-text="kontoName(acct)"></span>
+                        <span class="bank-konto-sub" x-text="kontoZusatz(acct)"></span>
+                      </span>
+                      <span class="bank-konto-wert">
+                        <span class="bank-konto-saldo" x-text="saldoText(acct)"></span>
+                      </span>
+                    </div>
+                  </template>
+                </div>
+              </details>
 
               <!-- Archivierte Konten: getrennt und eingeklappt. -->
               <details class="bank-archiv" x-show="archivierteKonten().length > 0">
@@ -733,7 +767,10 @@ document.addEventListener('alpine:init', () => {
     /* Zweite Zeile: Status, Währung und Datenstand des Saldos mit Alter. */
     kontoZusatz(acct) {
       const teile = [];
-      teile.push(acct.status === 'active' ? 'Aktiv' : acct.status === 'archived' ? 'Archiviert' : String(acct.status || 'Status unbekannt'));
+      teile.push(acct.status === 'active' ? (istDarlehen(acct) ? 'Aktiv · Darlehen, nicht in der Summe' : 'Aktiv')
+        : acct.status === 'archived' ? 'Archiviert'
+        : acct.status === 'neu' ? 'Neu – Zuordnung offen'
+        : String(acct.status || 'Status unbekannt'));
       if (acct.currency) teile.push(acct.currency);
       if (acct.lastSyncAt) {
         teile.push('Saldo vom ' + fmtDate(acct.lastSyncAt) + ' (' + altersText(acct.lastSyncAt) + ')');
@@ -762,8 +799,23 @@ document.addEventListener('alpine:init', () => {
       return this.accounts.filter(a => a.status === 'active');
     },
 
+    /* Archiviert sind nur archivierte Konten; neu gemeldete stehen getrennt. */
     archivierteKonten() {
-      return this.accounts.filter(a => a.status !== 'active');
+      return this.accounts.filter(a => a.status !== 'active' && a.status !== 'neu');
+    },
+
+    neueKonten() {
+      return this.accounts.filter(a => a.status === 'neu');
+    },
+
+    neuTitel() {
+      const n = this.neueKonten().length;
+      return n + (n === 1 ? ' neu gemeldetes Konto' : ' neu gemeldete Konten') + ' – Zuordnung offen';
+    },
+
+    /* Konten, die in die Kontensumme gehen: aktiv und kein Darlehen. */
+    summenKonten() {
+      return this.aktiveKonten().filter(a => !istDarlehen(a));
     },
 
     archivTitel() {
@@ -774,7 +826,7 @@ document.addEventListener('alpine:init', () => {
     /* Summe JE WÄHRUNG. Niemals über Währungen hinweg addieren. */
     summenZeilen() {
       const jeWaehrung = {};
-      for (const a of this.aktiveKonten()) {
+      for (const a of this.summenKonten()) {
         if (a.currentBalance == null) continue;
         const w = a.currency || 'ohne Währung';
         jeWaehrung[w] = (jeWaehrung[w] || 0) + Number(a.currentBalance);
@@ -788,7 +840,7 @@ document.addEventListener('alpine:init', () => {
     },
 
     summeHinweis() {
-      const aktiv = this.aktiveKonten();
+      const aktiv = this.summenKonten();
       const ohne = aktiv.filter(a => a.currentBalance == null).length;
       const stand = aktiv.map(a => a.lastSyncAt).filter(Boolean).sort().slice(-1)[0] || null;
       const teile = [aktiv.length + (aktiv.length === 1 ? ' aktives Konto' : ' aktive Konten')];
@@ -796,6 +848,27 @@ document.addEventListener('alpine:init', () => {
       if (stand) teile.push('Datenstand ' + fmtDate(stand) + ', ' + altersText(stand));
       teile.push('Summiert wird je Währung getrennt');
       return teile.join(' · ') + '.';
+    },
+
+    /* Darlehen getrennt: Summe der Salden je Währung als Verbindlichkeit. */
+    verbindlichkeitZeilen() {
+      const jeWaehrung = {};
+      for (const a of this.aktiveKonten().filter(istDarlehen)) {
+        if (a.currentBalance == null) continue;
+        const w = a.currency || 'ohne Währung';
+        jeWaehrung[w] = (jeWaehrung[w] || 0) + Number(a.currentBalance);
+      }
+      return Object.keys(jeWaehrung).sort().map(w => ({
+        waehrung: w,
+        text: 'Verbindlichkeiten (Darlehen): '
+          + Number(jeWaehrung[w]).toLocaleString('de-DE', { minimumFractionDigits: 2 })
+          + '\u00a0' + w,
+      }));
+    },
+
+    verbindlichkeitHinweis() {
+      const n = this.aktiveKonten().filter(istDarlehen).length;
+      return n + (n === 1 ? ' Darlehenskonto' : ' Darlehenskonten') + ' · nicht in der Summe der Konten enthalten.';
     },
 
     umsaetzeOeffnen(accountId) {
