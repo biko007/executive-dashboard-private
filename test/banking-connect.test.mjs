@@ -79,3 +79,64 @@ test('unbekannte BLZ fällt auf die KSK zurück, nie auf eine freie Adresse', ()
   const { bankingVerbindenBody } = lade();
   assert.equal(bankingVerbindenBody('99999999', 'u', 'p', 'x').blz, '64350070');
 });
+
+/* Abruf nach dem Verbinden (23.10.2026): Statusabfrage mit nachgestellten
+   Zeitgebern — jeder setTimeout-Aufruf wird gesammelt und von Hand ausgelöst. */
+function ladeMitAbruf(phasen) {
+  let komponente = null;
+  const zeitgeber = [];
+  const abfragen = [];
+  const kontext = {
+    ENDPOINT_MAP: {}, console, approvalMutation: async () => ({}),
+    document: { addEventListener: (_e, fn) => fn() },
+    Alpine: {
+      data: (_name, fabrik) => { komponente = fabrik(); },
+      store: () => ({ fetch: async (url) => { abfragen.push(url); return { ok: true, json: async () => ({ phase: phasen.shift() }) }; } }),
+    },
+    window: {}, setTimeout: (fn) => { zeitgeber.push(fn); return zeitgeber.length; }, clearTimeout: () => {},
+  };
+  vm.createContext(kontext);
+  vm.runInContext(readFileSync(new URL('../public/js/banking-connect.js', import.meta.url), 'utf8'), kontext);
+  return { komponente, zeitgeber, abfragen };
+}
+
+const warte = () => new Promise(r => setImmediate(r));
+
+test('nach dem Verbinden: Hinweis zur zweiten Freigabe, solange die Bank wartet, danach Übersicht', async () => {
+  const { komponente, zeitgeber, abfragen } = ladeMitAbruf(['laeuft', 'warte_auf_freigabe', 'warte_auf_freigabe', 'fertig']);
+  let uebersicht = 0;
+  komponente.loadOverview = () => { uebersicht++; };
+  komponente.sessionId = 21;
+  komponente.view = 'connect';
+  komponente.beobachteAbruf();
+  const gesehen = [];
+  for (let i = 0; i < 4; i++) {
+    await warte();
+    gesehen.push(komponente.abrufPhase);
+    if (i < 3) zeitgeber.shift()();
+  }
+  assert.deepEqual(gesehen, ['laeuft', 'warte_auf_freigabe', 'warte_auf_freigabe', 'fertig']);
+  assert.equal(abfragen[0], '/api/banking/abruf-status/21');
+  zeitgeber.shift()();   // Weiterleitung nach „fertig"
+  assert.equal(komponente.view, 'overview');
+  assert.equal(uebersicht, 1);
+  assert.equal(komponente.abrufPhase, null);
+});
+
+test('Formular zeigt den Hinweistext genau in der Phase „warte_auf_freigabe"', () => {
+  const { bankingConnectFormHtml } = lade();
+  const html = bankingConnectFormHtml();
+  assert.match(html, /x-show="abrufPhase === 'warte_auf_freigabe'"[^>]*>\s*Bitte zweite Freigabe in der App bestätigen – lädt Umsätze ab 2015/);
+});
+
+test('Ansicht inzwischen gewechselt: keine Weiterleitung', async () => {
+  const { komponente, zeitgeber } = ladeMitAbruf(['fertig']);
+  komponente.loadOverview = () => { throw new Error('darf nicht laufen'); };
+  komponente.sessionId = 22;
+  komponente.view = 'connect';
+  komponente.beobachteAbruf();
+  await warte();
+  komponente.view = 'accounts';
+  zeitgeber.shift()();
+  assert.equal(komponente.view, 'accounts');
+});

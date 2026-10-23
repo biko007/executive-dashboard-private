@@ -284,7 +284,14 @@ function bankingConnectFormHtml() {
                   <span x-text="connectResult.accountCount"></span> Konto(en) gefunden.
                 </span>
               </div>
-              <div style="color:var(--muted);font-size:13px">Weiterleitung…</div>
+              <!-- Abruf nach dem Verbinden (23.10.2026): Hinweis zur zweiten Freigabe -->
+              <div x-show="abrufPhase === 'warte_auf_freigabe'" class="alert alert-info" style="margin-bottom:12px">
+                Bitte zweite Freigabe in der App bestätigen – lädt Umsätze ab 2015
+              </div>
+              <div x-show="abrufPhase === 'laeuft'" style="color:var(--muted);font-size:13px">Umsätze werden abgerufen…</div>
+              <div x-show="abrufPhase === 'bereit'" style="color:var(--muted);font-size:13px">Umsätze werden abgerufen…</div>
+              <div x-show="abrufPhase === 'fertig'" style="color:var(--muted);font-size:13px">Umsätze abgerufen – das Ergebnis kommt per Telegram. Weiterleitung…</div>
+              <div x-show="abrufPhase === 'unbekannt'" style="color:var(--muted);font-size:13px">Weiterleitung…</div>
             </div>
           </template>
 
@@ -540,6 +547,10 @@ document.addEventListener('alpine:init', () => {
     pushTanTimeoutId: null,
     pushTanTimedOut: false,
     pushTanRetryMsg: null,
+
+    // Abruf nach dem Verbinden (23.10.2026): bereit | laeuft | warte_auf_freigabe | fertig | unbekannt
+    abrufPhase: null,
+    abrufTimerId: null,
 
     // Bulk-selection state (c2)
     bulkMode: false,
@@ -994,6 +1005,41 @@ document.addEventListener('alpine:init', () => {
       this.connectInProgress = false;
       this.pushTanTimedOut = false;
       this.pushTanRetryMsg = null;
+      if (this.abrufTimerId) clearTimeout(this.abrufTimerId);
+      this.abrufTimerId = null;
+      this.abrufPhase = null;
+    },
+
+    /* Nach „verbunden" ruft das Gateway sofort die Umsätze ab. Verlangt die Bank
+       für die Historie ab 2015 eine zweite Freigabe, zeigt das Formular den
+       Hinweis dazu, solange der Sidecar darauf wartet (höchstens zwei Minuten).
+       Danach wie bisher zur Übersicht; das Ergebnis kommt per Telegram. */
+    beobachteAbruf() {
+      const csrf = Alpine.store('csrf');
+      const sid = this.sessionId;
+      const beginn = Date.now();
+      this.abrufPhase = 'bereit';
+      const weiter = () => {
+        // Hat jemand inzwischen die Ansicht gewechselt oder neu begonnen: nichts tun
+        if (this.view !== 'connect' || this.sessionId !== sid) return;
+        this.view = 'overview';
+        this.resetForm();
+        this.loadOverview();
+      };
+      const frage = async () => {
+        let phase = 'unbekannt';
+        try {
+          const res = await csrf.fetch('/api/banking/abruf-status/' + encodeURIComponent(sid));
+          if (res.ok) phase = (await res.json()).phase || 'unbekannt';
+        } catch (e) { /* Hinweis ist Komfort — ohne Antwort einfach weiter */ }
+        if (this.sessionId !== sid) return;   // Formular inzwischen zurückgesetzt
+        this.abrufPhase = phase;
+        const vorbei = phase === 'fertig'
+          || (phase === 'unbekannt' && Date.now() - beginn > 6000)
+          || Date.now() - beginn > 240000;
+        this.abrufTimerId = setTimeout(vorbei ? weiter : frage, 2000);
+      };
+      frage();
     },
 
     /** Übernimmt TAN-Verfahren, Platzhalter und App-Hinweis der gewählten Bank. */
@@ -1064,11 +1110,7 @@ document.addEventListener('alpine:init', () => {
 
         // Auto-redirect on success
         if (this.connectResult.status === 'connected') {
-          setTimeout(() => {
-            this.view = 'overview';
-            this.resetForm();
-            this.loadOverview();
-          }, 2000);
+          this.beobachteAbruf();
         }
       } catch (e) {
         // Clear PIN on error too
@@ -1125,11 +1167,7 @@ document.addEventListener('alpine:init', () => {
           this.clearPushTanTimeout();
           this.connectResult = result;
           Alpine.store('toast').success('Verbindung erfolgreich!');
-          setTimeout(() => {
-            this.view = 'overview';
-            this.resetForm();
-            this.loadOverview();
-          }, 2000);
+          this.beobachteAbruf();
           this.connectInProgress = false;
           return;
         }
@@ -1183,11 +1221,7 @@ document.addEventListener('alpine:init', () => {
 
         if (result.status === 'connected') {
           Alpine.store('toast').success('Verbindung erfolgreich!');
-          setTimeout(() => {
-            this.view = 'overview';
-            this.resetForm();
-            this.loadOverview();
-          }, 2000);
+          this.beobachteAbruf();
         } else if (result.status === 'error') {
           this.tanError = 'TAN-Pruefung fehlgeschlagen — Details im Audit-Log.';
         }
