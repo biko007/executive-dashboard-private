@@ -4927,6 +4927,15 @@ let _tradingRefresh = null;
 function fmtUsd(n) { return n != null ? '<span class="zahl">' + Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '\u00a0$</span>' : '–'; }
 function pnlColor(n) { return n > 0 ? 'var(--green)' : n < 0 ? 'var(--red)' : 'var(--muted)'; }
 function pnlPrefix(n) { return n > 0 ? '+' : ''; }
+/* Tages-P&L-Karte. IBKR liefert für das Paper-Konto keinen Tageswert (immer 0);
+   statt einer irreführenden 0 steht dort „nicht verfügbar" (Auftrag Trading
+   Option A, 24.10.2026). Ein echter Wert ungleich 0 wird weiter angezeigt. */
+function tradingTagesPnlKarte(status) {
+  if (status.paperMode === true && !status.dailyPnl) {
+    return `<div class="s-card"><div class="lbl">Tages-P&amp;L</div><div class="val" style="font-size:18px;color:var(--muted)">nicht verfügbar</div><div class="sub">IBKR liefert für das Paper-Konto keinen Tageswert</div></div>`;
+  }
+  return `<div class="s-card"><div class="lbl">Tages-P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.dailyPnl)}">${pnlPrefix(status.dailyPnl)}${fmtUsd(status.dailyPnl)}</div></div>`;
+}
 
 async function loadTrading() {
   const c = document.getElementById('content');
@@ -4976,7 +4985,7 @@ async function loadTrading() {
     const kpiHtml = `<div class="summary-grid">
       <div class="s-card"><div class="lbl">Modus</div><div class="val" style="font-size:18px"><span class="badge ${modeBadge}">${modeLabel}</span></div></div>
       <div class="s-card"><div class="lbl">Verbindung zum Broker</div><div class="val" style="font-size:18px">${zustandsBadge(connCode)}</div><div class="sub" style="color:${kontoFarbe};font-weight:600">${esc(kontoArt)}${status.account ? ' · ' + esc(status.account) : ''}</div></div>
-      <div class="s-card"><div class="lbl">Tages-P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.dailyPnl)}">${pnlPrefix(status.dailyPnl)}${fmtUsd(status.dailyPnl)}</div></div>
+      ${tradingTagesPnlKarte(status)}
       <div class="s-card"><div class="lbl">Unrealisiert P&amp;L</div><div class="val" style="font-size:22px;color:${pnlColor(status.unrealizedPnl)}">${pnlPrefix(status.unrealizedPnl)}${fmtUsd(status.unrealizedPnl)}</div></div>
       <div class="s-card"><div class="lbl">Net Liquidation</div><div class="val" style="font-size:22px">${fmtUsd(status.netLiquidation)}</div></div>
       <div class="s-card"><div class="lbl">Cash</div><div class="val" style="font-size:22px">${fmtUsd(status.cashBalance)}</div></div>
