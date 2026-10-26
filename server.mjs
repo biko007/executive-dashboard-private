@@ -3215,6 +3215,9 @@ function safeWikiFilename(name) {
 
 // JSON-Routen: Liste, Suche, Kategorien, Kennzahlen, Revisionen
 app.get('/api/wiki/pages', requireSession, proxyToCore);
+
+// Morgen- und Abendbriefing (26.10.2026): nur lesend, Daten aus dem Core.
+app.get('/api/briefing', requireSession, proxyToCore);
 app.get('/api/wiki/search', requireSession, proxyToCore);
 app.get('/api/wiki/categories', requireSession, proxyToCore);
 app.get('/api/wiki/stats', requireSession, proxyToCore);

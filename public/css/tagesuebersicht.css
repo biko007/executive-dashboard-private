@@ -257,3 +257,55 @@
   min-height: 44px;
   text-decoration: none;
 }
+
+/* ── Briefing-Panel (26.10.2026) ──────────────────────────────────────────── */
+
+.hb-leiste {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.hb-reiterleiste { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
+
+/* Reiter wie die Unterreiter der Fachbereiche: Unterstrich statt Fläche. */
+.hb-reiter {
+  min-height: 44px;
+  padding: 8px 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+.hb-reiter:hover { color: var(--text); }
+.hb-reiter.aktiv { color: var(--accent); border-bottom-color: var(--accent); }
+
+.hb-tag select { min-height: 44px; }
+
+.hb-status {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-left: 3px solid var(--border-strong);
+  border-radius: 0 var(--r) var(--r) 0;
+  margin-bottom: 10px;
+}
+.hb-ok     { border-left-color: var(--green);  background: var(--green-weak);  color: var(--green); }
+.hb-warn   { border-left-color: var(--yellow); background: var(--yellow-weak); color: var(--yellow); }
+.hb-fehler { border-left-color: var(--red);    background: var(--red-weak);    color: var(--red); }
+
+/* Der Text kommt zeilengenau aus Telegram; Einrückungen der Terminliste
+   bleiben erhalten, lange Zeilen brechen um statt seitlich zu laufen. */
+.hb-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.5;
+  max-height: 520px;
+  overflow-y: auto;
+}
+.hb-text strong { display: inline-block; margin-top: 4px; }

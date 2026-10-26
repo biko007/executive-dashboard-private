@@ -29,6 +29,7 @@
      GET /api/banking/accounts                   Alter der Salden
      GET /api/assets/properties                  Objekte
      GET /api/assets/properties/:code/nk-period-obligations
+     GET /api/briefing?tage=7                    Morgen- und Abendbriefing (26.10.2026)
 
    Es gibt KEINEN sammelnden Endpunkt und KEINEN neuen Datenspeicher. Fällt
    eine Quelle aus, erscheint genau ihr Block als „nicht abrufbar" — die
@@ -497,11 +498,109 @@ function heuteOffenePunkte(punkte) {
 
 /* ── Laden ────────────────────────────────────────────────────────────────── */
 
+/* ── Briefing-Panel (Owner-Auftrag 26.10.2026, Punkt 5) ─────────────────────
+   Zeigt Morgen- und Abendbriefing so, wie sie an Telegram gingen — jeweils
+   das aktuelle, dazu die letzten 7 Tage zum Nachlesen. Quelle ist die Tabelle
+   `briefings` im Core (GET /api/briefing). */
+
+let _heuteBriefings = [];
+let _heuteBriefingWahl = null;   // { art, datum }
+
+const HEUTE_BRIEFING_ART = { morgen: 'Morgen', abend: 'Abend' };
+
+/* Der gespeicherte Text ist Telegram-HTML: Inhalt bereits maskiert, als
+   einzige Auszeichnung <b>. Statt ihn ungeprüft einzusetzen, wird er an den
+   <b>-Marken zerlegt, jedes Stück entmaskiert und mit esc() neu maskiert —
+   so kann aus dem Speicher kein anderes Element in die Seite gelangen. */
+function heuteBriefingHtml(textHtml) {
+  const entmaskiert = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  return String(textHtml || '').split(/(<\/?b>)/).map(teil => {
+    if (teil === '<b>') return '<strong>';
+    if (teil === '</b>') return '</strong>';
+    return esc(entmaskiert(teil));
+  }).join('');
+}
+
+function heuteBriefingStatus(b) {
+  if (b.status === 'gesendet') {
+    const zeit = b.gesendetAt ? zeitUhr(new Date(b.gesendetAt)) + ' Uhr' : '';
+    const teile = ['Zugestellt ' + zeit, 'Telegram ✓'];
+    if (b.mailOk === true) teile.push('Mail ✓');
+    if (b.mailOk === false) teile.push('Mail fehlgeschlagen');
+    if (b.versuche > 1) teile.push('nachgeholt');
+    return { klasse: 'hb-ok', text: teile.join(' · ') };
+  }
+  if (b.status === 'erzeugt') return { klasse: 'hb-warn', text: 'Erzeugt, Zustellung an Telegram fehlgeschlagen' };
+  return { klasse: 'hb-fehler', text: 'Ausgefallen' + (b.fehler ? ': ' + b.fehler : '') };
+}
+
+/* Voreinstellung: das jüngste Briefing — abends also das Abendbriefing. */
+function heuteBriefingVorwahl(liste) {
+  if (!liste.length) return null;
+  const neuestes = [...liste].sort((a, b) =>
+    String(b.gesendetAt || b.erzeugtAt).localeCompare(String(a.gesendetAt || a.erzeugtAt)))[0];
+  return { art: neuestes.art, datum: neuestes.datum };
+}
+
+function heuteBriefingInhalt() {
+  const liste = _heuteBriefings;
+  const wahl = _heuteBriefingWahl;
+  const tage = [...new Set(liste.map(b => b.datum))].sort().reverse();
+
+  const reiter = ['morgen', 'abend'].map(art => {
+    const aktiv = wahl && wahl.art === art;
+    return '<button type="button" class="hb-reiter' + (aktiv ? ' aktiv' : '') + '" aria-pressed="' + aktiv + '"'
+      + ' onclick="heuteBriefingWaehle(\'' + art + '\', null)">' + HEUTE_BRIEFING_ART[art] + '</button>';
+  }).join('');
+
+  const optionen = tage.map(d => '<option value="' + esc(d) + '"' + (wahl && wahl.datum === d ? ' selected' : '') + '>'
+    + esc(heuteTagKurz(d)) + '</option>').join('');
+  const auswahl = '<span class="hb-tag"><select aria-label="Tag des Briefings"'
+    + ' onchange="heuteBriefingWaehle(null, this.value)">' + optionen + '</select></span>';
+
+  const b = wahl ? liste.find(x => x.art === wahl.art && x.datum === wahl.datum) : null;
+  let koerper;
+  if (!b) {
+    koerper = zustandBlock('keine_daten', 'Für diesen Tag liegt kein '
+      + (wahl && wahl.art === 'abend' ? 'Abendbriefing' : 'Morgenbriefing') + ' vor.');
+  } else {
+    const st = heuteBriefingStatus(b);
+    koerper = '<div class="hb-status ' + st.klasse + '">' + esc(st.text) + '</div>'
+      + (b.textHtml ? '<div class="hb-text">' + heuteBriefingHtml(b.textHtml) + '</div>' : '');
+  }
+  return '<div class="hb-leiste"><div class="hb-reiterleiste" role="group" aria-label="Briefing-Art">'
+    + reiter + '</div>' + auswahl + '</div>' + koerper;
+}
+
+function heuteBriefingBlock(liste) {
+  if (!Array.isArray(liste)) {
+    return zustandBlock('fehler', 'Briefings nicht abrufbar.');
+  }
+  _heuteBriefings = liste;
+  _heuteBriefingWahl = heuteBriefingVorwahl(liste);
+  if (!_heuteBriefingWahl) {
+    return zustandBlock('keine_daten', 'Noch kein Briefing gespeichert. Die Ablage besteht seit dem 26.10.2026; '
+      + 'das erste Abendbriefing kommt um 21:00 Uhr, das erste Morgenbriefing um 07:00 Uhr.');
+  }
+  return '<div id="heute-briefing">' + heuteBriefingInhalt() + '</div>';
+}
+
+/* Klick auf Reiter oder Tagesauswahl. null = diesen Teil der Wahl behalten. */
+function heuteBriefingWaehle(art, datum) {
+  if (!_heuteBriefingWahl) return;
+  _heuteBriefingWahl = {
+    art: art || _heuteBriefingWahl.art,
+    datum: datum || _heuteBriefingWahl.datum,
+  };
+  const ziel = document.getElementById('heute-briefing');
+  if (ziel) ziel.innerHTML = heuteBriefingInhalt();
+}
+
 async function loadHeute() {
   const c = document.getElementById('content');
   const wert = (r) => (r.status === 'fulfilled' ? r.value : null);
 
-  const [rUmfeld, rKalender, rAlerts, rHealth, rFahrzeuge, rStatus, rSp, rInsta, rKonten, rObjekte]
+  const [rUmfeld, rKalender, rAlerts, rHealth, rFahrzeuge, rStatus, rSp, rInsta, rKonten, rObjekte, rBriefing]
     = await Promise.allSettled([
       apiFetch('/api/heute/umfeld'),
       apiFetch('/api/calendar'),
@@ -513,6 +612,7 @@ async function loadHeute() {
       apiFetch('/api/instagram/media'),
       apiFetch('/api/banking/accounts'),
       apiFetch('/api/assets/properties'),
+      apiFetch('/api/briefing?tage=7'),
     ]);
 
   const umfeld = wert(rUmfeld);
@@ -525,6 +625,7 @@ async function loadHeute() {
   const insta = wert(rInsta);
   const konten = wert(rKonten);
   const objekte = wert(rObjekte);
+  const briefing = wert(rBriefing);
 
   /* §-556-Pflichten je Objekt — ein lesender Abruf je Objekt.
      Der frühere Abruf von `nk-readiness` entfällt hier: seit der
@@ -638,6 +739,7 @@ async function loadHeute() {
       + ' · ' + esc(zeitUhr(jetzt)) + ' Uhr</div>'
     + heuteAbschnitt('Handlungsbedarf', heuteHandlungsliste(posten),
         esc(heuteStufenZaehler(posten)))
+    + heuteAbschnitt('Briefing', heuteBriefingBlock(briefing && briefing.briefings))
     + heuteAbschnitt('Tag und Wetter', heuteUmfeldBlock(umfeld))
     + heuteAbschnitt('Nächste Termine', heuteTermine(kalender))
     + heuteAbschnitt('Gesundheit', heuteGesundheit(health))
