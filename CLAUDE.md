@@ -243,7 +243,10 @@ Alle externen Endpoints über nginx + Let's Encrypt SSL (app.bikobickel.de:443):
   /dashboard/*  → 127.0.0.1:18800  (Dashboard)
   /location     → 127.0.0.1:18790  (Location-API)
 
-Config:    /etc/nginx/sites-available/app-bikobickel
+Config:    /etc/nginx/sites-available/openclaw.conf
+           (sites-enabled/openclaw.conf ist ein Symlink darauf, seit 02.11.2026;
+            vorher eine abweichende Kopie — immer sites-available bearbeiten)
+           /dashboard ohne Schrägstrich → 301 auf /dashboard/ (02.11.2026)
 Legacy:    /etc/nginx/sites-available/openclaw-withings (IP:8443)
 Cert:      Let's Encrypt (auto-renew via certbot)
 Reload:    sudo nginx -t && sudo systemctl reload nginx
