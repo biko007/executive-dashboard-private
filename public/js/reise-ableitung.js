@@ -154,26 +154,34 @@ function reiseDatumsbereich(text, reiseVon, reiseBis) {
   if (!s || !reiseIstTag(reiseVon)) return null;
   const bisReise = reiseIstTag(reiseBis) ? reiseBis : reiseVon;
   const imZeitraum = r => r && r.von && r.bis && r.von <= r.bis && r.bis >= reiseVon && r.von <= bisReise;
+  /* Alle Treffer eines Musters, nicht nur der erste: Notizen nennen oft vorn
+     ein Buchungs- oder Bestätigungsdatum („gebucht 02.11., Termin Di 24.11.")
+     — das liegt vor der Reise und darf den eigentlichen Termin nicht verdecken
+     (Review 02.11.2026). */
+  const alle = muster => [...s.matchAll(new RegExp(muster.source, muster.flags + 'g'))];
 
-  const ein = REISE_MUSTER_CHECKIN.exec(s), aus = REISE_MUSTER_CHECKOUT.exec(s);
-  if (ein && aus) {
-    const r = { von: reiseDatumAus(ein[1], ein[2], ein[3], reiseVon), bis: reiseDatumAus(aus[1], aus[2], aus[3], reiseVon),
-      zeit_von: ein[4] || '', zeit_bis: aus[4] || '', muster: 'checkin' };
-    if (imZeitraum(r)) return r;
+  for (const ein of alle(REISE_MUSTER_CHECKIN)) {
+    for (const aus of alle(REISE_MUSTER_CHECKOUT)) {
+      const r = { von: reiseDatumAus(ein[1], ein[2], ein[3], reiseVon), bis: reiseDatumAus(aus[1], aus[2], aus[3], reiseVon),
+        zeit_von: ein[4] || '', zeit_bis: aus[4] || '', muster: 'checkin' };
+      if (imZeitraum(r)) return r;
+    }
   }
 
-  const b = REISE_MUSTER_BEREICH.exec(s);
-  if (b) {
+  for (const b of alle(REISE_MUSTER_BEREICH)) {
     // „15.–19.11." nennt den Monat nur einmal; bei „28.–02.12." ist es der Vormonat
     let monatVon = b[2] || b[6];
     if (!b[2] && Number(b[1]) > Number(b[5])) monatVon = String(Number(b[6]) === 1 ? 12 : Number(b[6]) - 1);
-    const r = { von: reiseDatumAus(b[1], monatVon, b[3] || b[7], reiseVon), bis: reiseDatumAus(b[5], b[6], b[7], reiseVon),
+    /* Steht das Jahr nur am Ende („28.12.–02.01.2027"), gehört ein späterer
+       Beginnmonat ins Vorjahr — sonst wäre der Beginn nach dem Ende. */
+    let jahrVon = b[3];
+    if (!jahrVon && b[7]) jahrVon = String(Number(monatVon) > Number(b[6]) ? Number(b[7]) - 1 : Number(b[7]));
+    const r = { von: reiseDatumAus(b[1], monatVon, jahrVon, reiseVon), bis: reiseDatumAus(b[5], b[6], b[7], reiseVon),
       zeit_von: b[4] || '', zeit_bis: b[8] || '', muster: 'bereich' };
     if (imZeitraum(r)) return r;
   }
 
-  const e = REISE_MUSTER_TAG.exec(s);
-  if (e) {
+  for (const e of alle(REISE_MUSTER_TAG)) {
     const tag = reiseDatumAus(e[1], e[2], e[3], reiseVon);
     const r = { von: tag, bis: tag, zeit_von: e[4] || '', zeit_bis: '', muster: 'tag' };
     if (imZeitraum(r)) return r;
@@ -246,7 +254,7 @@ function reiseFlugText(f, art) {
    Reisezeitraum fallen. Eine Frist entfällt, wenn am selben Tag eine Buchung
    desselben Anbieters steht (Lucas Museum: Buchung und Frist „Einlass").
 
-   Ergebnis: [{ von, bis, ort, fortgeschrieben, fluege[], hotel, termine[],
+   Ergebnis: [{ von, bis, ort, fortgeschrieben, fluege[], hotel, hotels[], termine[],
    heute, ruhig }]. Die Rohinformation `eingeordnet` nennt je Buchung, ob und
    wie sie eingeordnet wurde (für Report und Test). */
 function reiseTagesleiste(reise, von, bis, heute) {
@@ -268,12 +276,18 @@ function reiseTagesleiste(reise, von, bis, heute) {
     const tagFluege = [...an.map(f => ({ text: reiseFlugText(f, 'an'), flug: f })),
       ...ab.map(f => ({ text: reiseFlugText(f, 'ab'), flug: f }))];
 
-    const h = hotels.find(x => x.ergebnis.von <= tag && tag <= x.ergebnis.bis);
-    const hotel = h ? {
-      label: h.ergebnis.label, ort: h.ergebnis.ort,
-      art: tag === h.ergebnis.von ? 'checkin' : tag === h.ergebnis.bis ? 'checkout' : 'nacht',
-      zeit: tag === h.ergebnis.von ? h.ergebnis.zeit_von : tag === h.ergebnis.bis ? h.ergebnis.zeit_bis : '',
-    } : null;
+    /* Alle Hotels des Tages — beim Hotelwechsel sind es zwei (Review
+       02.11.2026). Check-out steht vor Check-in; `hotel` ist das Hotel, in dem
+       die Nacht verbracht wird, und liefert den Ort. */
+    const tagHotels = hotels
+      .filter(x => x.ergebnis.von <= tag && tag <= x.ergebnis.bis)
+      .map(x => ({
+        label: x.ergebnis.label, ort: x.ergebnis.ort,
+        art: tag === x.ergebnis.von ? 'checkin' : tag === x.ergebnis.bis ? 'checkout' : 'nacht',
+        zeit: tag === x.ergebnis.von ? x.ergebnis.zeit_von : tag === x.ergebnis.bis ? x.ergebnis.zeit_bis : '',
+      }))
+      .sort((x, y) => (x.art === 'checkout' ? 0 : 1) - (y.art === 'checkout' ? 0 : 1));
+    const hotel = tagHotels.find(x => x.art !== 'checkout') || tagHotels[0] || null;
 
     const termine = terminBuchungen
       .filter(x => x.ergebnis.von <= tag && tag <= x.ergebnis.bis)
@@ -308,8 +322,8 @@ function reiseTagesleiste(reise, von, bis, heute) {
       fortgeschrieben = true;
     }
 
-    const ruhig = !tagFluege.length && !termine.length && (!hotel || hotel.art === 'nacht');
-    tage.push({ tag, ort, fortgeschrieben, fluege: tagFluege, hotel, termine, ruhig });
+    const ruhig = !tagFluege.length && !termine.length && tagHotels.every(x => x.art === 'nacht');
+    tage.push({ tag, ort, fortgeschrieben, fluege: tagFluege, hotel, hotels: tagHotels, termine, ruhig });
   }
 
   // Ruhige Tage mit gleichem Ort und gleichem Hotel zusammenfassen
@@ -324,7 +338,7 @@ function reiseTagesleiste(reise, von, bis, heute) {
       vorige.heute = vorige.heute || t.tag === heute;
     } else {
       zeilen.push({ von: t.tag, bis: t.tag, ort: t.ort, fortgeschrieben: t.fortgeschrieben,
-        fluege: t.fluege, hotel: t.hotel, termine: t.termine, ruhig: t.ruhig, heute: t.tag === heute });
+        fluege: t.fluege, hotel: t.hotel, hotels: t.hotels, termine: t.termine, ruhig: t.ruhig, heute: t.tag === heute });
     }
   }
   return { zeilen, eingeordnet };

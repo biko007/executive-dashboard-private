@@ -102,11 +102,10 @@ function reiseVerlaufHtml(t, reise, heute) {
       ? `<div class="tl-ort${z.fortgeschrieben ? ' fortgeschrieben' : ''}">${esc(z.ort)}${z.fortgeschrieben ? ' <span>(fortgeschrieben)</span>' : ''}</div>`
       : '';
     const fluege = z.fluege.map(f => `<div class="tl-zeile">✈️ ${esc(f.text)}</div>`).join('');
-    let hotel = '';
-    if (z.hotel) {
-      const was = z.hotel.art === 'checkin' ? 'Check-in ' : z.hotel.art === 'checkout' ? 'Check-out ' : '';
-      hotel = `<div class="tl-zeile">\u{1F3E8} ${esc(was)}${esc(z.hotel.label)}${z.hotel.zeit ? ' · ' + esc(z.hotel.zeit) : ''}</div>`;
-    }
+    const hotel = (z.hotels || []).map(h => {
+      const was = h.art === 'checkin' ? 'Check-in ' : h.art === 'checkout' ? 'Check-out ' : '';
+      return `<div class="tl-zeile">\u{1F3E8} ${esc(was)}${esc(h.label)}${h.zeit ? ' · ' + esc(h.zeit) : ''}</div>`;
+    }).join('');
     const termine = z.termine.map(tm => {
       const zeit = [tm.zeit_von && 'ab ' + tm.zeit_von, tm.zeit_bis && 'bis ' + tm.zeit_bis].filter(Boolean).join(', ');
       return `<div class="tl-zeile${tm.quelle === 'frist' ? ' tl-frist' : ''}">\u{1F4CC} ${esc(tm.label)}${zeit ? ' · ' + esc(zeit) : ''}</div>`;
@@ -146,7 +145,8 @@ function reiseBuchungenHtml(reise) {
       vielflieger && `<div class="dok-zeile"><b>Vielflieger:</b> ${esc(vielflieger)}</div>`,
       b.ausgestellt_ueber && `<div class="dok-zeile"><b>Ausgestellt über:</b> ${esc(b.ausgestellt_ueber)}</div>`,
       b.notiz && `<div class="dok-zeile">${esc(b.notiz)}</div>`,
-      b.verwalten_url && `<a class="btn btn-primary dok-knopf" href="${esc(b.verwalten_url)}" target="_blank" rel="noopener">\u{1F517} Buchung verwalten</a>`,
+      /* Nur http(s): esc() hält eine javascript:-Adresse nicht auf (Review 02.11.2026) */
+      /^https?:\/\//i.test(b.verwalten_url || '') && `<a class="btn btn-primary dok-knopf" href="${esc(b.verwalten_url)}" target="_blank" rel="noopener">\u{1F517} Buchung verwalten</a>`,
     ].filter(Boolean).join('');
     return `<details class="buchung">
       <summary>

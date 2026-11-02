@@ -2064,7 +2064,7 @@ async function loadTrips() {
             <button aria-label="Dokument mit der Reise verknüpfen" title="Dokument mit der Reise verknüpfen" class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
             <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Mit Kalender abgleichen</button>
             <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
-            <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>`;
+            <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}')">🗑 Löschen</button>`;
 
       /* Reisen mit Reiseblock: neuer Aufbau (js/reise-ansicht.js, Auftrag
          01.11.2026). Die Angaben der Dashboard-Reise (Klima, Aktivitaeten …)
@@ -2126,7 +2126,11 @@ async function loadTrips() {
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }
 
-async function deleteTrip(id, name) {
+async function deleteTrip(id) {
+  /* Der Name kommt aus dem Zwischenspeicher, nicht aus dem onclick-Attribut:
+     esc() maskiert kein einfaches Anfuehrungszeichen, ein Reisename wie
+     „O'Brien" brach dort das Skript (Review 02.11.2026). */
+  const name = ((_tripsCache || []).find(x => x.id === id) || {}).name || id;
   if (!confirm(`Reise "${name}" wirklich löschen?`)) return;
   try {
     await apiFetch(`/api/trips/${encodeURIComponent(id)}`, { method: 'DELETE' });

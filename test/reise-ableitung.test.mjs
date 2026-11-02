@@ -142,3 +142,27 @@ test('Tagesleiste: heutiger Tag markiert, auch in einer zusammengefassten Zeile'
   const leer = R.reiseTagesleiste({}, '2026-11-07', '2026-11-08', HEUTE).zeilen;
   assert.deepEqual(leer.map(z => [z.von, z.bis, z.ort]), [['2026-11-07', '2026-11-08', '']]);
 });
+
+test('Review 02.11.: Treffer ausserhalb der Reise verdeckt den Termin nicht', () => {
+  const r = R.reiseDatumsbereich('gebucht 02.11., Termin Di 24.11. 14:00', von, bis);
+  assert.deepEqual([r.von, r.zeit_von, r.muster], ['2026-11-24', '14:00', 'tag']);
+  const b = R.reiseDatumsbereich('Angebot vom 20.–22.10., Aufenthalt 10.–12.11.', von, bis);
+  assert.deepEqual([b.von, b.bis], ['2026-11-10', '2026-11-12']);
+});
+
+test('Review 02.11.: Datumsbereich ueber den Jahreswechsel mit Jahr nur am Ende', () => {
+  const r = R.reiseDatumsbereich('Hotel 28.12.–02.01.2027', '2026-12-27', '2027-01-05');
+  assert.deepEqual([r.von, r.bis, r.muster], ['2026-12-28', '2027-01-02', 'bereich']);
+});
+
+test('Review 02.11.: Hotelwechsel am selben Tag zeigt Check-out und Check-in', () => {
+  const reiseH = { buchungen: [
+    { anbieter: 'Hotel Toronto', notiz: 'Check-in 08.11. 15:00, Check-out 10.11. 11:00' },
+    { anbieter: 'Hotel Winnipeg', notiz: 'Check-in 10.11. 16:00, Check-out 12.11. 11:00' },
+  ] };
+  const { zeilen } = R.reiseTagesleiste(reiseH, '2026-11-07', '2026-11-12', HEUTE);
+  const z = zeilen.find(x => x.von === '2026-11-10');
+  assert.deepEqual(z.hotels.map(h => [h.art, h.label]), [['checkout', 'Hotel Toronto'], ['checkin', 'Hotel Winnipeg']]);
+  assert.equal(z.ort, 'Winnipeg');
+  assert.equal(z.ruhig, false);
+});
