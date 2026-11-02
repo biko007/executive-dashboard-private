@@ -166,3 +166,46 @@ test('Review 02.11.: Hotelwechsel am selben Tag zeigt Check-out und Check-in', (
   assert.equal(z.ort, 'Winnipeg');
   assert.equal(z.ruhig, false);
 });
+
+test('Schema-Erweiterung 02.11.: explizite Felder vor dem Textparser', () => {
+  const b = (x) => R.reiseBuchungEinordnen(x, von, bis);
+  // von/bis/zeit/ort/art aus der Datei
+  assert.deepEqual(b({ anbieter: 'Lucas Museum', von: '2026-11-23', zeit_von: '10:00', art: 'termin', ort: 'Los Angeles' }),
+    { art: 'termin', feld: 'von', von: '2026-11-23', bis: '2026-11-23', zeit_von: '10:00', zeit_bis: '',
+      muster: 'feld', label: 'Lucas Museum', ort: 'Los Angeles' });
+  // art aus der Datei schlägt die Namenserkennung
+  assert.equal(b({ anbieter: 'Hotel-Restaurant Abendessen', von: '2026-11-17', art: 'termin' }).art, 'termin');
+  assert.equal(b({ anbieter: 'Airbnb Santa Clara', von: '2026-11-20', bis: '2026-11-22', art: 'hotel' }).art, 'hotel');
+  // flug/sonstiges nie in die Leiste, Datum ausserhalb der Reise auch nicht
+  assert.equal(b({ anbieter: 'United', von: '2026-11-15', art: 'flug' }), null);
+  assert.equal(b({ anbieter: 'Versicherung', von: '2026-11-15', art: 'sonstiges' }), null);
+  assert.equal(b({ anbieter: 'Vorab', von: '2026-10-01' }), null);
+  // ort ohne Datum: Parser liefert das Datum, ort kommt aus dem Feld
+  assert.equal(b({ anbieter: 'Lucas Museum', tarif: 'Mo 23.11.2026, Einlass 10:00', ort: 'Los Angeles' }).ort, 'Los Angeles');
+});
+
+test('Schema-Erweiterung: Winnipeg-Variante mit neuen Feldern', () => {
+  const mitFeldern = structuredClone(reise);
+  for (const f of mitFeldern.fristen) {
+    if (/entscheiden|vereinbaren|buchen|prüfen|Abbuchung|tauschen/.test(f.titel)) f.art = 'aufgabe';
+  }
+  const lucas = mitFeldern.buchungen.find(x => /Lucas/.test(x.anbieter));
+  Object.assign(lucas, { von: '2026-11-23', zeit_von: '10:00', art: 'termin', ort: 'Los Angeles' });
+  const hyatt = mitFeldern.buchungen.find(x => /Hyatt/.test(x.anbieter));
+  Object.assign(hyatt, { von: '2026-11-15', bis: '2026-11-19', zeit_von: '16:00', zeit_bis: '12:00', art: 'hotel', ort: 'San Francisco' });
+
+  const { zeilen } = R.reiseTagesleiste(mitFeldern, von, bis, HEUTE);
+  const am = tag => zeilen.find(z => z.von <= tag && tag <= z.bis);
+  // Aufgaben-Fristen raus → die Winnipeg-Woche ist wieder eine Zeile
+  assert.deepEqual([am('2026-11-10').von, am('2026-11-10').bis, am('2026-11-10').ort], ['2026-11-08', '2026-11-14', 'Winnipeg']);
+  assert.equal(R.reiseZeilenDatum(am('2026-11-10')), '08.–14.11.');
+  // Lucas mit ort → 23.11. Los Angeles, belastbar
+  assert.deepEqual([am('2026-11-23').ort, am('2026-11-23').fortgeschrieben], ['Los Angeles', false]);
+  // Termine ohne art bleiben (Abfahrt, Check-in-Fristen), Aufgaben nicht
+  assert.ok(am('2026-11-07').termine.some(t => /Abfahrt/.test(t.label)));
+  assert.ok(!zeilen.some(z => z.termine.some(t => /First-Upgrade/.test(t.label))));
+  // Hotel unverändert
+  assert.deepEqual([am('2026-11-15').hotel.art, am('2026-11-15').hotel.zeit], ['checkin', '16:00']);
+  // Als Nächstes zeigt Aufgaben weiter
+  assert.deepEqual(R.reiseNaechsteFristen(mitFeldern.fristen, HEUTE).map(f => f.faellig), ['2026-10-31', '2026-11-02', '2026-11-04']);
+});

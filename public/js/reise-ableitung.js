@@ -215,17 +215,35 @@ const REISE_HOTEL_WORT = /\b(hotel|hyatt|regency|hilton|marriott|sheraton|westin
    Buchung nur als Karte unter „Buchungen". */
 function reiseBuchungEinordnen(buchung, reiseVon, reiseBis) {
   if (!buchung) return null;
+  const anbieter = String(buchung.anbieter || '');
+  const label = anbieter.split(/\s+[–—-]\s+/)[0] || anbieter || 'Buchung';
+  /* Ort: das Feld `ort` (seit 02.11.2026), sonst zuerst der Anbietername,
+     dann die übrigen Texte der Buchung. */
+  const ort = (typeof buchung.ort === 'string' && buchung.ort.trim())
+    || reiseStadtImText(anbieter) || reiseStadtImText(`${buchung.tarif || ''} ${buchung.notiz || ''}`);
+  /* `art` aus der Datei hat Vorrang. Flüge stehen über fluege[] in der
+     Leiste, „sonstiges" gehört nicht hinein — beide nur als Karte. */
+  if (buchung.art === 'flug' || buchung.art === 'sonstiges') return null;
+  const artFeld = buchung.art === 'hotel' || buchung.art === 'termin' ? buchung.art : null;
+
+  /* Explizites Datum (von/bis, seit 02.11.2026) vor dem Textparser. Liegt es
+     außerhalb der Reise, erscheint die Buchung nur als Karte. */
+  if (reiseIstTag(buchung.von)) {
+    const bis = reiseIstTag(buchung.bis) && buchung.bis >= buchung.von ? buchung.bis : buchung.von;
+    const ende = reiseIstTag(reiseBis) ? reiseBis : reiseVon;
+    if (bis < reiseVon || buchung.von > ende) return null;
+    return {
+      art: artFeld || (REISE_HOTEL_WORT.test(anbieter) ? 'hotel' : 'termin'), feld: 'von',
+      von: buchung.von, bis, zeit_von: buchung.zeit_von || '', zeit_bis: buchung.zeit_bis || '',
+      muster: 'feld', label, ort,
+    };
+  }
+
   for (const feld of ['anbieter', 'tarif', 'notiz']) {
     const r = reiseDatumsbereich(buchung[feld], reiseVon, reiseBis);
     if (!r) continue;
-    const anbieter = String(buchung.anbieter || '');
-    const art = r.muster === 'checkin' || REISE_HOTEL_WORT.test(anbieter) ? 'hotel' : 'termin';
-    return {
-      art, feld, ...r,
-      label: anbieter.split(/\s+[–—-]\s+/)[0] || anbieter || 'Buchung',
-      // Ort: zuerst der Anbietername, dann die übrigen Texte der Buchung
-      ort: reiseStadtImText(anbieter) || reiseStadtImText(`${buchung.tarif || ''} ${buchung.notiz || ''}`),
-    };
+    const art = artFeld || (r.muster === 'checkin' || REISE_HOTEL_WORT.test(anbieter) ? 'hotel' : 'termin');
+    return { art, feld, ...r, label, ort };
   }
   return null;
 }
@@ -299,6 +317,8 @@ function reiseTagesleiste(reise, von, bis, heute) {
     const anbieterWorte = termine.map(t => (t.label.split(/\s+/)[0] || '').toLowerCase()).filter(w => w.length >= 4);
     for (const f of fristen) {
       if ((f.status || 'offen') !== 'offen' || f.faellig !== tag) continue;
+      // Aufgaben (fristen[].art, seit 02.11.2026) stehen nur unter „Als Nächstes"
+      if (f.art === 'aufgabe') continue;
       const titel = String(f.titel || '').toLowerCase();
       if (anbieterWorte.some(w => titel.includes(w))) continue;
       termine.push({ label: f.titel, quelle: 'frist', notiz: f.notiz || '' });
