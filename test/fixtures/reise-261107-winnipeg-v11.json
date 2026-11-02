@@ -1,0 +1,215 @@
+{
+ "quelle": "Auszug aus 261107-trip-winnipeg v11 (importiert 01.11.2026 20:45 Berlin); ohne Buchungscodes, Ticket- und Dokumentnummern, Kontakte und Meilen",
+ "von": "2026-11-07",
+ "bis": "2026-11-25",
+ "version": 11,
+ "chips": [
+  {
+   "text": "Interkontinentalflüge gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "First-Upgrade LX41 auf Warteliste",
+   "ton": "blue"
+  },
+  {
+   "text": "Hyatt Regency SF 15.–19.11. gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "QCon + 2 Trainings Do 19.11. gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "AGI Summit (Owner) gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "Lucas Museum: 3 Tickets Mo 23.11. 10:00",
+   "ton": "green"
+  },
+  {
+   "text": "eTA und ESTA gültig",
+   "ton": "green"
+  },
+  {
+   "text": "Nacht 19.→20.11. SF offen",
+   "ton": "amber"
+  },
+  {
+   "text": "Hotels Santa Clara / LA offen",
+   "ton": "amber"
+  },
+  {
+   "text": "Inlandsflüge offen",
+   "ton": "amber"
+  },
+  {
+   "text": "Senator: ca. 30 Points offen – eVoucher-Tausch bis 30.12.",
+   "ton": "amber"
+  }
+ ],
+ "fristen": [
+  {
+   "faellig": "2026-10-31",
+   "titel": "LX41: Flugzeugtyp (First an Bord) und Zeiten prüfen",
+   "status": "offen"
+  },
+  {
+   "faellig": "2026-11-02",
+   "titel": "Flug Vancouver → San Francisco am So 15.11. buchen",
+   "status": "offen",
+   "notiz": "Ankunft ca. mittags gewünscht. Annahme UA 2328 08:00 → 09:29 (Business ab 223 CHF, Stand 18.10.)."
+  },
+  {
+   "faellig": "2026-11-04",
+   "titel": "Hotels Santa Clara (20.–22.11.) und Los Angeles (22.–24.11.) buchen – je 2 Betten (mit Bernd Huber)",
+   "status": "offen"
+  },
+  {
+   "faellig": "2026-11-04",
+   "titel": "Flüge Winnipeg → Vancouver und San José → Los Angeles (So 22.11.) buchen",
+   "status": "offen"
+  },
+  {
+   "faellig": "2026-11-06",
+   "titel": "Online-Check-in Air Canada öffnet",
+   "status": "offen",
+   "notiz": "ab 13:20 MEZ, 24 h vor LX4640"
+  },
+  {
+   "faellig": "2026-11-07",
+   "titel": "Abfahrt Tuttlingen ca. 09:30",
+   "status": "offen",
+   "notiz": "Abflug Zürich 13:20"
+  },
+  {
+   "faellig": "2026-11-10",
+   "titel": "Hotel SF: Nacht 19.→20.11. entscheiden (Hyatt-Reservierung nicht änderbar → ggf. separate Buchung)",
+   "status": "offen"
+  },
+  {
+   "faellig": "2026-11-13",
+   "titel": "Treffen mit Troy in LA (Ball-Vape-Session) vereinbaren",
+   "status": "offen",
+   "notiz": "Letzte Mail von Troy 27.10.2026, noch unbeantwortet."
+  },
+  {
+   "faellig": "2026-11-19",
+   "titel": "QCon Trainings: 9:00 Claude Code & Codex · 13:00 Skills That Actually Work",
+   "status": "offen",
+   "notiz": "Hyatt Regency SF. Laptop mit Claude Code mitnehmen. Hyatt Check-out 12:00."
+  },
+  {
+   "faellig": "2026-11-21",
+   "titel": "First-Upgrade LX41: spätester Abbuchungszeitpunkt der 70.000 Meilen",
+   "status": "offen"
+  },
+  {
+   "faellig": "2026-11-23",
+   "titel": "Lucas Museum – Einlass 10:00 (3 Tickets)",
+   "status": "offen",
+   "notiz": "One Lucas Plaza, Exposition Park; Parken 20 USD."
+  },
+  {
+   "faellig": "2026-11-23",
+   "titel": "Online-Check-in SWISS öffnet",
+   "status": "offen",
+   "notiz": "ab 20:30 PST, 23 h vor LX41"
+  },
+  {
+   "faellig": "2026-12-15",
+   "titel": "Senator-Verlängerung: Gutschriften prüfen",
+   "status": "offen",
+   "notiz": "Geschätzt ca. 1.970 von 2.000 Points. Danach eVoucher-Tausch entscheiden."
+  },
+  {
+   "faellig": "2026-12-30",
+   "titel": "Spätester Termin: 2 eVoucher in 100 Points tauschen",
+   "status": "offen",
+   "notiz": "Miles & More → Status Management → eVoucher → Tausch in Points."
+  }
+ ],
+ "fluege": [
+  {
+   "datum": "2026-11-07",
+   "flugnummer": "LX4640",
+   "von": "ZRH",
+   "ab_ortszeit": "13:20",
+   "nach": "YYZ",
+   "an_ortszeit": "16:15"
+  },
+  {
+   "datum": "2026-11-07",
+   "flugnummer": "AC269",
+   "von": "YYZ",
+   "ab_ortszeit": "19:25",
+   "nach": "YWG",
+   "an_ortszeit": "22:14"
+  },
+  {
+   "datum": "2026-11-24",
+   "flugnummer": "LX41",
+   "von": "LAX",
+   "ab_ortszeit": "19:30",
+   "nach": "ZRH",
+   "an_ortszeit": "15:35",
+   "an_datum": "2026-11-25"
+  }
+ ],
+ "buchungen": [
+  {
+   "anbieter": "SWISS",
+   "ausgestellt": "2026-10-18",
+   "preis": 6721.8,
+   "waehrung": "CHF",
+   "tarif": "Business Flex (frei umbuchbar, erstattbar)",
+   "status": "Senator",
+   "notiz": "Business Flex auf allen drei Segmenten; Sitzplätze reserviert. First-Upgrade LX41 auf Warteliste (70.000 Meilen). Seit 19.10. online keine Flugänderung – Änderungen über das SWISS Service Center."
+  },
+  {
+   "anbieter": "SWISS – CO₂-Beitrag „Large“ (35 % SAF)",
+   "ausgestellt": "2026-10-19",
+   "preis": 609.95,
+   "waehrung": "CHF",
+   "tarif": "35 % CO₂-Einsparung durch SAF, 65 % Vermeidung/Entfernung; +35 % Points",
+   "status": "bestätigt",
+   "notiz": "Gesamtpreis der Buchung YV6ZJL damit 7.331,75 CHF."
+  },
+  {
+   "anbieter": "Lucas Museum of Narrative Art – Eintritt",
+   "ausgestellt": "2026-10-10",
+   "preis": 75,
+   "waehrung": "USD",
+   "tarif": "3 × Adult, Mo 23.11.2026, Einlass 10:00; nicht erstattbar, nicht übertragbar",
+   "status": "bestätigt",
+   "notiz": "Bestätigung an die bikolino-Adresse; Tickets im Lucas-Museum-Konto abrufbar. Zusatztickets für 23.11. ausverkauft (01.11.)."
+  },
+  {
+   "anbieter": "Hyatt Regency San Francisco – 2 Queen Beds City View Balcony, 2 Erwachsene",
+   "ausgestellt": "2026-11-01",
+   "preis": 4172.63,
+   "waehrung": "USD",
+   "tarif": "Members Save More – voll vorausbezahlt, keine Erstattung, keine Änderung",
+   "status": "bestätigt",
+   "notiz": "Check-in So 15.11. 16:00, Check-out Do 19.11. 12:00 (4 Nächte). Zimmer 3.388,26 + Steuern/Gebühren 784,37 USD. 5 Embarcadero Center; +1 415-788-1234."
+  },
+  {
+   "anbieter": "QCon San Francisco – Conference (3 Tage) + Training (1 Tag)",
+   "ausgestellt": "2026-11-01",
+   "preis": 3735,
+   "waehrung": "USD",
+   "tarif": "Registrierung nicht erstattbar",
+   "status": "bezahlt",
+   "notiz": "Konferenz Mo 16.–Mi 18.11. Do 19.11.: 9:00 „Supercharge Your Work With Claude Code and Codex“, 13:00 „How To Write Skills That Actually Work“ (bestätigt 01.11.). Vorbereitungs-Mail ca. 2 Wochen vorher. Laptop mitnehmen."
+  },
+  {
+   "anbieter": "AGI Summit Silicon Valley – General Admission Two Days (Owner)",
+   "ausgestellt": "2026-11-01",
+   "preis": 249,
+   "waehrung": "USD",
+   "status": "bestätigt",
+   "notiz": "Sa 21.11. 9:00 – So 22.11. 17:00, Santa Clara Convention Center. Ticket (pkpass) in der Bestätigungsmail. Ticket für Bernd Huber: Bestätigung geht an Bernds E-Mail."
+  }
+ ]
+}
