@@ -15,6 +15,7 @@
 <link rel="stylesheet" href="/dashboard/css/datenstand.css">
 <link rel="stylesheet" href="/dashboard/css/tagesuebersicht.css">
 <link rel="stylesheet" href="/dashboard/css/instagram-material.css">
+<link rel="stylesheet" href="/dashboard/css/reise.css">
 <style>
 /* ═══════════════════════════════════════════════════════════════════════════
    Farb- und Typografiebasis — Paket P2-1 (Spec §2)
@@ -951,6 +952,8 @@ pre, code { overflow-wrap: anywhere; }
 <script defer src="/dashboard/js/miet-ampel.js"></script>
 <script defer src="/dashboard/js/banking-connect.js"></script>
 <script defer src="/dashboard/js/wiki.js"></script>
+<script defer src="/dashboard/js/reise-ableitung.js"></script>
+<script defer src="/dashboard/js/reise-ansicht.js"></script>
 <script defer src="/dashboard/vendor/alpine.csp.min.js"></script>
 </head>
 <body>
@@ -1724,21 +1727,6 @@ function reiseTage(iso, heute) {
   return Math.round((a - b) / 86400000);
 }
 
-/* Naechste offene Frist fuer den Kopf der Reisekarte (Auftrag 18.10.2026,
-   Punkt 1). Die frueheste nicht erledigte gewinnt, auch eine ueberfaellige —
-   gerade die soll oben auffallen. Ohne Datum zaehlt eine Frist nicht. */
-function reiseNaechsteFrist(reise, heute) {
-  const offen = (reise?.fristen || [])
-    .filter(f => f.status !== 'erledigt' && reiseTage(f.faellig, heute) != null)
-    .sort((x, y) => String(x.faellig).localeCompare(String(y.faellig)));
-  if (!offen.length) return '';
-  const f = offen[0];
-  const tage = reiseTage(f.faellig, heute);
-  const ton = tage < 0 ? 'badge-red' : tage <= 7 ? 'badge-yellow' : 'badge-muted';
-  const rest = tage < 0 ? `überfällig seit ${Math.abs(tage)} Tg.` : tage === 0 ? 'heute' : `in ${tage} Tg.`;
-  return `<span class="badge ${ton}">⏰ Nächste Frist ${esc(fmtDate(f.faellig))} (${rest}): ${esc(f.titel)}</span>`;
-}
-
 function reiseBetrag(n, waehrung) {
   if (n == null) return '';
   const z = Number(n).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -1755,33 +1743,6 @@ function reiseKachel(label, wert, kopie) {
     : '';
   return `<div class="kpi"><div class="kpi-text"><span class="kpi-label">${esc(label)}</span>
     <span class="kpi-wert">${esc(wert)}</span></div>${knopf}</div>`;
-}
-
-/* Kennzahlen aus den Buchungen. Buchungscode und Ticketnummer sind die zwei
-   Angaben, die der Owner am Schalter oder am Telefon vorlesen muss — deshalb
-   haben genau sie einen Kopierknopf. */
-function reiseKennzahlen(reise) {
-  const buchungen = reise.buchungen || [];
-  if (!buchungen.length) return '';
-  const kacheln = buchungen.map(b => [
-    reiseKachel('Buchungscode', b.code, b.code),
-    reiseKachel('Ticketnummer', b.ticket, b.ticket),
-    reiseKachel('Anbieter', b.anbieter),
-    reiseKachel('Preis', reiseBetrag(b.preis, b.waehrung)),
-    reiseKachel('Tarif', b.tarif),
-    reiseKachel('Vielflieger', [b.vielflieger, b.status].filter(Boolean).join(' · ')),
-    reiseKachel('Ausgestellt', b.ausgestellt
-      ? fmtDate(b.ausgestellt) + (b.ausgestellt_ueber ? ' · ' + b.ausgestellt_ueber : '')
-      : ''),
-  ].join('')).join('');
-  const verwalten = buchungen.filter(b => b.verwalten_url).map(b =>
-    `<a class="btn btn-primary dok-knopf" href="${esc(b.verwalten_url)}" target="_blank"
-      rel="noopener">\u{1F517} Buchung ${esc(b.code || '')} verwalten</a>`).join(' ');
-  const notizen = buchungen.filter(b => b.notiz)
-    .map(b => `<div class="flug-notiz">${esc(b.notiz)}</div>`).join('');
-  return `<div class="segments"><div class="seg-header">\u{1F3AB} Buchung</div>
-    <div class="kpi-grid">${kacheln}</div>${notizen}
-    ${verwalten ? `<div style="margin-top:8px">${verwalten}</div>` : ''}</div>`;
 }
 
 /* Flugkette mit den Umstiegshinweisen dazwischen. Der Kalenderknopf kommt aus
@@ -1997,6 +1958,8 @@ document.addEventListener('click', e => {
   const knopf = e.target.closest('[data-kopie]');
   if (!knopf) return;
   e.stopPropagation();
+  // Der Knopf steht auch in einer <summary> (Buchungskarte) — kopieren, nicht aufklappen
+  e.preventDefault();
   const wert = knopf.dataset.kopie;
   const name = knopf.dataset.kopieName || 'Wert';
   if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -2015,7 +1978,9 @@ async function loadTrips() {
     _tripsCache = trips;
     _docsCache = docs;
     if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
-    const today = new Date().toISOString().slice(0,10);
+    /* Heute als Kalendertag in Europe/Berlin (zeit.js) — toISOString() waere
+       UTC und haette zwischen 0 und 2 Uhr noch den Vortag. */
+    const today = zeitTagInZone(new Date(), ZEIT_ZONE) || new Date().toISOString().slice(0,10);
 
     function renderTripCard(t) {
       /* Der Reiseblock kommt vom Import des Reiseassistenten. Reisen, die im
@@ -2029,13 +1994,6 @@ async function loadTrips() {
         : upcoming
           ? '<span class="badge badge-blue">Geplant</span>'
           : '<span class="badge badge-muted">Vergangen</span>';
-
-      const naechsteFrist = reise ? reiseNaechsteFrist(reise, today) : '';
-      const chips = (reise?.chips || []).length || naechsteFrist
-        // Die naechste Frist zuerst: hinter acht Chips saehe man sie mobil nicht
-        ? `<div class="reise-chips">${naechsteFrist}${(reise?.chips || []).map(ch =>
-          `<span class="badge ${REISE_TON[ch.ton] || 'badge-muted'}">${esc(ch.text)}</span>`).join('')}</div>`
-        : '';
 
       const meta = [
         t.currency         && `<div class="mi"><span class="ml">💶 Währung </span>${esc(t.currency)}</div>`,
@@ -2102,6 +2060,34 @@ async function loadTrips() {
           }).join('')}
         </div>` : '';
 
+      const knoepfe = `
+            <button aria-label="Dokument mit der Reise verknüpfen" title="Dokument mit der Reise verknüpfen" class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
+            <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Mit Kalender abgleichen</button>
+            <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
+            <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>`;
+
+      /* Reisen mit Reiseblock: neuer Aufbau (js/reise-ansicht.js, Auftrag
+         01.11.2026). Die Angaben der Dashboard-Reise (Klima, Aktivitaeten …)
+         stehen dort klein im Fuss statt als eigenes Raster. */
+      if (reise) {
+        const metaText = [
+          t.currency && 'Währung ' + esc(t.currency),
+          t.exchange_rate_eur && 'Kurs ' + esc(t.exchange_rate_eur),
+          t.visa_de && 'Visum ' + esc(t.visa_de),
+          t.distance_km && 'Luftlinie ' + esc(t.distance_km) + ' km',
+          t.travel_mode && 'Verkehr ' + esc(t.travel_mode),
+          t.door_to_door_estimate && 'Haustür↔Haustür ' + esc(t.door_to_door_estimate),
+          t.climate && 'Klima ' + esc(t.climate),
+          (t.activities || []).length && 'Aktivitäten ' + esc(t.activities.join(', ')),
+        ].filter(Boolean).join(' · ');
+        return reiseKarteHtml(t, reise, {
+          heute: today, badge, knoepfe, metaText,
+          bild: entityImgHtml('trip', t.id, 'entity-img-wrap'),
+          segs, docsSection, linksSection,
+          weitereDokumente: tripDocs.length + tripLinks.length,
+        });
+      }
+
       return `<div class="trip-card" id="tc-${esc(t.id)}" style="padding:0;overflow:hidden;border-radius:var(--r)">
         ${entityImgHtml('trip', t.id, 'entity-img-wrap')}
         <div style="padding:20px">
@@ -2110,30 +2096,16 @@ async function loadTrips() {
             <h3>${esc(t.name)} ${badge}</h3>
             <!-- P2-8: Hier standen die rohen ISO-Datumsangaben (2026-02-24). -->
             <div class="trip-dates">📅 ${esc(fmtDate(t.start_date))} → ${esc(fmtDate(t.end_date))} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
-            ${chips}
           </div>
           <!-- P2-8: flex-wrap, sonst wird die letzte Schaltflaeche bei 360 px
                abgeschnitten statt umzubrechen. -->
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            <button aria-label="Dokument mit der Reise verknüpfen" title="Dokument mit der Reise verknüpfen" class="btn btn-primary" onclick="linkDocModal('trip','${esc(t.id)}','loadTripsRefresh')">📎</button>
-            <button class="btn btn-primary" onclick="syncAllSegCal('${esc(t.id)}')" title="Alle Segmente mit Kalender synchronisieren">📅 Mit Kalender abgleichen</button>
-            <button class="btn btn-primary" onclick="editTrip('${esc(t.id)}')">✏️ Bearbeiten</button>
-            <button class="btn btn-danger" onclick="deleteTrip('${esc(t.id)}','${esc(t.name)}')">🗑 Löschen</button>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">${knoepfe}
           </div>
         </div>
         <div class="trip-grid">${meta}</div>
-        ${reise ? reiseKennzahlen(reise) : ''}
-        ${reise ? reiseFluege(t, reise) : ''}
-        ${reise ? reiseDokumente(reise, today) : ''}
-        ${reise ? reiseFristen(reise, today) : ''}
-        ${reise ? reiseEinreise(reise) : ''}
-        ${reise ? reiseKontakte(reise) : ''}
-        ${reise ? reiseMeilen(reise) : ''}
-        ${reise ? reiseOffen(reise) : ''}
         ${segs}
         ${docsSection}
         ${linksSection}
-        ${reise ? reiseFuss(reise) : ''}
         </div>
       </div>`;
     }
