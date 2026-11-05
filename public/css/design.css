@@ -1,0 +1,393 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Designsystem „Horizont" — Checkpoint 1 (Spec-Dashboard-Design-v2 §1)
+
+   Erstes Stylesheet der Seite. Hier stehen ALLE Farb-, Schrift-, Abstands-
+   und Radius-Werte als Variablen sowie die Basisbausteine. Der frühere
+   :root-Block im Inline-Style von index.html ist entfernt; seine
+   Variablennamen leben unten als Aliase weiter, bis CP2 sie ablöst.
+
+   Erlaubte Kontrastpaare: Spec §1.6, Nachweis in docs/DESIGN.md. Andere
+   Kombinationen aus Text- und Flächenrolle sind nicht vorgesehen.
+
+   Reihenfolge-Hinweis: Der Inline-Style in index.html kommt NACH dieser
+   Datei und gewinnt bei gleicher Spezifität. Bausteine, die dort als
+   Altbestand noch definiert sind (.card, .modal), behalten deshalb in den
+   übrigen Tabs bis CP2 ihr altes Maß.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Schrift: Manrope (SIL OFL 1.1), lokal — CSP font-src 'self' ─────────── */
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 400; font-display: swap;
+  src: url('/dashboard/vendor/fonts/manrope/manrope-latin-400-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 500; font-display: swap;
+  src: url('/dashboard/vendor/fonts/manrope/manrope-latin-500-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 600; font-display: swap;
+  src: url('/dashboard/vendor/fonts/manrope/manrope-latin-600-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 700; font-display: swap;
+  src: url('/dashboard/vendor/fonts/manrope/manrope-latin-700-normal.woff2') format('woff2'); }
+@font-face { font-family: 'Manrope'; font-style: normal; font-weight: 800; font-display: swap;
+  src: url('/dashboard/vendor/fonts/manrope/manrope-latin-800-normal.woff2') format('woff2'); }
+
+:root {
+  color-scheme: light;
+
+  /* Flächen */
+  --bg:            #F6F3EC;
+  --surface:       #FFFFFF;
+  --surface-2:     #EDE7DA;
+  --surface-3:     #F6F3EC;
+
+  /* Linien */
+  --border:        #E4DDD0;
+  --border-soft:   #EFEAE0;
+  --border-strong: #8A7F70;
+
+  /* Schrift */
+  --text:          #1D2B45;
+  --text-soft:     #4B5568;
+  --muted:         #6F6A62;   /* nur auf --surface / --surface-3 */
+
+  /* Akzent */
+  /* Spec nennt #3C72B8; das ergibt auf --surface-3 nur 4,42:1 (erlaubtes Paar
+     §1.6, Soll 4,5). Minimal abgedunkelt auf #3B70B5 = 4,54:1 — optisch gleich. */
+  --accent:        #3B70B5;   /* als Text nur auf --surface / --surface-3 */
+  --accent-dark:   #2A5590;   /* Hover, gedrückt, Links auf --bg / --surface-2 */
+  --accent-weak:   #E6EFF9;
+  --on-accent:     #FFFFFF;
+
+  /* Navy */
+  --navy:          #1D2B45;
+  --on-navy:       #FFFFFF;
+  --on-navy-soft:  #B9C6DA;
+  --navy-line:     rgba(255,255,255,.12);
+
+  --sand:          #C9B08E;
+
+  /* Status */
+  --green: #2E7D4F;  --green-weak: #E5F3EA;  --on-green-weak: #1F6B40;
+  /* --gold nie als Textfarbe und auch nicht als Statuspunkt: auf --gold-weak
+     nur 2,45:1, auf Weiß 2,75:1 (Soll 3:1). Punkte und Ränder „fällig" nehmen
+     --on-gold-weak (5,07 / 5,69:1); --gold bleibt Fläche und Schmuck. */
+  --gold:  #C8923A;  --gold-weak:  #FBF1DC;  --on-gold-weak:  #8A5E12;
+  --red:   #B9402F;  --red-weak:   #FBE9E6;  --on-red-weak:   #9C3324;
+
+  --overlay:     rgba(29,43,69,.45);
+  --shadow:      0 1px 2px rgba(29,43,69,.05), 0 8px 24px rgba(29,43,69,.06);
+  --shadow-lift: 0 10px 28px rgba(29,43,69,.18);
+  --focus-ring:  var(--accent);
+
+  /* Schrift */
+  --font:      'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px;
+  --fs-16: 16px; --fs-18: 18px; --fs-22: 22px; --fs-26: 26px; --fs-28: 28px; --fs-34: 34px;
+
+  /* Abstände */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 20px; --sp-6: 24px; --sp-7: 32px; --sp-8: 40px;
+  --seitenrand: 16px;
+
+  /* Radien */
+  --r-card: 16px; --r-inner: 12px; --r-chip: 999px; --r-input: 10px;
+
+  /* Aliase für den Altbestand (Ablösung in CP2) */
+  --row-hover:   var(--surface-3);
+  --yellow:      var(--gold);
+  --yellow-weak: var(--gold-weak);
+  --orange:      var(--gold);
+  --orange-weak: var(--gold-weak);
+  --violet:      #6D28D9;
+  --fg:          var(--text);
+  --card:        var(--surface);
+  --bg-muted:    var(--surface-2);
+  --hover:       var(--surface-3);
+  --warn:        var(--gold);
+  --warn-bg:     var(--gold-weak);
+  --r:           var(--r-inner);
+}
+@media (min-width: 640px)  { :root { --seitenrand: 24px; } }
+@media (min-width: 1024px) { :root { --seitenrand: 32px; } }
+
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font); font-size: var(--fs-15); line-height: 1.5;
+}
+.num, .tile-wert, .tabular { font-variant-numeric: tabular-nums; }
+
+/* ── Icons (Lucide-Sprite) ───────────────────────────────────────────────── */
+.ic { width: 20px; height: 20px; flex: 0 0 auto; display: inline-block; vertical-align: middle; }
+.ic-16 { width: 16px; height: 16px; }
+.ic-18 { width: 18px; height: 18px; }
+
+/* ── Fokus ───────────────────────────────────────────────────────────────── */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring); outline-offset: 2px;
+}
+.card-navy { --focus-ring: #FFFFFF; }
+
+/* ── Schaltflächen ───────────────────────────────────────────────────────── */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  min-height: 44px; padding: 0 var(--sp-4); border-radius: var(--r-chip);
+  border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+  font: 700 var(--fs-14)/1.2 var(--font); cursor: pointer; text-decoration: none;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.btn:hover { background: var(--surface-3); }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn-primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+.btn-secondary { background: var(--surface); border-color: var(--sand); color: var(--text); }
+.btn-secondary:hover { background: var(--surface-3); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--accent); }
+.btn-ghost:hover { background: var(--accent-weak); color: var(--accent-dark); }
+.btn-danger { background: transparent; border-color: transparent; color: var(--on-red-weak); }
+.btn-danger:hover { background: var(--red-weak); }
+.btn-icon { width: 44px; min-width: 44px; padding: 0; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+
+/* ── Chips ───────────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 4px 10px; border-radius: var(--r-chip);
+  font: 600 var(--fs-12)/1.3 var(--font); white-space: nowrap;
+  background: var(--surface-3); color: var(--text-soft); border: 1px solid var(--border);
+}
+.chip > span { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: var(--border-strong); }
+.chip-ok      { background: var(--green-weak); color: var(--on-green-weak); border-color: transparent; }
+.chip-ok::before { background: var(--green); }
+.chip-warn    { background: var(--gold-weak);  color: var(--on-gold-weak);  border-color: transparent; }
+.chip-warn::before { background: var(--on-gold-weak); }
+.chip-err     { background: var(--red-weak);   color: var(--on-red-weak);   border-color: transparent; }
+.chip-err::before { background: var(--red); }
+.chip-info    { background: var(--accent-weak); color: var(--accent-dark); border-color: transparent; }
+.chip-info::before { background: var(--accent); }
+.chip-neutral { background: var(--surface-3); color: var(--text-soft); }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; max-width: 100%; }
+
+/* ── Karten ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-card); box-shadow: var(--shadow); padding: var(--sp-4);
+}
+@media (min-width: 640px) { .card { padding: var(--sp-5); } }
+.card-navy {
+  background: var(--navy); color: var(--on-navy); border-color: var(--navy);
+  border-radius: 18px; box-shadow: var(--shadow-lift);
+}
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  min-height: 44px; margin-bottom: var(--sp-2);
+}
+.card-head h2, .card-titel { font-size: var(--fs-16); font-weight: 700; line-height: 1.3; min-width: 0; }
+.card-head .btn-ghost { padding: 0 var(--sp-3); margin-right: calc(-1 * var(--sp-3)); }
+.label-gesperrt { font-size: var(--fs-11); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ── Kacheln ─────────────────────────────────────────────────────────────── */
+.tiles-2, .tiles-3 { display: grid; gap: var(--sp-3); }
+.tiles-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tiles-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tiles-3 > .tile:last-child { grid-column: span 2; }
+@media (min-width: 640px) {
+  .tiles-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tiles-3 > .tile:last-child { grid-column: auto; }
+}
+.tile { min-width: 0; background: var(--surface-3); border-radius: var(--r-inner); padding: var(--sp-3); }
+.tiles-2 > *, .tiles-3 > * { min-width: 0; }
+.tile-label { font-size: var(--fs-11); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+/* Zahlen nie mit Auslassungszeichen: nowrap, aber kein text-overflow. */
+.tile-wert { font-size: clamp(18px, 5.5vw, 22px); font-weight: 800; line-height: 1.25; white-space: nowrap; color: var(--text); }
+@media (min-width: 640px) { .tile-wert { font-size: var(--fs-22); } }
+.tile-sub { font-size: var(--fs-13); color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wert-fehlt { color: var(--muted); }
+
+/* ── Listenzeilen ────────────────────────────────────────────────────────── */
+.list { list-style: none; margin: 0; padding: 0; }
+.list-row {
+  display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: var(--sp-3);
+  min-height: 48px; align-items: center; border-bottom: 1px solid var(--border-soft);
+  padding: var(--sp-1) 0;
+}
+.list-row:last-child { border-bottom: none; }
+.list-row.ohne-zeit { grid-template-columns: minmax(0, 1fr) auto; }
+.list-row .zeile-text { min-width: 0; }
+.list-row .zeile-titel, .list-row .zeile-sub { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list-row .zeile-sub { font-size: var(--fs-12); color: var(--muted); }
+.list-row .num, .list-row .zeile-ende { text-align: right; white-space: nowrap; }
+
+/* ── Segment ─────────────────────────────────────────────────────────────── */
+.segment { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--r-chip); background: var(--surface-2); }
+.segment button {
+  min-height: 44px; padding: 0 var(--sp-4); border: 0; border-radius: var(--r-chip);
+  background: transparent; color: var(--text-soft); font: 700 var(--fs-13)/1 var(--font); cursor: pointer;
+}
+.segment button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+/* ── Formulare ───────────────────────────────────────────────────────────── */
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: var(--sp-4); }
+.field-label { font-size: var(--fs-13); font-weight: 600; color: var(--text); }
+.field-help  { font-size: var(--fs-12); color: var(--muted); }
+.field-error { font-size: var(--fs-12); color: var(--on-red-weak); }
+.input, .select, .textarea {
+  min-height: 44px; width: 100%; padding: 0 var(--sp-3);
+  border: 1px solid var(--border-strong); border-radius: var(--r-input);
+  background: var(--surface); color: var(--text); font: 500 var(--fs-15)/1.4 var(--font);
+}
+.textarea { padding: var(--sp-3); min-height: 120px; resize: vertical; }
+.input:focus-visible, .select:focus-visible, .textarea:focus-visible { border-color: var(--focus-ring); }
+
+/* ── Dialog ──────────────────────────────────────────────────────────────── */
+/* Die Fokusfalle bleibt in openModal (index.html). Der Inline-Style definiert
+   .modal noch als Altbestand und gewinnt dort, wo er dieselben Eigenschaften
+   setzt; die Zusammenführung folgt in CP2. */
+.modal {
+  background: var(--surface); border-radius: var(--r-card); box-shadow: var(--shadow-lift);
+  width: 100%; max-width: 560px;
+}
+.modal-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+
+/* ── Meldung ─────────────────────────────────────────────────────────────── */
+.toast {
+  background: var(--surface); color: var(--text); box-shadow: var(--shadow-lift);
+  border-radius: var(--r-inner); border-left: 4px solid var(--border-strong);
+  padding: var(--sp-3) var(--sp-4); font-size: var(--fs-14);
+}
+.toast-ok   { border-left-color: var(--green); }
+.toast-warn { border-left-color: var(--on-gold-weak); }
+.toast-err  { border-left-color: var(--red); }
+.toast-info { border-left-color: var(--accent); }
+
+/* ── Tabelle (nur Definition, Anwendung ab CP2) ──────────────────────────── */
+.table { width: 100%; border-collapse: collapse; }
+.table th { font-size: var(--fs-11); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--text-soft); text-align: left; padding: 0 var(--sp-3); height: 44px; }
+.table td { font-size: var(--fs-14); padding: 0 var(--sp-3); height: 44px; border-top: 1px solid var(--border-soft); }
+.table .num { text-align: right; }
+
+/* ── Platzhalter beim Laden ──────────────────────────────────────────────── */
+.skeleton {
+  display: block; background: var(--surface-2); border-radius: var(--r-inner);
+  min-height: 14px; animation: skeleton-puls 1.6s ease-in-out infinite;
+}
+.card-navy .skeleton { background: rgba(255,255,255,.10); }
+@keyframes skeleton-puls { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+
+.thumb { width: 64px; height: 64px; border-radius: var(--r-inner); object-fit: cover; }
+
+/* ── Mindestziel 44 px für die neuen Bausteine ───────────────────────────── */
+a.btn, .btn, .nav-pill, .segment button, .card-head .btn-ghost, .input, .select { min-height: 44px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Kopfzeile und Navigationszeile (Spec §2) — ohne Alpine, nav.js
+   #app ist eine Flex-Spalte, damit das Bildband der Tagesübersicht mobil
+   ÜBER der Navigation und am Desktop DARUNTER stehen kann, ohne das Markup
+   doppelt zu führen (order statt zweitem Element).
+   ═══════════════════════════════════════════════════════════════════════════ */
+#app { flex-direction: column; position: relative; }
+#app > .kopf       { order: 1; }
+#app > .kopf-band  { order: 2; }
+#app > .nav-zeile  { order: 3; }
+#app > .ds-leiste  { order: 4; }
+#app > main        { order: 5; width: 100%; }
+@media (min-width: 640px) {
+  #app > .nav-zeile { order: 2; }
+  #app > .kopf-band { order: 3; }
+}
+
+.kopf {
+  position: sticky; top: 0; z-index: 20; height: 64px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  /* Inhalt wie main auf 1200 px zentriert, Fläche über die volle Breite. */
+  padding: 0 max(var(--seitenrand), calc((100% - 1200px) / 2 + var(--seitenrand)));
+  background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.kopf-marke { display: flex; align-items: center; gap: 10px; min-width: 0; border-radius: 8px; padding: 4px 8px 4px 4px; margin-left: -4px; }
+.kopf-logo {
+  width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px;
+  background: var(--navy); color: var(--on-navy); display: inline-flex; align-items: center; justify-content: center;
+}
+.kopf-titel {
+  font-size: var(--fs-14); font-weight: 800; color: var(--text); line-height: 1.2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.kopf-kurz { display: none; }
+@media (max-width: 359.98px) { .kopf-lang { display: none; } .kopf-kurz { display: inline; } }
+@media (min-width: 640px) { .kopf-titel { font-size: var(--fs-15); } }
+.kopf-rechts { display: flex; align-items: center; gap: var(--sp-3); flex: 0 0 auto; }
+.kopf-stand { display: none; font-size: var(--fs-12); color: var(--muted); white-space: nowrap; }
+@media (min-width: 640px) { .kopf-stand { display: inline; } }
+.kopf-abmelden { color: var(--text-soft); }
+
+/* Heute mobil: Kopfzeile liegt transparent über dem Bildband. Marke und
+   Abmelden bekommen eine eigene Unterlegung, damit sie auch ohne Bild
+   lesbar bleiben. position: absolute statt sticky — eine durchsichtige
+   klebende Kopfzeile läge beim Scrollen über den Karten. */
+@media (max-width: 639.98px) {
+  body.band-aktiv .kopf { position: absolute; left: 0; right: 0; background: transparent; border-bottom: 0; }
+  body.band-aktiv .kopf-marke { background: rgba(29,43,69,.35); }
+  body.band-aktiv .kopf-titel { color: var(--on-navy); }
+  body.band-aktiv .kopf-abmelden { background: rgba(29,43,69,.35); color: var(--on-navy); border-radius: var(--r-chip); }
+  body.band-aktiv .kopf-abmelden:hover { background: rgba(29,43,69,.55); }
+  body.band-aktiv .kopf { --focus-ring: #FFFFFF; }
+}
+
+/* ── Navigationszeile ────────────────────────────────────────────────────── */
+.nav-zeile { background: var(--bg); padding: 8px 0; }
+.nav-pills {
+  display: flex; gap: var(--sp-2); align-items: center;
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none;
+  scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch;
+  padding: 0 56px 0 var(--seitenrand); scroll-padding-left: var(--seitenrand);
+  max-width: 1200px; margin: 0 auto;
+}
+.nav-pills::-webkit-scrollbar { display: none; }
+.nav-pill {
+  flex: 0 0 auto; scroll-snap-align: start;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: 44px; min-width: 44px; padding: 0 14px; border-radius: var(--r-chip);
+  background: var(--surface); color: var(--text-soft); border: 1px solid var(--border);
+  font: 600 var(--fs-14)/1 var(--font); white-space: nowrap; cursor: pointer; list-style: none;
+}
+.nav-pill::-webkit-details-marker { display: none; }
+.nav-pill:hover { color: var(--text); border-color: var(--border-strong); }
+.nav-pill.active { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.nav-pill .ic { width: 18px; height: 18px; }
+.nav-lang { display: none; }
+.nav-kurz { display: inline; }
+@media (min-width: 640px) { .nav-lang { display: inline; } .nav-kurz { display: none; } }
+
+/* Scrollhinweis: Sentinel am Ende + Verlauf mit Chevron. Liegt als letztes
+   Kind IN der scrollenden Leiste und klebt am rechten Rand (sticky), daher
+   braucht die Leiste keinen zusätzlichen Rahmen. nav.js schaltet ihn per
+   IntersectionObserver ab, sobald das Ende sichtbar ist. */
+.scroll-ende { flex: 0 0 1px; width: 1px; height: 1px; align-self: center; }
+.scroll-hinweis {
+  position: sticky; right: -56px; flex: 0 0 56px; width: 56px; margin-left: -57px; align-self: stretch;
+  display: flex; align-items: center; justify-content: flex-end; pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--bg) 70%); color: var(--text-soft);
+  transition: opacity .15s;
+}
+.scroll-hinweis.aus { opacity: 0; }
+.assets-subtabs .scroll-hinweis, .insta-subtabs .scroll-hinweis { right: 0; margin-left: -56px; background: linear-gradient(to right, transparent, var(--surface) 70%); }
+
+/* Desktop: Tabs 1–8 direkt, 9–14 unter „Mehr". */
+.nav-mehr { display: none; position: relative; flex: 0 0 auto; }
+.nav-mehr-liste {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; min-width: 220px;
+  padding: var(--sp-2); display: flex; flex-direction: column; gap: 2px;
+}
+.nav-mehr-eintrag {
+  display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 12px;
+  border: 0; border-radius: var(--r-inner); background: transparent; color: var(--text);
+  font: 600 var(--fs-14)/1 var(--font); cursor: pointer; text-align: left;
+}
+.nav-mehr-eintrag:hover { background: var(--surface-3); }
+.nav-mehr-eintrag.active { background: var(--accent-weak); color: var(--accent-dark); }
+@media (min-width: 1024px) {
+  .nav-pills { overflow: visible; padding-right: var(--seitenrand); flex-wrap: nowrap; }
+  .nav-pills > .nav-schmal, .nav-pills > .scroll-ende, .nav-pills > .scroll-hinweis { display: none; }
+  .nav-mehr { display: block; }
+}
+
+/* Datenstand-Leiste der Fachbereiche steht außerhalb von main und wird wie
+   der Container zentriert. */
+#app > .ds-leiste { width: 100%; max-width: 1200px; margin: 0 auto; padding-left: var(--seitenrand); padding-right: var(--seitenrand); }

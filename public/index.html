@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Dashboard">
 <meta name="csrf-token" content="">
+<link rel="stylesheet" href="/dashboard/css/design.css">
 <link rel="stylesheet" href="/dashboard/css/assets.css">
 <link rel="stylesheet" href="/dashboard/css/entity-tile.css">
 <link rel="stylesheet" href="/dashboard/css/wiki.css">
@@ -17,84 +18,10 @@
 <link rel="stylesheet" href="/dashboard/css/instagram-material.css">
 <link rel="stylesheet" href="/dashboard/css/reise.css">
 <style>
-/* ═══════════════════════════════════════════════════════════════════════════
-   Farb- und Typografiebasis — Paket P2-1 (Spec §2)
-
-   Helles Schema als Standard: heller Seitenhintergrund, weisse
-   Inhaltsflaechen, dunkle Schrift, dezente Trennlinien, EIN Akzent.
-   Kein Dark Mode, kein Umschalter — bewusst nicht Teil der Anforderung.
-
-   ALLE Farben des Dashboards kommen aus diesem Block. Ausserhalb stehen
-   keine Hex- oder rgba()-Rohwerte mehr; neue Farbwuensche bekommen hier eine
-   Rolle, statt als Einzelwert verstreut zu werden.
-
-   Jedes Paar aus Text- und Flaechenrolle ist gegen WCGA 2.1 AA geprueft
-   (35 Paare, 0 Unterschreitungen; Nachweis im Report zu P2-1):
-   Fliesstext >= 4.5:1, Rahmen und Diagrammlinien >= 3:1.
-
-   Zum "Gelb": ein echtes Gelb erreicht auf Weiss physikalisch keine 4.5:1.
-   Die Statusrolle --yellow ist deshalb ein dunkles Amber fuer Schrift und
-   Symbole; --yellow-weak ist die helle Toenung fuer Flaechen dahinter.
-   Warnungen tragen ohnehin Symbol UND Text (Spec §2).
-   ═══════════════════════════════════════════════════════════════════════════ */
-:root {
-  /* Flaechen */
-  --bg:            #f5f6f8;  /* Seitenhintergrund */
-  --surface:       #ffffff;  /* Karten, Tabellen, Dialoge */
-  --surface-2:     #f0f2f5;  /* Flaeche INNERHALB einer Karte */
-  --row-hover:     #f3f5f8;  /* Tabellenzeile unter dem Zeiger */
-
-  /* Linien */
-  --border:        #e2e5ea;  /* Trennlinien, Kartenrahmen */
-  --border-soft:   #eef0f3;  /* noch dezenter, z. B. Listentrenner */
-  --border-strong: #7d8594;  /* Rahmen von Formularfeldern (>= 3:1) */
-
-  /* Schrift */
-  --text:          #1a1d23;  /* Fliesstext            16.9:1 auf Weiss */
-  --text-soft:     #4a5159;  /* zweite Ebene           8.0:1 */
-  --muted:         #5a6270;  /* Nebeninformation       6.2:1 */
-
-  /* Akzent — derselbe Blauton wie vorher, auf Hell-Kontrast gebracht */
-  --accent:        #1668c7;  /* 5.5:1 auf Weiss */
-  --accent-weak:   #e8f1fc;  /* Toenung hinter Akzenttext */
-  --on-accent:     #ffffff;  /* Schrift auf Akzentflaeche, 5.5:1 */
-  --accent-dark:   #12569f;  /* gedrueckte Primaerschaltflaeche, 7.2:1 */
-
-  /* Status — Schriftfarbe dunkel, Flaeche als helle Toenung */
-  --green:         #147235;  --green-weak:  #e6f4ea;
-  --yellow:        #8a6100;  --yellow-weak: #fdf3e0;
-  --red:           #b42318;  --red-weak:    #fdeceb;
-  --orange:        #b54708;  --orange-weak: #fdeee2;
-
-  /* Diagramme */
-  --violet:        #6d28d9;  /* HRV-Linie, 7.1:1 */
-
-  /* Ueberlagerung und Schatten — zurueckhaltend (Spec §2) */
-  --overlay:       rgba(16, 20, 28, .45);
-  --shadow:        0 1px 2px rgba(16, 20, 28, .06), 0 1px 3px rgba(16, 20, 28, .05);
-  --shadow-lift:   0 4px 12px rgba(16, 20, 28, .10);
-
-  --r:       8px;
-  --font:    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-/* Teilt dem Browser das helle Schema mit, damit auch von ihm gezeichnete
-   Teile (Bildlaufleisten, Datums- und Zeitwaehler, Auswahlpfeile) hell
-   erscheinen. Ohne diese Angabe bleiben sie bei dunkel eingestelltem System
-   dunkel — ein sichtbarer Rest, den die eigene Palette nicht erreicht. */
-:root { color-scheme: light; }
+/* CP1 (05.11.2026): Farben, Schrift, Abstände und Basisbausteine stehen in
+   css/design.css (erstes Stylesheet). Der frühere :root-Block mit der
+   P2-1-Palette ist entfernt; die alten Variablennamen sind dort Aliase. */
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; line-height: 1.45; }
-
-/* ── Sichtbarer Tastaturfokus ──────────────────────────────────────────────
-   Acht Stellen setzten `outline: none`, ohne Ersatz — der Fokus war beim
-   Durchtabben unsichtbar (Spec §6 "Sichtbarer Tastaturfokus"). Ein globaler
-   :focus-visible-Ring in der Akzentfarbe (5.5:1 auf Weiss) ersetzt das.
-   :focus-visible statt :focus, damit ein Mausklick keinen Ring hinterlaesst. */
-:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-radius: 4px;
-}
 
 /* ── Login ── */
 #login { display: none; align-items: center; justify-content: center; min-height: 100vh; }
@@ -115,83 +42,21 @@ body { background: var(--bg); color: var(--text); font-family: var(--font); font
 html, body { overflow-x: hidden; max-width: 100%; }
 #app { display: none; min-height: 100vh; }
 
-/* Kopfzeile stapelt schmal: Titel ueber Abrufzeitpunkt und Abmelden. */
-/* C2 (Phase 3): Schmal eine Zeile. Gemessen 360/390 px: Kopf 55 px,
-   Navigation 45 px, zusammen 100 px (vorher rund 190 px). */
-header {
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 5px 10px; display: flex; flex-direction: row; align-items: center;
-  justify-content: space-between; gap: 10px;
-  position: sticky; top: 0; z-index: 10;
-}
-header h1 {
-  font-size: 15px; font-weight: 600; color: var(--accent); letter-spacing: .3px;
-  /* Einzeilig: lieber abgeschnitten als zweizeilig. */
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
-}
-.kopf-lang { display: none; }
-.kopf-kurz { display: inline; }
-.header-meta { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: nowrap; }
-.header-meta span { color: var(--muted); font-size: 12px; white-space: nowrap; }
-.btn-logout {
-  background: var(--surface); border: 1px solid var(--border-strong); color: var(--text-soft);
-  border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font);
-  /* Beruehrungsziel nach Spec §6, auch als Symbol. */
-  min-width: 44px; min-height: 44px; padding: 0 10px;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.abm-lang { display: none; }
-.abm-kurz { display: inline; font-size: 17px; line-height: 1; }
-.kopf-zeit-lang { display: none; }
-.kopf-zeit-kurz { display: inline; }
-.btn-logout:hover { border-color: var(--red); color: var(--red); background: var(--red-weak); }
+/* CP1: Kopfzeile und Navigationszeile stehen in css/design.css. */
 
-/* ── Hauptnavigation ───────────────────────────────────────────────────────
-   Waagerecht scrollbar INNERHALB des eigenen Containers. Dadurch bleibt das
-   Dokument schmal; vorher zog die Zeile es auf rund 1.260 px auf.
-   scroll-snap rastet die Schaltflaechen ein, damit kein Eintrag halb
-   angeschnitten stehen bleibt. */
-nav {
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 0 4px; display: flex; gap: 2px;
-  overflow-x: auto; overflow-y: hidden;
-  scroll-snap-type: x proximity;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;            /* Leiste selbst nicht anzeigen … */
-}
-nav::-webkit-scrollbar { display: none; }   /* … auch in WebKit nicht */
 
-nav button {
-  background: none; border: none; border-bottom: 2px solid transparent;
-  color: var(--text-soft); cursor: pointer; font-size: 13px; font-family: var(--font);
-  transition: color .12s; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 6px;
-  /* Touchziel: mindestens 44 px hoch und breit (Spec §6). */
-  min-height: 44px; min-width: 44px; padding: 0 12px;
-  scroll-snap-align: start; flex: 0 0 auto;
-}
-nav button:hover { color: var(--text); background: var(--row-hover); }
-nav button.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
-/* Schmal die Kurzform, ab 640 px die lange Beschriftung. Der Text entfaellt nie. */
-.nav-lang { display: none; }
-.nav-kurz { display: inline; }
-
-main { padding: 12px; max-width: 1200px; }
+/* CP1 §1.3: zentrierter Container, Seitenrand 16/24/32 px über --seitenrand. */
+main { padding: var(--sp-4) var(--seitenrand) var(--sp-7); max-width: 1200px; margin: 0 auto; }
 
 /* ── Utilities ── */
 /* Neutrale Schaltflaeche ausdruecklich setzen. Ohne eigene Flaeche zeichnet
    der Browser seine Standardfarbe — die haengt am Systemthema und war damit
    nicht unter Kontrolle der Palette. */
-.btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-family: var(--font); transition: background .12s, border-color .12s; }
-.btn:hover { background: var(--row-hover); }
-.btn-primary { background: var(--accent); color: var(--on-accent); }
-/* Auf hellem Grund wirkt eine abgesenkte Deckkraft ausgewaschen statt
-   gedrueckt — deshalb ein echter dunklerer Hintergrund per Mischung. */
-.btn-primary:hover { background: var(--accent-dark); }
-.btn-ghost { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
-.btn-ghost:hover { background: var(--row-hover); color: var(--text); }
-.btn-danger { background: var(--red-weak); color: var(--red); border: 1px solid var(--red); }
-.btn-danger:hover { background: var(--red); color: var(--on-accent); }
+/* CP1: .btn, .btn-primary, .btn-ghost, .btn-danger kommen aus css/design.css.
+   Ein ALLEINSTEHENDES .btn-ghost (ohne .btn) war im Altbestand eine umrandete
+   Zweitschaltfläche; diese Form bleibt bis CP2 über :not(.btn) erhalten. */
+.btn-ghost:not(.btn) { background: var(--surface); color: var(--text-soft); border: 1px solid var(--border-strong); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-family: var(--font); }
+.btn-ghost:not(.btn):hover { background: var(--row-hover); color: var(--text); }
 
 /* 11 px bleibt: ein Abzeichen ist Beschriftung, kein Fliesstext (Spec §6). */
 .badge { display: inline-block; padding: 3px 8px; border-radius: 10px; font-size:13px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; }
@@ -201,7 +66,10 @@ main { padding: 12px; max-width: 1200px; }
 .badge-blue   { background: var(--accent-weak);  color: var(--accent); }
 .badge-muted  { background: var(--surface-2); color: var(--muted); }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; margin-bottom: 16px; box-shadow: var(--shadow); }
+/* CP1: Fläche, Rahmen, Radius und Schatten der .card kommen aus design.css.
+   Die übrigen Tabs tragen ihren Innenabstand über .card-pad — deshalb hier
+   bis CP2 padding: 0 (die Tagesübersicht setzt ihn selbst). */
+.card { overflow: hidden; margin-bottom: 16px; padding: 0; }
 .card-pad { padding: 20px; }
 
 table { width: 100%; border-collapse: collapse; }
@@ -454,8 +322,8 @@ input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-co
 .dialog-meldung:empty { display:none; }
 .dialog-meldung.meldung-erfolg { background:var(--green-weak); border-color:var(--green); }
 .dialog-meldung.meldung-hinweis { background:var(--accent-weak); border-color:var(--accent); }
-.btn-ghost { background:none; border:1px solid var(--border); color:var(--muted); padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:var(--font); }
-.btn-ghost:hover { border-color:var(--text); color:var(--text); }
+.btn-ghost:not(.btn) { background:none; border:1px solid var(--border); color:var(--muted); padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-family:var(--font); }
+.btn-ghost:not(.btn):hover { border-color:var(--text); color:var(--text); }
 .seg-item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:13px; }
 .seg-item:last-child { border-bottom:none; }
 .seg-item .seg-rm { background:none; border:none; color:var(--red); cursor:pointer; font-size:15px; padding:2px 4px; }
@@ -519,21 +387,6 @@ input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-co
    ═══════════════════════════════════════════════════════════════════════════ */
 
 @media (min-width: 640px) {
-  header { flex-direction: row; align-items: center; justify-content: space-between; padding: 12px 16px; gap: 16px; }
-  header h1 { font-size: 16px; }
-  .kopf-lang { display: inline; }
-  .kopf-kurz { display: none; }
-  .header-meta { justify-content: flex-end; flex-wrap: nowrap; gap: 12px; }
-  .header-meta span { font-size: 13px; }
-  .abm-lang { display: inline; }
-  .abm-kurz { display: none; }
-  .kopf-zeit-lang { display: inline; }
-  .kopf-zeit-kurz { display: none; }
-  nav { padding: 0 8px; }
-  /* Ab hier ist Platz fuer die ausgeschriebene Beschriftung. */
-  .nav-lang { display: inline; }
-  .nav-kurz { display: none; }
-  main { padding: 16px; }
   .ds-leiste { padding: 10px 16px 0; }
   /* Der Innenabstand sitzt am scrollenden Inhalt; die klebende Aktionszeile
      muss ihn mit denselben Werten ausgleichen. */
@@ -546,9 +399,6 @@ input.feld-ungueltig, select.feld-ungueltig, textarea.feld-ungueltig { border-co
 }
 
 @media (min-width: 1024px) {
-  header { padding: 14px 24px; }
-  nav { padding: 0 20px; }
-  main { padding: 24px; }
   .ds-leiste { padding: 10px 24px 0; }
 }
 
@@ -586,15 +436,12 @@ button, summary, a.btn, a.btn-ghost, .subtab-btn, .drawer-close, select, input[t
 button, .btn, .btn-ghost, .btn-logout, .subtab-btn, .drawer-close {
   min-width: 44px;
 }
-/* Die Hauptnavigation behaelt ihre 44 px auf jeder Breite. */
-nav button { min-height: 44px; min-width: 44px; }
 
 @media (min-width: 640px) {
   button, summary, a.btn, a.btn-ghost, .subtab-btn, .drawer-close, select, input[type=file] {
     min-height: 0;
   }
   button, .btn, .btn-ghost, .btn-logout, .subtab-btn, .drawer-close { min-width: 0; }
-  nav button { min-height: 44px; min-width: 44px; }
 }
 
 /* ── Banking: Kontozeile, Summe und Umsaetze (P2-9) ───────────────────────── */
@@ -930,6 +777,7 @@ pre, code { overflow-wrap: anywhere; }
 .insta-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
 </style>
 <script defer src="/dashboard/js/netz.js"></script>
+<script defer src="/dashboard/js/nav.js"></script>
 <script defer src="/dashboard/js/zeit.js"></script>
 <script defer src="/dashboard/js/datenstand.js"></script>
 <script defer src="/dashboard/js/begriffe.js"></script>
@@ -971,52 +819,31 @@ pre, code { overflow-wrap: anywhere; }
 
 <!-- ── App ───────────────────────────────────────────────────────────────── -->
 <div id="app">
-  <!-- C2 (Phase 3): Kopf und Navigation brauchten schmal zusammen rund 190 px.
-       Jetzt steht der Kopf schmal in EINER Zeile: Titel einzeilig (gekuerzt,
-       mit Auslassungszeichen), kurzer Zeitstempel mit Zeitzone, Abmelden als
-       Symbol mit zugaenglichem Namen. Ab 640 px bleibt alles beim Alten. -->
-  <header>
-    <!-- E3 (07.10.2026, Owner-Entscheidung Nr. 6): Der Agentenname stand als
-         dritter Titelbestandteil in der Kopfzeile und war dort ohne Funktion.
-         Titel ist „Executive Dashboard", schmal „Dashboard". -->
-    <h1><span aria-hidden="true">⚙️</span>
-      <span class="kopf-lang">Executive Dashboard</span><span class="kopf-kurz">Dashboard</span></h1>
-    <div class="header-meta">
-      <span id="lastUpdate"></span>
-      <button class="btn-logout" onclick="logout()" aria-label="Abmelden" title="Abmelden">
-        <span class="abm-lang">Abmelden</span><span class="abm-kurz" aria-hidden="true">⏻</span>
+  <!-- CP1 (Spec-Dashboard-Design-v2 §2): Kopfzeile 64 px, weiß, klebend.
+       Marke + „Executive Dashboard" (unter 360 px „Dashboard"), rechts
+       „Stand HH:MM" (schmal ausgeblendet) und Abmelden als Symbol mit
+       zugänglichem Namen. Kein Alpine. -->
+  <header class="kopf">
+    <div class="kopf-marke">
+      <span class="kopf-logo"><svg class="ic ic-18" aria-hidden="true"><use href="/dashboard/vendor/icons.svg#home"></use></svg></span>
+      <h1 class="kopf-titel"><span class="kopf-lang">Executive Dashboard</span><span class="kopf-kurz">Dashboard</span></h1>
+    </div>
+    <div class="kopf-rechts">
+      <span id="lastUpdate" class="kopf-stand"></span>
+      <button type="button" class="btn btn-ghost btn-icon kopf-abmelden" onclick="logout()" aria-label="Abmelden" title="Abmelden">
+        <svg class="ic" aria-hidden="true"><use href="/dashboard/vendor/icons.svg#log-out"></use></svg>
       </button>
     </div>
   </header>
-  <!-- P2-2: Die Leiste scrollt schmal INNERHALB ihres Containers. Vorher war
-       sie eine nicht umbrechende Zeile mit 13 Schaltflaechen und zog das
-       gesamte Dokument auf rund 1.260 px auf.
-       Jede Schaltflaeche traegt Symbol UND Text; unter 640 px zeigt die
-       Leiste die Kurzform (.nav-kurz), der Text entfaellt aber nie.
-       Kein Hamburger-Menue (Owner-Entscheidung).
-
-       P2-8: Die Beschriftungen sind deutsch, wo es ein natuerliches deutsches
-       Wort gibt (Gesundheit, Reisen, Immobilien, Automatisierung). Die
-       Bereichskennungen in data-tab und ?tab= bleiben UNVERAENDERT — jeder
-       vorhandene Deeplink gilt weiter. Eigennamen und im Deutschen
-       gebraeuchliche Begriffe (Kalender, Fuhrpark, Trading, Banking, Private
-       Equity, Instagram, SharePoint, Wiki, Status) bleiben stehen. -->
-  <nav aria-label="Hauptbereiche">
-    <button onclick="showTab('heute')" class="active" data-tab="heute"><span aria-hidden="true">🌅</span><span class="nav-lang">Heute</span><span class="nav-kurz">Heute</span></button>
-    <button onclick="showTab('health')" data-tab="health"><span aria-hidden="true">🏥</span><span class="nav-lang">Gesundheit</span><span class="nav-kurz">Gesundheit</span></button>
-    <button onclick="showTab('trips')"        data-tab="trips"><span aria-hidden="true">✈️</span><span class="nav-lang">Reisen</span><span class="nav-kurz">Reisen</span></button>
-    <button onclick="showTab('calendar')"     data-tab="calendar"><span aria-hidden="true">📅</span><span class="nav-lang">Kalender</span><span class="nav-kurz">Kalender</span></button>
-    <button onclick="showTab('fleet')"        data-tab="fleet"><span aria-hidden="true">🚗</span><span class="nav-lang">Fuhrpark</span><span class="nav-kurz">Fuhrpark</span></button>
-    <button onclick="showTab('assets')"       data-tab="assets"><span aria-hidden="true">🏠</span><span class="nav-lang">Immobilien</span><span class="nav-kurz">Immobilien</span></button>
-    <button onclick="showTab('trading')"      data-tab="trading"><span aria-hidden="true">📈</span><span class="nav-lang">Trading</span><span class="nav-kurz">Trading</span></button>
-    <button onclick="showTab('banking')"      data-tab="banking"><span aria-hidden="true">🏦</span><span class="nav-lang">Banking</span><span class="nav-kurz">Banking</span></button>
-    <button onclick="showTab('pe')"           data-tab="pe"><span aria-hidden="true">💼</span><span class="nav-lang">Private Equity</span><span class="nav-kurz">PE</span></button>
-    <button onclick="showTab('instagram')"    data-tab="instagram"><span aria-hidden="true">📷</span><span class="nav-lang">Instagram</span><span class="nav-kurz">Insta</span></button>
-    <button onclick="showTab('sharepoint')"   data-tab="sharepoint"><span aria-hidden="true">📂</span><span class="nav-lang">SharePoint</span><span class="nav-kurz">SP</span></button>
-    <button onclick="showTab('wiki')"         data-tab="wiki"><span aria-hidden="true">📚</span><span class="nav-lang">Wiki</span><span class="nav-kurz">Wiki</span></button>
-    <button onclick="showTab('agents')"       data-tab="agents"><span aria-hidden="true">🤖</span><span class="nav-lang">Automatisierung</span><span class="nav-kurz">Automatik</span></button>
-    <button onclick="showTab('status')"       data-tab="status"><span aria-hidden="true">🔌</span><span class="nav-lang">Status</span><span class="nav-kurz">Status</span></button>
-  </nav>
+  <!-- Bildband der Tagesübersicht. Mobil über der Navigation (Kopfzeile liegt
+       darüber), ab 640 px im Container darunter — gesteuert über `order` in
+       design.css. loadHeute() füllt es, showTab() leert es. -->
+  <div id="kopfBand" class="kopf-band" hidden></div>
+  <!-- Navigationszeile: Pillen aus DASHBOARD_TABS, gebaut von js/nav.js.
+       Bereichskennungen in data-tab und ?tab= bleiben UNVERÄNDERT (P2-8). -->
+  <div class="nav-zeile">
+    <nav id="hauptnav" class="nav-pills" aria-label="Hauptbereiche"></nav>
+  </div>
   <div id="datenstandLeiste" class="ds-leiste" hidden></div>
   <main id="content">
     <div class="spinner">Laden…</div>
@@ -1114,7 +941,7 @@ function logout() {
 
 function showApp() {
   document.getElementById('login').style.display = 'none';
-  document.getElementById('app').style.display = 'block';
+  document.getElementById('app').style.display = 'flex';
 }
 
 /* ── Tab routing ── */
@@ -1130,8 +957,27 @@ function showApp() {
    Parameter (fleet_code, page). Damit der Bereich dabei nicht verlorengeht,
    schreibt showTab() ?tab= in die Adresse, bevor die Bereichsfunktion laeuft. */
 
-/* Reihenfolge der Schaltflaechen in der Navigationsleiste. */
-const DASHBOARD_TABS = ['heute','health','trips','calendar','fleet','assets','trading','banking','pe','instagram','sharepoint','wiki','agents','status'];
+/* Reihenfolge der Pillen in der Navigationszeile (js/nav.js baut sie).
+   CP1: je Bereich Beschriftung (lang, schmal kurz) und Lucide-Icon statt
+   Emoji. Die ersten NAV_DIREKT (8) stehen am Desktop direkt da, der Rest
+   unter „Mehr". Die Reihenfolge ändert der Owner hier. */
+const DASHBOARD_TABS = [
+  { id: 'heute',      label: 'Heute',           icon: 'sun' },
+  { id: 'health',     label: 'Gesundheit',      icon: 'heart-pulse' },
+  { id: 'trips',      label: 'Reisen',          icon: 'plane' },
+  { id: 'calendar',   label: 'Kalender',        icon: 'calendar' },
+  { id: 'fleet',      label: 'Fuhrpark',        icon: 'car' },
+  { id: 'assets',     label: 'Immobilien',      icon: 'building' },
+  { id: 'trading',    label: 'Trading',         icon: 'trending-up' },
+  { id: 'banking',    label: 'Banking',         icon: 'wallet' },
+  { id: 'pe',         label: 'Private Equity',  kurz: 'PE',        icon: 'briefcase' },
+  { id: 'instagram',  label: 'Instagram',       kurz: 'Insta',     icon: 'camera' },
+  { id: 'sharepoint', label: 'SharePoint',      kurz: 'SP',        icon: 'file-text' },
+  { id: 'wiki',       label: 'Wiki',            icon: 'book-open' },
+  { id: 'agents',     label: 'Automatisierung', kurz: 'Automatik', icon: 'refresh-cw' },
+  { id: 'status',     label: 'Status',          icon: 'plug' },
+];
+const DASHBOARD_TAB_IDS = DASHBOARD_TABS.map(t => t.id);
 
 /* Ohne eigene Schaltflaeche, aber gueltige Ziele: 'drafts' und 'documents'
    werden aus dem Code heraus angesprungen, 'banking-connect' ist ein
@@ -1139,7 +985,7 @@ const DASHBOARD_TABS = ['heute','health','trips','calendar','fleet','assets','tr
 const WEITERE_ZIELE = ['drafts', 'documents', 'banking-connect'];
 
 function istBekannterTab(tab) {
-  return DASHBOARD_TABS.includes(tab) || WEITERE_ZIELE.includes(tab);
+  return DASHBOARD_TAB_IDS.includes(tab) || WEITERE_ZIELE.includes(tab);
 }
 
 /* Adresse auf den Bereich setzen.
@@ -1189,7 +1035,9 @@ function showTab(tab, opt) {
   if (verlauf) setzeTabAdresse(tab, false);
   /* Markierung ueber data-tab statt ueber die Reihenfolge der Schaltflaechen:
      eine umsortierte Leiste markierte sonst den falschen Bereich. */
-  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  if (typeof navAktivSetzen === 'function') navAktivSetzen(tab);
+  /* Bildband gehört allein zur Tagesübersicht; loadHeute() setzt es neu. */
+  if (typeof heuteBandSchliessen === 'function') heuteBandSchliessen();
   /* Schmal scrollt die Leiste: den aktiven Bereich in den sichtbaren Teil
      holen, sonst steht er außerhalb (Spec §6 "aktiver Bereich erkennbar"). */
   zeigeAktivenTab(tab);
@@ -1210,10 +1058,10 @@ function showTab(tab, opt) {
    Leiste. Auf dem Desktop passt ohnehin alles nebeneinander, dann bewirkt
    der Aufruf nichts. */
 function zeigeAktivenTab(tab) {
-  const nav = document.querySelector('nav');
-  const btn = nav && nav.querySelector('button[data-tab="' + tab + '"]');
+  const nav = document.getElementById('hauptnav');
+  const btn = nav && nav.querySelector('.nav-pill[data-tab="' + tab + '"]');
   if (!nav || !btn) return;
-  if (nav.scrollWidth <= nav.clientWidth + 1) return;
+  if (nav.scrollWidth <= nav.clientWidth + 1 || !btn.offsetParent) return;
   const links = btn.offsetLeft - (nav.clientWidth - btn.offsetWidth) / 2;
   nav.scrollTo({ left: Math.max(0, links), behavior: 'smooth' });
 }
@@ -1511,17 +1359,11 @@ function fmtSize(bytes) {
    auch in denen ohne Datenstand-Leiste. In der Leiste ist der Satz dafür
    entfallen; zweimal dasselbe auf einer Seite ist Rauschen (vgl. P2-3). */
 function stamp() {
-  /* C2 (Phase 3): Schmal nur die Uhrzeit des Seitenabrufs und die Zeitzone —
-     das vollstaendige Datum und der Satz "alle Zeiten in …" brauchten am
-     Telefon zwei Zeilen. Beide Formen stehen im Markup; die Stilvorlage
-     entscheidet, welche sichtbar ist. Der Zeitzonenhinweis bleibt also auch
-     schmal sichtbar (Spec §4 M), nur kuerzer. */
+  /* CP1 §2.1: Kopfzeile zeigt „Stand HH:MM" (schmal ausgeblendet). Der
+     vollständige Satz mit Datum und Zeitzone steht als Tooltip daran. */
   const el = document.getElementById('lastUpdate');
-  const lang = seitenabrufText() + ' · alle Zeiten in Europe/Berlin';
-  const kurz = zeitUhr(new Date()) + ' Uhr · Europe/Berlin';
-  el.innerHTML = '<span class="kopf-zeit-lang">' + esc(lang) + '</span>'
-    + '<span class="kopf-zeit-kurz">' + esc(kurz) + '</span>';
-  el.title = lang;
+  el.textContent = 'Stand ' + zeitUhr(new Date());
+  el.title = seitenabrufText() + ' · alle Zeiten in Europe/Berlin';
 }
 
 /* ── Modal helpers ── */

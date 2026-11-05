@@ -15,7 +15,9 @@ import SunCalc from 'suncalc';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
 // Bind to localhost only — nginx proxies 8443 → here
-const PORT = 18800;
+/* CP1: PORT aus der Umgebung, damit eine zweite Instanz (Worktree, Abnahme)
+   parallel laufen kann. Ohne Angabe bleibt es bei 18800 wie bisher. */
+const PORT = Number(process.env.PORT) || 18800;
 const BIND = '127.0.0.1';
 
 // ── Env ──────────────────────────────────────────────────────────────────────
@@ -425,7 +427,11 @@ app.use((req, res, next) => {
      werden" ab. Reproduziert am Desktop (Chrome) und am iPhone.
      `blob:` ist eine seitenlokale Quelle (nur dieses Dokument kann die URL
      erzeugen); die Erlaubnis oeffnet keinen fremden Ursprung. */
-  res.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'");
+  /* CP1 (05.11.2026): `font-src 'self'` ausdruecklich — die Schrift Manrope
+     liegt lokal unter public/vendor/fonts. Ohne default-src waere sie zwar
+     nicht gesperrt, die Zeile haelt aber fest, dass Schriften nur vom eigenen
+     Server kommen. Keine Lockerung: kein fremder Host, kein unsafe-eval. */
+  res.setHeader('Content-Security-Policy', "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'");
   next();
 });
 

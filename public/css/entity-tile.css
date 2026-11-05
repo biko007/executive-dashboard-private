@@ -3,17 +3,17 @@
    Sprint Polish-1
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* P2-2: mitwachsendes Raster statt fester Spaltenzahl mit eigenen
-   Haltepunkten (vorher 1100/680 px). Bei 360-390 px ergibt das zwei Spalten,
-   auf dem Desktop drei bis vier — ohne eigene Media-Queries. */
+/* CP1 §4 (Inventar-Befund M1): Unter 640 px EINE Spalte. Vorher zwei
+   Spalten bei 160 px Mindestbreite — Werte brachen mitten im Wert um
+   („30.04.2 | 027", „1.400.00 | 0 €"). Ab 640 px mitwachsend ab 220 px. */
 .entity-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 @media (min-width: 640px) {
-  .entity-grid { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .entity-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 }
 /* Auf dem Desktop bleibt es bei den gewohnten drei Spalten. */
 @media (min-width: 1024px) {
