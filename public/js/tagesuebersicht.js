@@ -53,11 +53,11 @@ const HEUTE_HANDLUNG_MOBIL_MAX = 5;
 const HEUTE_TERMINE_MAX = 6;
 const HEUTE_OFFEN_MAX = 5;
 
-/* Bildband: true, sobald public/img/hero-horizont-{m,d}.{jpg,webp} vorliegen.
-   Stand 05.11.2026 lag das Owner-Banner nicht in Dropbox
-   /Austausch/dashboard-design/ — das Band erscheint deshalb ohne Bild. Ein
-   <picture> auf fehlende Dateien erzeugte 404 in der Konsole. */
-const HEUTE_BAND_BILD = false;
+/* Bildband aus dem Owner-Banner (Dropbox /Austausch/dashboard-design/
+   linkedin-banner.png, 05.11.2026): public/img/hero-horizont-{m,d}.{jpg,webp}.
+   false schaltet das Band auf die bildlose Fläche zurück — ein <picture> auf
+   fehlende Dateien erzeugte sonst 404 in der Konsole. */
+const HEUTE_BAND_BILD = true;
 
 const HEUTE_STUFEN = {
   1: { label: 'Kritisch',   punkt: 'tu-punkt-rot' },

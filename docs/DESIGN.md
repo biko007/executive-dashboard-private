@@ -124,5 +124,8 @@ ohne Alpine.
 Bildband der Tagesübersicht: vorgesehen ist das LinkedIn-Banner des Owners aus
 Dropbox `/Austausch/dashboard-design/` (`linkedin-banner.*`), daraus
 `public/img/hero-horizont-m.jpg` (780×424) und `-d.jpg` (2400×400) plus WebP.
-Stand 05.11.2026 lag die Datei dort nicht; das Band erscheint ohne Bild auf
-`--surface-2`.
+Quelle `linkedin-banner.png` (2048×768). Mobil: rechtsbündig ab y 360 (unter dem
+Namenszug, der sonst unter der Kopfzeile läge; Spec nannte rechte 55 %) auf
+780×424; Desktop: Streifen y 360–701 (Haus und Wasser, ohne
+Schriftzug) auf 2400×400. Je JPG Qualität 82 und WebP 82. `HEUTE_BAND_BILD` in
+`tagesuebersicht.js` schaltet auf die bildlose Fläche (`--surface-2`) zurück.
