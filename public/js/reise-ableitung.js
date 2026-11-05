@@ -16,7 +16,7 @@
    vorkommen oder naheliegen. Unbekannte Codes erscheinen als Code. */
 const REISE_IATA_STADT = {
   ZRH: 'Zürich', FRA: 'Frankfurt', MUC: 'München', STR: 'Stuttgart', BSL: 'Basel',
-  YYZ: 'Toronto', YWG: 'Winnipeg', YVR: 'Vancouver', YUL: 'Montréal',
+  YYZ: 'Toronto', YWG: 'Winnipeg', YVR: 'Vancouver', YYJ: 'Victoria', YUL: 'Montréal',
   SFO: 'San Francisco', SJC: 'San José', LAX: 'Los Angeles', JFK: 'New York',
   EWR: 'New York', ORD: 'Chicago', SEA: 'Seattle', BCN: 'Barcelona', LHR: 'London',
 };
