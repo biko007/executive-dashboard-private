@@ -20,13 +20,14 @@
 }
 .hero picture, .hero-bild { position: absolute; inset: 0; width: 100%; height: 100%; }
 .hero-bild { object-fit: cover; object-position: 60% 30%; }
-/* Mobil: oben Navy 35 % für die darüberliegende Kopfzeile, unten in den
-   Seitengrund — die Navigation schließt nahtlos an. */
+/* Mobil: unten in den Seitengrund — die Navigation schließt nahtlos an.
+   CP1-5: Die Kopfzeile liegt nicht mehr über dem Band, deshalb entfällt der
+   Navy-Verlauf oben und der Freiraum für die Kopfzeile. */
 .hero::after {
   content: ''; position: absolute; inset: 0; pointer-events: none;
-  background: linear-gradient(to bottom, rgba(29,43,69,.35) 0%, rgba(29,43,69,0) 45%, var(--bg) 100%);
+  background: linear-gradient(to bottom, rgba(246,243,236,0) 35%, var(--bg) 100%);
 }
-.hero-text { position: relative; z-index: 1; padding: 80px var(--seitenrand) var(--sp-3); min-width: 0; width: 100%; }
+.hero-text { position: relative; z-index: 1; padding: var(--sp-6) var(--seitenrand) var(--sp-3); min-width: 0; width: 100%; }
 .hero-datum {
   font-size: var(--fs-12); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text-soft);
@@ -51,7 +52,8 @@
 @media (min-width: 1024px) { .hero-gruss { font-size: var(--fs-34); } }
 
 /* ── Raster ───────────────────────────────────────────────────────────────── */
-.tu-raster { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+/* CP1-5: stretch — Karten einer Rasterzeile sind gleich hoch, unten bündig. */
+.tu-raster { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-items: stretch; }
 .tu-raster > * { min-width: 0; }
 /* .card trägt im Altbestand padding: 0 (index.html); hier gilt der Baustein. */
 .tu-raster > .card { padding: var(--sp-4); margin: 0; overflow: visible; }
@@ -73,6 +75,11 @@
   .tu-raster {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas: "handlung termine wetter" "handlung termine gesundheit" "briefing briefing quellen" "offen offen offen";
+    /* CP1-5: Wetter und Gesundheit bleiben eigene Rasterzellen. Die zweite
+       Zeile ist 1fr: Sind Handlungsbedarf/Termine höher als beide zusammen,
+       wächst nur Gesundheit (Inhalt oben), Wetter bleibt in seiner Höhe.
+       So enden alle drei Spalten unten bündig. */
+    grid-template-rows: auto 1fr auto auto;
   }
 }
 

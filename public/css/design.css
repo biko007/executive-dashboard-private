@@ -74,6 +74,7 @@
   --shadow:      0 1px 2px rgba(29,43,69,.05), 0 8px 24px rgba(29,43,69,.06);
   --shadow-lift: 0 10px 28px rgba(29,43,69,.18);
   --focus-ring:  var(--accent);
+  --kopf-rand:   rgba(255,255,255,.40);   /* auf --navy 3,55:1 */
 
   /* Schrift */
   --font:      'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -184,6 +185,11 @@ body {
 
 /* ── Kacheln ─────────────────────────────────────────────────────────────── */
 .tiles-2, .tiles-3 { display: grid; gap: var(--sp-3); }
+/* CP1-5 Kartenhöhen: Karten einer Rasterzeile gleich hoch, Inhalt oben.
+   Gilt für .tiles-2/.tiles-3, das Heute-Raster (tagesuebersicht.css),
+   .summary-grid (index.html) und .entity-grid. */
+.tiles-2, .tiles-3, .entity-grid, .summary-grid { align-items: stretch; }
+.tiles-2 > .tile, .tiles-3 > .tile, .entity-grid > *, .summary-grid > * { height: 100%; }
 .tiles-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tiles-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .tiles-3 > .tile:last-child { grid-column: span 2; }
@@ -293,42 +299,38 @@ a.btn, .btn, .nav-pill, .segment button, .card-head .btn-ghost, .input, .select 
   #app > .kopf-band { order: 3; }
 }
 
+/* CP1-5 (Owner-Entscheidung Option 2): Kopfzeile auf allen Tabs dunkelblau.
+   Marke als weißes Quadrat mit Navy-Icon (14,15:1 — kontraststärker als ein
+   Akzent-Quadrat mit weißem Icon, 5,03:1, das sich zudem nur mit 2,81:1 vom
+   Navy abhöbe). Fokusring auf Navy weiß. Die Pillenzeile darunter bleibt hell.
+   Auf Heute mobil liegt die Kopfzeile NICHT mehr über dem Bildband; das Band
+   beginnt darunter (die transparente Variante mit Unterlegungen entfällt). */
 .kopf {
   position: sticky; top: 0; z-index: 20; height: 64px;
   display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
   /* Inhalt wie main auf 1200 px zentriert, Fläche über die volle Breite. */
   padding: 0 max(var(--seitenrand), calc((100% - 1200px) / 2 + var(--seitenrand)));
-  background: var(--surface); border-bottom: 1px solid var(--border);
+  background: var(--navy); border-bottom: 1px solid var(--navy);
+  --focus-ring: #FFFFFF;
 }
 .kopf-marke { display: flex; align-items: center; gap: 10px; min-width: 0; border-radius: 8px; padding: 4px 8px 4px 4px; margin-left: -4px; }
 .kopf-logo {
   width: 30px; height: 30px; flex: 0 0 30px; border-radius: 8px;
-  background: var(--navy); color: var(--on-navy); display: inline-flex; align-items: center; justify-content: center;
+  background: var(--on-navy); color: var(--navy); display: inline-flex; align-items: center; justify-content: center;
 }
 .kopf-titel {
-  font-size: var(--fs-14); font-weight: 800; color: var(--text); line-height: 1.2;
+  font-size: var(--fs-15); font-weight: 800; color: var(--on-navy); line-height: 1.2;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
 }
 .kopf-kurz { display: none; }
 @media (max-width: 359.98px) { .kopf-lang { display: none; } .kopf-kurz { display: inline; } }
-@media (min-width: 640px) { .kopf-titel { font-size: var(--fs-15); } }
 .kopf-rechts { display: flex; align-items: center; gap: var(--sp-3); flex: 0 0 auto; }
-.kopf-stand { display: none; font-size: var(--fs-12); color: var(--muted); white-space: nowrap; }
+.kopf-stand { display: none; font-size: var(--fs-12); color: var(--on-navy-soft); white-space: nowrap; }
 @media (min-width: 640px) { .kopf-stand { display: inline; } }
-.kopf-abmelden { color: var(--text-soft); }
-
-/* Heute mobil: Kopfzeile liegt transparent über dem Bildband. Marke und
-   Abmelden bekommen eine eigene Unterlegung, damit sie auch ohne Bild
-   lesbar bleiben. position: absolute statt sticky — eine durchsichtige
-   klebende Kopfzeile läge beim Scrollen über den Karten. */
-@media (max-width: 639.98px) {
-  body.band-aktiv .kopf { position: absolute; left: 0; right: 0; background: transparent; border-bottom: 0; }
-  body.band-aktiv .kopf-marke { background: rgba(29,43,69,.35); }
-  body.band-aktiv .kopf-titel { color: var(--on-navy); }
-  body.band-aktiv .kopf-abmelden { background: rgba(29,43,69,.35); color: var(--on-navy); border-radius: var(--r-chip); }
-  body.band-aktiv .kopf-abmelden:hover { background: rgba(29,43,69,.55); }
-  body.band-aktiv .kopf { --focus-ring: #FFFFFF; }
-}
+/* Rand: Spec nennt rgba(255,255,255,.25) — auf Navy nur 2,23:1. Mit .40
+   sind es 3,55:1 (Soll für Bedienelement-Rahmen 3:1). */
+.kopf .kopf-abmelden { color: var(--on-navy); border: 1.5px solid var(--kopf-rand); background: transparent; }
+.kopf .kopf-abmelden:hover { background: rgba(255,255,255,.10); color: var(--on-navy); }
 
 /* ── Navigationszeile ────────────────────────────────────────────────────── */
 .nav-zeile { background: var(--bg); padding: 8px 0; }

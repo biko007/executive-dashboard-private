@@ -139,6 +139,39 @@ async function ueberbreite(page) {
   });
 }
 
+/* CP1-5: bereichsbezogene Prüfungen.
+   heute (Desktop): die drei Karten der ersten Rasterzeile enden unten bündig (±2 px).
+   health: keine .s-card ohne sichtbaren Wert.
+   trips: kein Bildstreifen > 80 px Höhe in einer Reisekarte. */
+async function zusatzPruefen(page, tab, breite) {
+  if (tab === 'heute' && breite.name.startsWith('desktop')) {
+    return page.evaluate(() => {
+      const unten = ['.tu-handlung', '.tu-termine', '.tu-gesundheit']
+        .map(sel => Math.round(document.querySelector(sel).getBoundingClientRect().bottom));
+      return { name: 'Heute: erste Rasterzeile unten bündig', ok: Math.max(...unten) - Math.min(...unten) <= 2, detail: unten.join('/') };
+    });
+  }
+  if (tab === 'health') {
+    return page.evaluate(() => {
+      const karten = [...document.querySelectorAll('#content .s-card')];
+      const leer = karten.filter(k => { const v = k.querySelector('.val'); const t = v ? v.textContent.replace(/\s+/g, '') : '';
+        return !t || t === '—' || t === '–' || !v.getBoundingClientRect().height; });
+      const abgeschnitten = karten.filter(k => { const v = k.querySelector('.val'); return v && v.scrollWidth > v.clientWidth + 1; });
+      return { name: 'Gesundheit: keine Kachel ohne Wert, kein Wert abgeschnitten', ok: !leer.length && !abgeschnitten.length,
+        detail: karten.length + ' Kacheln, ' + leer.length + ' ohne Wert, ' + abgeschnitten.length + ' abgeschnitten' };
+    });
+  }
+  if (tab === 'trips') {
+    return page.evaluate(() => {
+      const bilder = [...document.querySelectorAll('#content .trip-card .entity-img-wrap')];
+      const hoch = bilder.filter(b => b.getBoundingClientRect().height > 80);
+      return { name: 'Reisen: kein Bildstreifen > 80 px', ok: !hoch.length,
+        detail: bilder.map(b => Math.round(b.getBoundingClientRect().height)).join('/') || 'kein Bild' };
+    });
+  }
+  return null;
+}
+
 async function seiteOeffnen(browser, breite, eigenerHost) {
   const context = await browser.newContext({ viewport: breite.viewport, deviceScaleFactor: breite.deviceScaleFactor,
     isMobile: !!breite.isMobile, hasTouch: !!breite.hasTouch, locale: 'de-DE', timezoneId: 'Europe/Berlin' });
@@ -162,6 +195,7 @@ async function tabsPruefen(browser, basis, eigenerHost, tabs) {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
         await bereit(page, tab);
         eintrag.ueber = await ueberbreite(page);
+        eintrag.zusatz = await zusatzPruefen(page, tab, breite);
         eintrag.manrope = await page.evaluate(() => document.fonts.check('15px Manrope'));
         eintrag.aktiv = await page.evaluate(() => typeof currentTab === 'string' ? currentTab : null);
         const datei = String(TABS.indexOf(tab) + 1).padStart(2, '0') + '-' + tab + '-' + breite.name + '.png';
@@ -389,7 +423,9 @@ try {
 ergebnis.ende = new Date().toISOString();
 ergebnis.fremdeHosts = [...new Set(ergebnis.fremdeHosts)];
 fs.writeFileSync(path.join(AUS, 'ergebnis.json'), JSON.stringify(ergebnis, null, 2));
-const tabsFehler = ergebnis.tabs.filter(t => t.ausnahme || (t.ueber && t.ueber.anzahl) || (t.konsole && t.konsole.length) || t.manrope === false);
+const tabsFehler = ergebnis.tabs.filter(t => t.ausnahme || (t.ueber && t.ueber.anzahl) || (t.konsole && t.konsole.length)
+  || t.manrope === false || (t.zusatz && !t.zusatz.ok));
 console.log(JSON.stringify({ tabs: ergebnis.tabs.length, tabsMitBefund: tabsFehler.length, gesperrt: ergebnis.gesperrt.length,
-  fremdeHosts: ergebnis.fremdeHosts.length, deeplinks: ergebnis.deeplinks.map(d => d.schritte),
+  fremdeHosts: ergebnis.fremdeHosts.length,
+  zusatz: ergebnis.tabs.filter(t => t.zusatz).map(t => [t.zusatz.name, t.breite, t.zusatz.ok, t.zusatz.detail]), deeplinks: ergebnis.deeplinks.map(d => d.schritte),
   heute: ergebnis.heute.map(h => [h.name, h.ok]), fehler: ergebnis.fehler }, null, 1));

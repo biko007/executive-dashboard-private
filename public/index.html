@@ -617,6 +617,26 @@ button, .btn, .btn-ghost, .btn-logout, .subtab-btn, .drawer-close {
 /* Der Kachelinhalt darf nie abgeschnitten werden. */
 .s-card { min-width: 0; overflow-wrap: anywhere; }
 .s-card .lbl { overflow-wrap: anywhere; }
+/* CP1-5 Gesundheit (Minimalfassung bis CP2): gleiche Höhe je Zeile, Wert oben
+   22/800 ohne Umbruch, Erklärtext 12 px auf 3 Zeilen gekürzt („mehr").
+   Spaltenzahl ab 640 px aus --kpi-spalten (gesundheitKachelnOrdnen). */
+.summary-grid.kpi-raster { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.kpi-raster .s-card { display: flex; flex-direction: column; justify-content: flex-start; height: 100%; }
+.kpi-raster .s-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.kpi-raster .val { font-size: 22px; font-weight: 800; line-height: 1.2; white-space: nowrap; }
+.kpi-raster .val small { font-size: 15px !important; font-weight: 700; }
+/* Feste Höhe statt line-clamp: der Block hat oft zwei Absätze (.sub), über
+   die -webkit-line-clamp nicht zuverlässig kürzt. 3 Zeilen × 12 px × 1,45. */
+.kpi-raster .kachel-erklaerung { margin-top: 6px; max-height: calc(3 * 12px * 1.45); overflow: hidden; }
+.kpi-raster .kachel-erklaerung .sub { font-size: 12px; line-height: 1.45; margin-top: 0; }
+.kpi-raster .kachel-erklaerung .sub + .sub { margin-top: 0; }
+.kpi-raster .kachel-erklaerung .sub:not([style]) { color: var(--muted); }
+.kpi-raster .kachel-erklaerung.offen { max-height: none; overflow: visible; }
+.kpi-mehr { align-self: flex-start; min-height: 44px; padding: 0; margin-top: 4px; font-size: 12px; }
+@media (min-width: 640px) {
+  .summary-grid.kpi-raster { grid-template-columns: repeat(var(--kpi-spalten, 4), minmax(0, 1fr)); }
+  .kpi-raster .s-card:last-child:nth-child(odd) { grid-column: auto; }
+}
 
 /* ── Diagramme (P2-3) ──────────────────────────────────────────────────────
    Der Rahmen gibt die Zeichenbreite vor; das SVG fuellt ihn vollstaendig aus.
@@ -1092,6 +1112,44 @@ const fmtDT   = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/B
 const fmtTime = iso => iso ? new Intl.DateTimeFormat('de-DE',{timeZone:'Europe/Berlin',hour:'2-digit',minute:'2-digit',hour12:false}).format(new Date(iso)) : '–';
 
 
+/* ── Gesundheit: Kennzahl-Kacheln ordnen (CP1-5) ────────────────────────────
+   1. Kachel ohne sichtbaren Wert entfernen — keine leeren Kästen.
+   2. Erklärtexte (.sub) in einen Block, der auf 3 Zeilen gekürzt wird;
+      „mehr" klappt auf, nur wenn wirklich gekürzt wurde.
+   3. Spaltenzahl ab 640 px so wählen, dass keine Kachel allein in einer
+      letzten Zeile steht: bis 4 Kacheln eine Zeile, sonst zwei gleich lange.
+   Überarbeitung des Bereichs bleibt CP2; das hier ist die Minimalfassung. */
+function gesundheitKachelnOrdnen(raster) {
+  if (!raster) return;
+  raster.querySelectorAll('.s-card').forEach(karte => {
+    const wert = karte.querySelector('.val');
+    const text = wert ? wert.textContent.replace(/\s+/g, '') : '';
+    if (!text || text === '—' || text === '–') { karte.remove(); return; }
+    const subs = [...karte.querySelectorAll(':scope > .sub')];
+    if (!subs.length) return;
+    const block = document.createElement('div');
+    block.className = 'kachel-erklaerung';
+    subs.forEach(s => block.appendChild(s));
+    karte.appendChild(block);
+  });
+  const n = raster.querySelectorAll('.s-card').length;
+  raster.style.setProperty('--kpi-spalten', String(n <= 4 ? Math.max(n, 1) : Math.ceil(n / 2)));
+  raster.querySelectorAll('.kachel-erklaerung').forEach(block => {
+    if (block.scrollHeight <= block.clientHeight + 2) return;
+    const mehr = document.createElement('button');
+    mehr.type = 'button';
+    mehr.className = 'btn btn-ghost kpi-mehr';
+    mehr.textContent = 'mehr';
+    mehr.setAttribute('aria-expanded', 'false');
+    mehr.addEventListener('click', () => {
+      const offen = block.classList.toggle('offen');
+      mehr.textContent = offen ? 'weniger' : 'mehr';
+      mehr.setAttribute('aria-expanded', String(offen));
+    });
+    block.after(mehr);
+  });
+}
+
 /* ── Image upload helpers ── */
 
 /* E1 (10.10.2026) — Dateiname eines Entitaetsbildes.
@@ -1157,6 +1215,22 @@ function entityImgHtml(entityType, entityId, cssClass) {
     <img src="${src}" alt="" onerror="bildFehlt(this)" onload="bildVorhanden(this)" style="display:block">
     <div class="img-placeholder" style="display:none"><span aria-hidden="true">📷</span><span class="img-platzhalter-text">Foto hinzufügen</span></div>
     <input type="file" accept="${BILD_ACCEPT}" onchange="uploadImage(this,'${esc(entityType)}','${esc(entityId)}')">
+  </div>`;
+}
+
+/* CP1-5 (Spec §1.5 .thumb): Reisekarte mit 64-px-Vorschaubild statt des
+   120/180 px hohen Bildstreifens. Gleiches Markup wie entityImgHtml — Klick,
+   Upload (uploadImage sucht .entity-img-wrap) und die Erkennung „kein Foto"
+   (bildFehlt/bildVorhanden) laufen unverändert. Ohne Foto: --surface-2-
+   Quadrat mit Flugzeug-Symbol. */
+function reiseThumbHtml(tripId) {
+  const src = imgUrl('trip', tripId);
+  return `<div class="entity-img-wrap reise-thumb" role="button" tabindex="0" aria-label="Foto der Reise hochladen" title="Foto hochladen"
+      onclick="triggerImgUpload(this,'trip','${esc(tripId)}')"
+      onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); this.click(); }">
+    <img class="thumb" src="${src}" alt="" onerror="bildFehlt(this)" onload="bildVorhanden(this)" style="display:block">
+    <div class="img-placeholder" style="display:none"><svg class="ic" aria-hidden="true"><use href="/dashboard/vendor/icons.svg#plane"></use></svg></div>
+    <input type="file" accept="${BILD_ACCEPT}" onchange="uploadImage(this,'trip','${esc(tripId)}')">
   </div>`;
 }
 
@@ -1924,21 +1998,20 @@ async function loadTrips() {
         ].filter(Boolean).join(' · ');
         return reiseKarteHtml(t, reise, {
           heute: today, badge, knoepfe, metaText,
-          bild: entityImgHtml('trip', t.id, 'entity-img-wrap'),
+          bild: reiseThumbHtml(t.id),
           segs, docsSection, linksSection,
           weitereDokumente: tripDocs.length + tripLinks.length,
         });
       }
 
       return `<div class="trip-card" id="tc-${esc(t.id)}" style="padding:0;overflow:hidden;border-radius:var(--r)">
-        ${entityImgHtml('trip', t.id, 'entity-img-wrap')}
         <div style="padding:20px">
         <div class="trip-top">
-          <div>
+          <div class="reise-kopf-zeile">${reiseThumbHtml(t.id)}<div class="reise-kopf-text">
             <h3>${esc(t.name)} ${badge}</h3>
             <!-- P2-8: Hier standen die rohen ISO-Datumsangaben (2026-02-24). -->
             <div class="trip-dates">📅 ${esc(fmtDate(t.start_date))} → ${esc(fmtDate(t.end_date))} &nbsp;|&nbsp; 📍 ${esc(t.destination||'–')} ${t.country_code?`(${esc(t.country_code)})`:''}</div>
-          </div>
+          </div></div>
           <!-- P2-8: flex-wrap, sonst wird die letzte Schaltflaeche bei 360 px
                abgeschnitten statt umzubrechen. -->
           <div style="display:flex;gap:6px;flex-wrap:wrap">${knoepfe}
@@ -2220,13 +2293,13 @@ async function loadHealth() {
       const arrow = wt.direction === 'up' ? '📈' : wt.direction === 'down' ? '📉' : '➡️';
       /* D1 (Phase 3): deutsches Zahlenformat, geschuetztes Leerzeichen vor der
          Einheit. Vorher stand hier "86.05 kg". */
-      trendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht-Trend 30 T', 'Trend Gewicht')}</div><div class="val zahl" style="color:${col};font-size:22px">${arrow} ${wt.change>0?'+':''}${fmtMit(wt.change, 'kg', 2)}</div><div class="sub">Ø ${fmtMit(wt.avg, 'kg', 2)} (${fmtZahl(wt.dataPoints, 0)} Messungen)</div></div>`;
+      trendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht-Trend 30 T', 'Trend Gewicht')}</div><div class="val zahl" style="color:${col}">${arrow} ${wt.change>0?'+':''}${fmtMit(wt.change, 'kg', 2)}</div><div class="sub">Ø ${fmtMit(wt.avg, 'kg', 2)} (${fmtZahl(wt.dataPoints, 0)} Messungen)</div></div>`;
     }
 
     const st = trends.sleep;
     let sleepTrendHtml = '';
     if (st) {
-      sleepTrendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf-Trend 30 T', 'Trend Schlaf')}</div><div class="val zahl" style="font-size:22px">Ø ${fmtMit(st.avgDuration, 'h', 1)}</div><div class="sub">${fmtZahl(st.minDuration, 1)}–${fmtMit(st.maxDuration, 'h', 1)}${st.avgQuality ? ' · Score ' + fmtProzent(st.avgQuality, 0) : ''}</div></div>`;
+      sleepTrendHtml = `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf-Trend 30 T', 'Trend Schlaf')}</div><div class="val zahl">Ø ${fmtMit(st.avgDuration, 'h', 1)}</div><div class="sub">${fmtZahl(st.minDuration, 1)}–${fmtMit(st.maxDuration, 'h', 1)}${st.avgQuality ? ' · Score ' + fmtProzent(st.avgQuality, 0) : ''}</div></div>`;
     }
 
     const hr = trends.heartrate;
@@ -2261,15 +2334,18 @@ async function loadHealth() {
       readinessHtml = `<div class="s-card"><div class="lbl">🎯 Erholung (Readiness)</div><div class="val zahl" style="color:${rdCol}">${fmtZahl(score, 0)} <small style="font-size:16px">von 100</small></div><div class="sub">${esc(rdText)} · gemessen ${fmtDate(lastReadiness.timestamp)}</div><div class="sub">Quelle: Oura. Einteilung dieser Anzeige: ab 85 gut, ab 70 eingeschränkt, darunter wenig erholt.</div></div>`;
     }
 
-    const summaryGrid = `<div class="summary-grid">
+    /* CP1-5: Kacheln ohne Messwert entfallen (vorher stand bei fehlendem
+       Schlaf eine Kachel mit „—"). Gleiche Höhe, Spaltenzahl und das
+       Aufklappen langer Erklärtexte regelt gesundheitKachelnOrdnen(). */
+    const summaryGrid = `<div class="summary-grid kpi-raster">
       ${lastW ? `<div class="s-card"><div class="lbl">${kpiLabel('Gewicht (aktuell)', 'Gewicht')}</div><div class="val zahl">${fmtZahl(lastW.value, 2)} <small style="font-size:16px">${esc(lastW.unit||'kg')}</small></div><div class="sub">${fmtDate(lastW.timestamp)}</div></div>` : ''}
       ${trendHtml}
-      ${lastSleep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val zahl">${fmtZahl(lastSleep.value, 1)} <small style="font-size:16px">${esc(lastSleep.unit||'h')}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' · Score ' + fmtZahl(lastSleep.quality, 0) : ''}</div></div>` : `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val" style="font-size:18px;color:var(--muted)">—</div><div class="sub">Keine Schlafdaten</div></div>`}
+      ${lastSleep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schlaf (letzte Nacht)', 'Schlaf')}</div><div class="val zahl">${fmtZahl(lastSleep.value, 1)} <small style="font-size:16px">${esc(lastSleep.unit||'h')}</small></div><div class="sub">${fmtDate(lastSleep.timestamp)}${lastSleep.quality ? ' · Score ' + fmtZahl(lastSleep.quality, 0) : ''}</div></div>` : ''}
       ${sleepTrendHtml}
       ${hrHtml}
       ${hrvHtml}
       ${readinessHtml}
-      ${lastStep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schritte (zuletzt)', 'Schritte')}</div><div class="val" style="font-size:20px">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
+      ${lastStep ? `<div class="s-card"><div class="lbl">${kpiLabel('Schritte (zuletzt)', 'Schritte')}</div><div class="val zahl">${Number(lastStep.value).toLocaleString('de-DE')}</div><div class="sub">${fmtDate(lastStep.timestamp)}</div></div>` : ''}
     </div>`;
 
     // ── Weight Chart (SVG line, 90 days) ──
@@ -2306,6 +2382,7 @@ async function loadHealth() {
     }
 
     c.innerHTML = alertsHtml + summaryGrid + weightChartHtml + sleepChartHtml + hrvChartHtml;
+    gesundheitKachelnOrdnen(c.querySelector('.kpi-raster'));
 
     /* P2-3: anmelden statt nur einmal zeichnen — diagrammZeichnen() haengt
        einen ResizeObserver an den Container, damit die Diagramme bei einer

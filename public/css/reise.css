@@ -116,3 +116,22 @@
   .reise-kopf { grid-column: 1 / -1; }
   .reise-links, .reise-rechts { gap: 18px; }
 }
+
+/* ── CP1-5: Vorschaubild statt Bildstreifen (Spec §1.5 .thumb) ─────────────
+   64×64 links neben dem Titel. Das Markup ist das von entityImgHtml (Klick
+   lädt hoch); die Regeln hier heben dessen 16:9-Vollbreite auf. */
+.reise-kopf-zeile { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.reise-kopf-text { min-width: 0; flex: 1 1 auto; }
+.entity-img-wrap.reise-thumb {
+  width: 64px; height: 64px; flex: 0 0 64px; aspect-ratio: auto;
+  border-radius: var(--r-inner); background: var(--surface-2);
+}
+.reise-thumb .thumb { width: 64px; height: 64px; }
+.reise-thumb .img-placeholder {
+  position: absolute; inset: 0; align-items: center; justify-content: center;
+  color: var(--text-soft); background: var(--surface-2);
+}
+.reise-thumb input[type=file] { display: none; }
+.entity-img-wrap.reise-thumb.bild-leer { height: 64px; min-height: 64px; }
+/* Das Kamerasymbol beim Überfahren ist für 64 px zu groß. */
+.entity-img-wrap.reise-thumb:hover::after { content: none; }

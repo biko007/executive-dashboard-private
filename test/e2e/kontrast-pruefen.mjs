@@ -20,6 +20,16 @@ const lum = (hex) => {
 };
 const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
 const T = (v) => ({ name: '--' + v, hex: wert(v) });
+/* Halbtransparente Farbe (rgba) über einem Grund gemischt — für den
+   Rand der Abmelde-Schaltfläche auf der Navy-Kopfzeile (CP1-5). */
+const gemischt = (name, grundHex) => {
+  const m = css.match(new RegExp('--' + name + ':\\s*rgba\\(([^)]+)\\)'));
+  if (!m) throw new Error('Token --' + name + ' (rgba) fehlt');
+  const [r, g, b, a] = m[1].split(',').map(Number);
+  const grund = [1, 3, 5].map(i => parseInt(grundHex.slice(i, i + 2), 16));
+  const hex = '#' + [r, g, b].map((v, i) => Math.round(a * v + (1 - a) * grund[i]).toString(16).padStart(2, '0')).join('').toUpperCase();
+  return { name: '--' + name + ' über Navy', hex };
+};
 const H = (name, hex) => ({ name, hex });
 const paare = [];
 const add = (vg, hgs, soll, art) => hgs.forEach(hg => paare.push({ vg, hg, soll, art }));
@@ -38,6 +48,12 @@ for (const s of ['green', 'red']) add(T(s), [T(s + '-weak'), T('surface')], 3, '
 add(T('on-gold-weak'), [T('gold-weak'), T('surface')], 3, 'UI');
 add(T('accent'), [T('accent-weak')], 3, 'UI');
 for (const [n, hex] of [['rot', '#E36F5C'], ['gold', '#E8B45A'], ['blau', '#7FA7DC']]) add(H('Punkt ' + n, hex), [T('navy')], 3, 'UI');
+
+/* Kopfzeile Navy (CP1-5): Schriftzug, „Stand", Marke, Abmelde-Rand. */
+add(H('Kopf: Schrift weiß', wert('on-navy')), [T('navy')], 4.5, 'Text');
+add(H('Kopf: „Stand" --on-navy-soft', wert('on-navy-soft')), [T('navy')], 4.5, 'Text');
+add(H('Kopf: Marke Navy-Icon', wert('navy')), [H('weißes Quadrat', wert('on-navy'))], 3, 'UI');
+add(gemischt('kopf-rand', wert('navy')), [T('navy')], 3, 'UI');
 
 const zeilen = paare.map(p => ({ ...p, r: ratio(p.vg.hex, p.hg.hex) }));
 const fehlText = zeilen.filter(z => z.r < z.soll && z.art === 'Text');

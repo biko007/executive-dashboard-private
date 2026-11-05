@@ -101,8 +101,15 @@ erst in CP2 auf die Bausteine umgestellt.
 
 ## Kopfzeile und Navigation
 
-- Kopfzeile 64 px, weiß, klebend: Marke + „Executive Dashboard" (unter 360 px
-  „Dashboard"), rechts „Stand HH:MM" (schmal ausgeblendet) und Abmelden.
+- Kopfzeile 64 px, **Navy** (`--navy`), klebend, auf allen Tabs (CP1-5,
+  Owner-Entscheidung Option 2): Marke als weißes Quadrat mit Navy-Icon
+  (14,15:1; ein Akzent-Quadrat mit weißem Icon hätte 5,03:1 und höbe sich nur
+  mit 2,81:1 vom Navy ab), „Executive Dashboard" weiß 15/800 (unter 360 px
+  „Dashboard"), „Stand HH:MM" in `--on-navy-soft` (schmal ausgeblendet),
+  Abmelden-Icon weiß mit Rand `--kopf-rand` = rgba(255,255,255,.40) (3,55:1;
+  der Spec-Wert .25 ergäbe 2,23:1). Fokusring in der Kopfzeile weiß.
+- Auf Heute mobil liegt die Kopfzeile nicht mehr über dem Bildband; das Band
+  beginnt darunter. Die Pillenzeile bleibt hell.
 - Navigationszeile als eigene Zeile, Pillen 44 px, aus `DASHBOARD_TABS`
   (`index.html`) gebaut von `public/js/nav.js` – ohne Alpine.
 - Unter 1024 px scrollt die Leiste waagerecht; ein Sentinel mit
@@ -112,6 +119,30 @@ erst in CP2 auf die Bausteine umgestellt.
   `NAV_DIREKT = 8`). Klick außerhalb und Esc schließen. Liegt der aktive Bereich
   in „Mehr", trägt die Summary dessen Namen.
 - Routing bleibt allein bei `showTab()`; die Kennungen in `?tab=` sind unverändert.
+
+## Kartenhöhen (CP1-5)
+
+In allen Rastern stehen die Karten einer Zeile gleich hoch, Inhalt oben,
+Kartenkopf-Aktion oben rechts: `.tiles-2`, `.tiles-3`, `.entity-grid`,
+`.summary-grid` (`align-items: stretch`, Kinder `height: 100%`) und das
+Heute-Raster. Auf Heute ab 1024 px sind Wetter und Gesundheit **zwei eigene
+Rasterzellen** der rechten Spalte; die Zeilen sind `auto 1fr`. Reicht die
+Höhe von Handlungsbedarf/Termine über beide, wächst nur die Gesundheitskarte
+(Inhalt oben), Wetter behält seine Höhe — alle drei Spalten enden bündig.
+
+Gesundheit-Tab (Minimalfassung bis CP2, `gesundheitKachelnOrdnen` in
+`index.html`): Kacheln ohne Wert entfallen; Wert 22/800 ohne Umbruch;
+Erklärtext 12 px `--muted`, auf 3 Zeilen gekürzt, „mehr" klappt auf;
+Spaltenzahl ab 640 px so, dass keine Kachel allein in der letzten Zeile
+steht (bis 4 eine Zeile, sonst zwei gleich lange).
+
+## Vorschaubild (CP1-5)
+
+`.thumb` 64×64, Radius 12, `object-fit: cover`. Erste Anwendung: Reisekarte —
+links neben dem Titel statt des früheren 120/180-px-Bildstreifens
+(`reiseThumbHtml` in `index.html`, gleiches Markup und gleicher Upload wie
+`entityImgHtml`). Ohne Foto ein `--surface-2`-Quadrat mit Icon `plane`.
+Fuhrpark und Immobilien folgen in CP2.
 
 ## Alpine
 

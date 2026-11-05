@@ -54,7 +54,9 @@ function reiseChip(ch) {
 }
 
 /* §1 Kopfzeile */
-function reiseKopfHtml(t, reise, heute, badge, knoepfe) {
+/* CP1-5: `thumb` ist das 64-px-Vorschaubild links neben dem Titel (ersetzt
+   den früheren Bildstreifen über der Karte). */
+function reiseKopfHtml(t, reise, heute, badge, knoepfe, thumb) {
   const zeitraum = reiseZeitraumText(t.start_date, t.end_date);
   const countdown = reiseCountdown(t.start_date, t.end_date, heute);
   const { sichtbar, rest } = reiseChipAuswahl(reise.chips);
@@ -63,10 +65,12 @@ function reiseKopfHtml(t, reise, heute, badge, knoepfe) {
       `<div class="reise-chips">${rest.map(reiseChip).join('')}</div>`)
     : '';
   return `<div class="reise-kopf">
+    <div class="reise-kopf-zeile">${thumb || ''}<div class="reise-kopf-text">
     <h3 class="reise-titel">${esc(t.name)} ${badge}</h3>
     <div class="reise-zeitraum">\u{1F4C5} ${esc(zeitraum)}${countdown.text
       ? ` · <span class="reise-countdown ${countdown.art}">${esc(countdown.text)}</span>` : ''}</div>
     ${t.destination ? `<div class="reise-ziel">\u{1F4CD} ${esc(t.destination)}${t.country_code ? ` (${esc(t.country_code)})` : ''}</div>` : ''}
+    </div></div>
     ${sichtbar.length ? `<div class="reise-chips">${sichtbar.map(reiseChip).join('')}</div>` : ''}
     ${weitere}
     <div class="reise-knoepfe">${knoepfe}</div>
@@ -178,9 +182,8 @@ function reiseKarteHtml(t, reise, teile) {
     reiseKlapp(t.id, 'segmente', 'Segmente', (t.segments || []).length, teile.segs),
   ].join('');
   return `<div class="trip-card reise-neu" id="tc-${esc(t.id)}">
-    ${teile.bild}
     <div class="reise-raster">
-      ${reiseKopfHtml(t, reise, heute, teile.badge, teile.knoepfe)}
+      ${reiseKopfHtml(t, reise, heute, teile.badge, teile.knoepfe, teile.bild)}
       <div class="reise-links">${reiseNaechstesHtml(t, reise, heute)}${reiseVerlaufHtml(t, reise, heute)}</div>
       <div class="reise-rechts">${reiseBuchungenHtml(reise)}
         <section class="reise-block reise-abschnitte">${abschnitte}</section>
