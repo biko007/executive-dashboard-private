@@ -1,27 +1,22 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Tagesübersicht — Startansicht „Heute"
-   Paket P2-5 (Spec §5, prompts/dashboard-ueberarbeitung/03-…)
-
-   WARUM
-   Die Anwendung startete im Health-Bereich. Um zu sehen, was heute wichtig
-   ist, musste der Owner 13 Bereiche einzeln öffnen.
+   Paket P2-5, neu aufgebaut in CP1 (Spec-Dashboard-Design-v2 §3, Variante A
+   „Horizont")
 
    WAS DIESE ANSICHT IST
-   Eine priorisierte Liste des Handlungsbedarfs plus die Tagesbausteine aus
-   dem Telegram-Briefing (Standort, Sonne/Mond, Wetter, Termine, Gesundheit)
-   und ein Abschnitt über den Zustand der Datenquellen.
+   Bildband mit Begrüßung, eine Navy-Karte „Handlungsbedarf" als Anker, dazu
+   Gesundheit, Termine, Briefing, Wetter, Datenquellen und offene Punkte.
+   Jede Handlungszeile führt per Klick in den Fachbereich.
 
    WAS SIE NICHT IST
-   - keine Kennzahlenwand,
-   - kein Gesamtscore über Gesundheit, Finanzen und Technik,
-   - keine Doppelung der Warnungen, die im Fachbereich ohnehin stehen —
-     jede Zeile führt stattdessen per Klick dorthin.
+   Keine Kennzahlenwand, kein Gesamtscore, keine Diagramme, keine Doppelung
+   der Warnungen aus den Fachbereichen.
 
-   DATENQUELLEN (alle lesend, alle bereits vorhanden)
-     GET /api/heute/umfeld                       Standort, Sonne/Mond, Wetter (neu, P2-5)
+   DATENQUELLEN (alle lesend, unverändert seit P2-5)
+     GET /api/heute/umfeld                       Standort, Sonne/Mond, Wetter
      GET /api/calendar                           Termine, 7-Tage-Fenster
-     GET /api/health/alerts                      Gesundheitswarnungen mit Schweregrad
-     GET /api/health?days=2                      Werte der letzten Nacht
+     GET /api/health/alerts                      Gesundheitswarnungen
+     GET /api/health?days=3                      letzte Messwerte
      GET /api/fleet/vehicles?status=active       TÜV-Fristen
      GET /api/dashboard/status                   Dienste, Token, Backup
      GET /api/sharepoint/sync-status             Alter des Dokumentenindex
@@ -29,58 +24,115 @@
      GET /api/banking/accounts                   Alter der Salden
      GET /api/assets/properties                  Objekte
      GET /api/assets/properties/:code/nk-period-obligations
-     GET /api/briefing?tage=7                    Morgen- und Abendbriefing (26.10.2026)
+     GET /api/briefing?tage=7                    Morgen- und Abendbriefing
 
-   Es gibt KEINEN sammelnden Endpunkt und KEINEN neuen Datenspeicher. Fällt
-   eine Quelle aus, erscheint genau ihr Block als „nicht abrufbar" — die
-   übrigen bleiben nutzbar (Promise.allSettled).
+   Kein sammelnder Endpunkt, kein neuer Speicher. Fällt eine Quelle aus,
+   zeigt genau ihre Karte den Fehler (Promise.allSettled, Zustandsmatrix §3.10).
 
-   NICHT UMGESETZT, BEWUSST
-   „Änderungen seit letztem Besuch" braucht eine neue Speicherung (es gibt
-   weder eine Tabelle noch einen Mechanismus für Besuche oder Deltas). Nach
-   Spec §5 ist das getrennt auszuweisen und vom Owner zu entscheiden; der
-   Abschnitt „Offene Punkte" sagt das ausdrücklich.
+   SICHERHEIT
+   Fremdtexte (Briefing, Terminnamen, Orte, Warnmeldungen) werden NIE per
+   innerHTML eingesetzt, sondern als DOM-Knoten mit textContent. Mit
+   'unsafe-inline' in der CSP wäre eingeschleustes HTML sonst ausführbar.
+   innerHTML wird hier nur für zustandBlock() verwendet — dessen Texte sind
+   eigene und laufen dort durch esc().
 
-   Abhängigkeiten: `esc`, `fmtDate`, `fmtDT`, `apiFetch`, `stamp`, `showTab`
-   aus dem Inline-Skript in index.html; `datenstand.js` (P1-1); `zeit.js`
-   (P1-5) für die Terminzeiten.
+   BEREITSCHAFT
+   Nach Promise.allSettled und dem Füllen aller Karten setzt loadHeute
+   data-geladen="1" auf #content. Darauf warten die Abnahmetests.
+
+   Abhängigkeiten: esc, fmtDate, fmtDT, apiFetch, stamp, showTab,
+   BEREICHSPARAMETER, currentTab (index.html); datenstand.js; zeit.js;
+   iconElement (nav.js).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Fristen ab hier als dringend behandeln. 30 Tage reichen für einen
-   TÜV-Termin; darunter wird es knapp. */
 const HEUTE_FRIST_DRINGEND_TAGE = 30;
 const HEUTE_FRIST_VORGEMERKT_TAGE = 90;
+/* Mobil zeigt die Handlungsbedarf-Karte höchstens so viele Zeilen, der Rest
+   klappt über „Alle {n} anzeigen" auf (§3.3). */
+const HEUTE_HANDLUNG_MOBIL_MAX = 5;
+const HEUTE_TERMINE_MAX = 6;
+const HEUTE_OFFEN_MAX = 5;
 
-/* Vier Dringlichkeitsstufen. Die Reihenfolge der Liste ergibt sich aus
-   (Stufe, Resttage) — also nach Wichtigkeit und Fälligkeit, nicht nach
-   Bereich (Spec §5). */
+/* Bildband: true, sobald public/img/hero-horizont-{m,d}.{jpg,webp} vorliegen.
+   Stand 05.11.2026 lag das Owner-Banner nicht in Dropbox
+   /Austausch/dashboard-design/ — das Band erscheint deshalb ohne Bild. Ein
+   <picture> auf fehlende Dateien erzeugte 404 in der Konsole. */
+const HEUTE_BAND_BILD = false;
+
 const HEUTE_STUFEN = {
-  1: { label: 'Kritisch',   klasse: 'hu-kritisch' },
-  2: { label: 'Dringend',   klasse: 'hu-dringend' },
-  3: { label: 'Offen',      klasse: 'hu-offen' },
-  4: { label: 'Vorgemerkt', klasse: 'hu-vorgemerkt' },
+  1: { label: 'Kritisch',   punkt: 'tu-punkt-rot' },
+  2: { label: 'Dringend',   punkt: 'tu-punkt-gold' },
+  3: { label: 'Offen',      punkt: 'tu-punkt-blau' },
+  4: { label: 'Vorgemerkt', punkt: 'tu-punkt-blau' },
 };
 
-/* ── Hilfsfunktionen ──────────────────────────────────────────────────────── */
+/* ── DOM-Helfer ───────────────────────────────────────────────────────────── */
 
-/* Resttage bis zu einem Datum (YYYY-MM-DD), gerechnet in Kalendertagen
-   Europe/Berlin. Negative Werte = überfällig. */
+/* Element mit Klasse und optionalem Text (immer textContent). */
+function heuteEl(tag, klasse, text) {
+  const e = document.createElement(tag);
+  if (klasse) e.className = klasse;
+  if (text !== undefined && text !== null) e.textContent = String(text);
+  return e;
+}
+
+/* Eigene, bereits maskierte Bausteine (zustandBlock) als Knoten. */
+function heuteHtmlKnoten(html) {
+  const t = document.createElement('template');
+  t.innerHTML = html;
+  return t.content;
+}
+
+function heuteSkelett(klasse, anzahl) {
+  const f = document.createDocumentFragment();
+  for (let i = 0; i < (anzahl || 1); i++) f.appendChild(heuteEl('span', 'skeleton ' + (klasse || '')));
+  return f;
+}
+
+/* Karte mit Kopf (Titel + optionale Aktion rechts) und leerem Körper. */
+function heuteKarte(klasse, titel, opt) {
+  const o = opt || {};
+  const karte = heuteEl('section', 'card ' + klasse + (o.navy ? ' card-navy' : ''));
+  karte.setAttribute('aria-label', titel);
+  const kopf = heuteEl('div', 'card-head');
+  kopf.appendChild(heuteEl('h2', o.gesperrt ? 'label-gesperrt' : '', titel));
+  if (o.ziel) {
+    const link = heuteEl('button', 'btn btn-ghost', o.zielText);
+    link.type = 'button';
+    link.addEventListener('click', () => heuteSprung(o.ziel, {}));
+    kopf.appendChild(link);
+  }
+  const koerper = heuteEl('div', 'tu-koerper');
+  karte.append(kopf, koerper);
+  return { karte, kopf, koerper };
+}
+
+function heuteFuellen(ziel, ...knoten) {
+  ziel.replaceChildren(...knoten);
+}
+
+/* ── Zeit- und Texthilfen ─────────────────────────────────────────────────── */
+
 function heuteRestTage(datum) {
   if (!datum) return null;
   const heute = zeitTagInZone(new Date(), ZEIT_ZONE);
-  const ziel = String(datum).slice(0, 10);
-  return zeitTageDifferenz(heute, ziel);
+  return zeitTageDifferenz(heute, String(datum).slice(0, 10));
 }
 
-/* Kompakte Tagesangabe für die Terminliste: "Di 06.10.".
-   zeit.js hat nur die lange Form (zeitTagLang) — die sprengt schmal die
-   Zeile. */
+/* "Di 06.11." */
 function heuteTagKurz(tag) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tag || ''));
   if (!m) return 'Datum unklar';
   const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
   const wochentag = new Intl.DateTimeFormat('de-DE', { timeZone: 'UTC', weekday: 'short' }).format(d);
   return wochentag + ' ' + m[3] + '.' + m[2] + '.';
+}
+
+function heuteWochentag(tag) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(tag || ''));
+  if (!m) return '';
+  return new Intl.DateTimeFormat('de-DE', { timeZone: 'UTC', weekday: 'short' })
+    .format(new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))));
 }
 
 function heuteRestText(tage) {
@@ -91,10 +143,18 @@ function heuteRestText(tage) {
   return 'in ' + tage + ' Tagen';
 }
 
-/* Sprung in einen Fachbereich samt Deeplink-Parametern.
-   showTab() räumt die Bereichsparameter auf, wenn es selbst den
-   Verlaufseintrag schreibt — deshalb wird die Adresse hier gesetzt und
-   showTab() mit { verlauf: false } aufgerufen. */
+function heuteStunde() {
+  return Number(new Intl.DateTimeFormat('de-DE', { timeZone: ZEIT_ZONE, hour: '2-digit', hour12: false }).format(new Date()));
+}
+
+function heuteGruss() {
+  const h = heuteStunde();
+  return h < 11 ? 'Guten Morgen' : h >= 18 ? 'Guten Abend' : 'Guten Tag';
+}
+
+/* Sprung in einen Fachbereich samt Deeplink-Parametern. showTab() räumt die
+   Bereichsparameter auf, wenn es selbst den Verlaufseintrag schreibt —
+   deshalb wird die Adresse hier gesetzt und showTab() ohne Verlauf gerufen. */
 function heuteSprung(tab, parameter) {
   const url = new URL(window.location.href);
   for (const p of BEREICHSPARAMETER) url.searchParams.delete(p);
@@ -107,15 +167,6 @@ function heuteSprung(tab, parameter) {
   showTab(tab, { verlauf: false });
 }
 
-/* Die Sprungziele der Handlungszeilen. Als Datenstruktur statt als
-   eingebautes onclick, damit die Zeile an einer Stelle gerendert wird. */
-let _heuteZiele = [];
-
-function heuteZielKlick(index) {
-  const z = _heuteZiele[index];
-  if (z) heuteSprung(z.tab, z.parameter);
-}
-
 /* ── Handlungsbedarf sammeln ──────────────────────────────────────────────── */
 
 function heutePostenGesundheit(alerts) {
@@ -125,29 +176,21 @@ function heutePostenGesundheit(alerts) {
     .map(a => ({
       stufe: a.severity === 'critical' ? 1 : 2,
       tage: null,
-      symbol: a.severity === 'critical' ? '🔴' : '⚠️',
       bereich: 'Gesundheit',
       titel: a.message || 'Gesundheitswarnung',
-      zusatz: a.severity === 'critical' ? 'Kritische Abweichung' : 'Abweichung über mehrere Tage',
+      frist: a.severity === 'critical' ? 'kritische Abweichung' : 'Abweichung über mehrere Tage',
       ziel: { tab: 'health', parameter: {} },
-      zielText: 'Gesundheit öffnen',
     }));
 }
 
 function heutePostenFahrzeuge(fahrzeuge) {
   if (!Array.isArray(fahrzeuge)) return [];
-  const posten = [];
-  for (const f of fahrzeuge) {
+  return fahrzeuge.map(f => {
     const frist = f.tuevNextDueDate || f.tuevDate || null;
+    const ziel = { tab: 'fleet', parameter: { fleet_code: f.vehicleCode, fleet_subtab: 'tuev' } };
     if (!frist) {
-      posten.push({
-        stufe: 3, tage: null, symbol: '❔', bereich: 'Fuhrpark',
-        titel: (f.name || f.vehicleCode) + ': keine TÜV-Frist erfasst',
-        zusatz: 'Ohne Frist ist keine Aussage über die Fälligkeit möglich.',
-        ziel: { tab: 'fleet', parameter: { fleet_code: f.vehicleCode, fleet_subtab: 'tuev' } },
-        zielText: 'Fahrzeug öffnen',
-      });
-      continue;
+      return { stufe: 3, tage: null, bereich: 'Fuhrpark',
+        titel: (f.name || f.vehicleCode) + ': keine TÜV-Frist erfasst', frist: 'ohne Frist', ziel };
     }
     const tage = heuteRestTage(frist);
     const stufe = tage === null ? 3
@@ -155,370 +198,327 @@ function heutePostenFahrzeuge(fahrzeuge) {
       : tage <= HEUTE_FRIST_DRINGEND_TAGE ? 2
       : tage <= HEUTE_FRIST_VORGEMERKT_TAGE ? 3
       : 4;
-    posten.push({
-      stufe, tage,
-      symbol: tage !== null && tage < 0 ? '🔴' : '🚗',
-      bereich: 'Fuhrpark',
+    return { stufe, tage, bereich: 'Fuhrpark',
       titel: 'TÜV ' + (f.name || f.vehicleCode) + ': ' + fmtDate(frist),
-      zusatz: heuteRestText(tage) + (f.plate ? ' · ' + f.plate : ''),
-      ziel: { tab: 'fleet', parameter: { fleet_code: f.vehicleCode, fleet_subtab: 'tuev' } },
-      zielText: 'Fahrzeug öffnen',
-    });
-  }
-  return posten;
+      frist: heuteRestText(tage), ziel };
+  });
 }
 
-/* Nebenkosten im Handlungsbedarf — entfallen (Owner-Entscheidung 10.10.2026).
+/* Nebenkosten erzeugen hier keinen Handlungsbedarf (Owner-Entscheidung
+   10.10.2026): Die Abrechnungsreife ist ein Dauerzustand der Datenpflege und
+   bleibt unter Immobilien → Nebenkosten / Abrechnungsreife sichtbar. */
 
-   Bis dahin stand hier `heutePostenNebenkosten()`: eine gebündelte Zeile
-   „N Objekte mit Abrechnungsblockern" mit aufklappbaren Einzelzeilen je
-   Objekt (Befund C1 aus Phase 3). Die Funktion ist ersatzlos entfernt, weil
-   die Abrechnungsreife ein Dauerzustand der Datenpflege ist und nicht in die
-   Tagesliste gehört. Die Reife selbst bleibt unverändert abrufbar unter
-   Immobilien → Nebenkosten und Immobilien → Abrechnungsreife; dort wird sie
-   mit `nk-befunde.js` weiterhin im Klartext erklärt. */
-
-
-/* C1 (Phase 3): Zaehler je Dringlichkeitsstufe statt nur "offen/vorgemerkt".
-   Gezaehlt werden die EINZELNEN Befunde, auch die in einer gebuendelten Zeile —
-   sonst waere die Zahl kleiner als der Handlungsbedarf. Stufen ohne Eintrag
-   stehen nicht da. Die Schwellen 30/90 Tage bleiben unveraendert. */
-function heuteStufenZaehler(posten) {
-  const flach = [];
-  for (const p of posten) {
-    if (p.unterposten && p.unterposten.length) flach.push(...p.unterposten);
-    else flach.push(p);
-  }
-  if (!flach.length) return '';
-  const reihenfolge = [1, 2, 3, 4];
-  const teile = [];
-  for (const stufe of reihenfolge) {
-    const n = flach.filter(p => p.stufe === stufe).length;
-    if (!n) continue;
-    teile.push(n + ' ' + (HEUTE_STUFEN[stufe].label.toLowerCase()));
-  }
-  return teile.join(' · ');
-}
-
-/* ── Rendern ──────────────────────────────────────────────────────────────── */
-
-function heuteAbschnitt(titel, inhalt, kopfZusatz) {
-  return '<section class="card card-pad heute-block">'
-    + '<div class="heute-kopf"><h2 class="heute-titel">' + esc(titel) + '</h2>'
-    + (kopfZusatz ? '<span class="heute-kopf-zusatz">' + kopfZusatz + '</span>' : '')
-    + '</div>' + inhalt + '</section>';
-}
-
-function heuteHandlungsliste(posten) {
-  if (!posten.length) {
-    return zustandBlock('keine_daten',
-      'Aus den abgerufenen Quellen ergibt sich heute kein Handlungsbedarf. '
-      + 'Das gilt nur für die unten genannten Quellen — nicht für Bereiche ohne Datengrundlage.');
-  }
-  posten.sort((a, b) => (a.stufe - b.stufe)
+function heutePostenSortieren(posten) {
+  return posten.slice().sort((a, b) => (a.stufe - b.stufe)
     || ((a.tage === null ? 99999 : a.tage) - (b.tage === null ? 99999 : b.tage)));
-
-  /* C1: Die Sprungziele werden flach gesammelt — Hauptzeilen zuerst, danach
-     die Unterposten. Der Index in _heuteZiele ist die einzige Verbindung
-     zwischen Markup und Ziel. */
-  _heuteZiele = [];
-  const zielIndex = (p) => { _heuteZiele.push(p.ziel); return _heuteZiele.length - 1; };
-
-  const knopf = (p, i) => {
-    const stufe = HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3];
-    return '<button type="button" class="hu-knopf" onclick="heuteZielKlick(' + i + ')">'
-      + '<span class="hu-symbol" aria-hidden="true">' + p.symbol + '</span>'
-      + '<span class="hu-text">'
-      + '<span class="hu-titel">' + esc(p.titel) + '</span>'
-      + '<span class="hu-zusatz">' + esc(stufe.label + ' · ' + p.bereich + ' · ' + p.zusatz) + '</span>'
-      + '</span>'
-      + '<span class="hu-ziel">' + esc(p.zielText) + ' →</span>'
-      + '</button>';
-  };
-
-  const zeile = (p) => {
-    const stufe = HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3];
-    const i = zielIndex(p);
-    if (!p.unterposten || !p.unterposten.length) {
-      return '<li class="hu-zeile ' + stufe.klasse + '">' + knopf(p, i) + '</li>';
-    }
-    /* C1: gebuendelte Zeile — die Einzelzeilen stehen eingeklappt darunter. */
-    const innen = p.unterposten.map(u => '<li class="hu-zeile hu-unter '
-      + (HEUTE_STUFEN[u.stufe] || HEUTE_STUFEN[3]).klasse + '">'
-      + knopf(u, zielIndex(u)) + '</li>').join('');
-    return '<li class="hu-zeile ' + stufe.klasse + '">' + knopf(p, i)
-      + '<details class="hu-buendel"><summary>' + esc('Einzeln anzeigen ('
-        + p.unterposten.length + ')') + '</summary>'
-      + '<ul class="hu-liste">' + innen + '</ul></details></li>';
-  };
-
-  /* Fristen jenseits von 90 Tagen stehen in einem eingeklappten Block.
-     Sie gehören in die Übersicht — als Daueranzeige würden sie aber die
-     heute wichtigen Zeilen zuschütten (Spec §5: keine Kennzahlenwand). */
-  const jetzt = [];
-  const spaeter = [];
-  posten.forEach(p => (p.stufe >= 4 ? spaeter : jetzt).push(zeile(p)));
-
-  return '<ul class="hu-liste">' + jetzt.join('') + '</ul>'
-    + (spaeter.length
-        ? '<details class="hu-spaeter"><summary>' + esc(spaeter.length
-            + (spaeter.length === 1 ? ' weitere Frist' : ' weitere Fristen')
-            + ' später als ' + HEUTE_FRIST_VORGEMERKT_TAGE + ' Tage')
-          + '</summary><ul class="hu-liste">' + spaeter.join('') + '</ul></details>'
-        : '');
 }
 
-function heuteUmfeldBlock(u) {
-  if (!u) {
-    return zustandBlock('fehler', 'Standort, Sonne/Mond und Wetter sind nicht abrufbar.');
-  }
-  const ort = u.ort || {};
-  const a = u.astro;
-  const w = u.wetter;
+/* ── Bildband und Kurzzeile ───────────────────────────────────────────────── */
 
-  let astroHtml;
-  if (!a) {
-    astroHtml = '<div class="heute-zeile-fehler">' + esc('Sonnen- und Mondzeiten nicht berechenbar'
-      + (u.astro_fehler ? ': ' + u.astro_fehler : '.')) + '</div>';
-  } else {
-    const tagLaenge = a.tageslaenge_min != null
-      ? Math.floor(a.tageslaenge_min / 60) + ' h ' + String(a.tageslaenge_min % 60).padStart(2, '0') + ' min'
-      : null;
-    const mondZeiten = [
-      a.mondaufgang ? 'Aufgang ' + a.mondaufgang : null,
-      a.monduntergang ? 'Untergang ' + a.monduntergang : null,
-    ].filter(Boolean).join(' · ') || 'heute nicht über dem Horizont';
-    astroHtml = '<div class="heute-astro">'
-      + '<div class="heute-astro-zeile"><span aria-hidden="true">☀️</span> '
-      + esc('Aufgang ' + (a.sonnenaufgang || '–') + ' · Untergang ' + (a.sonnenuntergang || '–')
-        + (tagLaenge ? ' · Tageslänge ' + tagLaenge : '')) + '</div>'
-      + '<div class="heute-astro-zeile"><span aria-hidden="true">' + a.mond_symbol + '</span> '
-      + esc(a.mond_phase + ' (' + a.mond_beleuchtung + ' % beleuchtet) · ' + mondZeiten) + '</div>'
-      + '</div>';
-  }
-
-  let wetterHtml;
-  if (!w) {
-    wetterHtml = zustandBlock('fehler', 'Wetter nicht abrufbar'
-      + (u.wetter_fehler ? ': ' + u.wetter_fehler : '.') + ' Quelle: Open-Meteo.');
-  } else {
-    const tagName = ['Heute', 'Morgen', 'Übermorgen'];
-    const tage = (w.tage || []).map((t, i) => '<div class="heute-wetter-tag">'
-      + '<div class="heute-wetter-tag-kopf">' + esc(tagName[i] || fmtDate(t.datum)) + '</div>'
-      + '<div class="heute-wetter-tag-wert">' + esc(
-        (t.min != null && t.max != null ? t.min + '–' + t.max + ' °C' : 'keine Angabe'))
-      + '</div>'
-      + '<div class="heute-wetter-tag-sub">' + esc(t.text
-        + (t.regen_mm != null ? ' · Regen ' + t.regen_mm.toLocaleString('de-DE') + ' mm' : '')
-        + (t.wind != null ? ' · Wind ' + t.wind + ' km/h' : '')
-        + (t.uv != null ? ' · UV ' + t.uv.toLocaleString('de-DE') : '')) + '</div>'
-      + '</div>').join('');
-    wetterHtml = '<div class="heute-wetter">'
-      + '<div class="heute-wetter-jetzt">'
-      + '<span class="heute-wetter-grad">' + esc(w.jetzt_grad != null ? w.jetzt_grad + ' °C' : '–') + '</span>'
-      + '<span class="heute-wetter-text">' + esc(w.jetzt_text
-        + (w.jetzt_wind != null ? ' · Wind ' + w.jetzt_wind + ' km/h' : '')) + '</span>'
-      + '<span class="heute-wetter-sub">' + esc(
-        (w.druck_hpa != null ? 'Luftdruck ' + w.druck_hpa + ' hPa (' + w.druck_trend + ')' : '')
-        + (w.regen_ab ? ' · Niederschlag ab ' + w.regen_ab : '')) + '</span>'
-      + '</div>'
-      + '<div class="heute-wetter-tage">' + tage + '</div>'
-      + '</div>';
-  }
-
-  const ortText = (ort.label || 'Standort unbekannt')
-    + (ort.quelle === 'location_events' && ort.stand
-        ? ' · Standortmeldung ' + fmtDT(ort.stand) + ' (' + altersText(ort.stand) + ')'
-        : ' · Vorgabewert, keine Standortmeldung');
-
-  return astroHtml
-    + '<div class="heute-ort">' + esc('📍 ' + ortText) + '</div>'
-    + wetterHtml;
+function heuteBandSchliessen() {
+  const band = document.getElementById('kopfBand');
+  if (band) { band.replaceChildren(); band.hidden = true; }
+  document.body.classList.remove('band-aktiv');
+  const c = document.getElementById('content');
+  if (c) delete c.dataset.geladen;
 }
 
-function heuteTermine(events) {
-  if (!Array.isArray(events)) {
-    return zustandBlock('fehler', 'Der Kalender ist nicht abrufbar. Es fehlen Termine — die Liste ist nicht leer.');
+function heuteBandAufbauen() {
+  const band = document.getElementById('kopfBand');
+  if (!band) return null;
+  const hero = heuteEl('div', 'hero' + (HEUTE_BAND_BILD ? '' : ' hero-ohne-bild'));
+  if (HEUTE_BAND_BILD) {
+    /* §3.1: mobil Ausschnitt rechts, Desktop Querformat; WebP zuerst. */
+    const bild = document.createElement('picture');
+    const quelle = (media, datei, typ) => {
+      const s = document.createElement('source');
+      s.media = media; s.srcset = '/dashboard/img/' + datei; if (typ) s.type = typ;
+      return s;
+    };
+    bild.append(
+      quelle('(min-width: 640px)', 'hero-horizont-d.webp', 'image/webp'),
+      quelle('(min-width: 640px)', 'hero-horizont-d.jpg'),
+      quelle('(max-width: 639.98px)', 'hero-horizont-m.webp', 'image/webp'));
+    const img = document.createElement('img');
+    img.src = '/dashboard/img/hero-horizont-m.jpg';
+    img.alt = '';
+    img.className = 'hero-bild';
+    bild.appendChild(img);
+    hero.appendChild(bild);
   }
-  if (!events.length) {
-    return zustandBlock('keine_daten', 'Im Fenster der nächsten sieben Tage steht kein Termin.');
-  }
-  const sortiert = events.slice().sort((a, b) => {
-    const za = kalenderZeitraum(a), zb = kalenderZeitraum(b);
-    return String(za.tagesSchluessel || '').localeCompare(String(zb.tagesSchluessel || ''))
-      || String(za.zeitText || '').localeCompare(String(zb.zeitText || ''));
-  }).slice(0, 6);
-
-  const zeilen = sortiert.map(ev => {
-    const z = kalenderZeitraum(ev);
-    const tag = heuteTagKurz(z.tagesSchluessel);
-    const zeit = z.ganztags ? 'ganztägig' + (z.mehrtaegig ? ' ' + z.spanneText : '') : z.zeitText;
-    return '<li class="heute-termin">'
-      + '<span class="heute-termin-zeit">' + esc(tag + ' · ' + zeit) + '</span>'
-      + '<span class="heute-termin-titel">' + esc(ev.subject || '(kein Titel)') + '</span>'
-      + (z.unplausibel ? '<span class="heute-termin-warn">⚠️ Zeitangabe unplausibel</span>' : '')
-      + '</li>';
-  }).join('');
-
-  return '<ul class="heute-termine">' + zeilen + '</ul>'
-    + '<div class="heute-mehr"><button type="button" class="btn" onclick="heuteSprung(\'calendar\', {})">'
-    + 'Kalender öffnen' + (events.length > sortiert.length
-      ? ' (' + events.length + ' Termine im Fenster)' : '') + '</button></div>';
+  const text = heuteEl('div', 'hero-text');
+  const datum = new Intl.DateTimeFormat('de-DE', {
+    timeZone: ZEIT_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
+  }).format(new Date());
+  text.append(
+    heuteEl('div', 'hero-datum', datum),
+    heuteEl('div', 'hero-gruss', heuteGruss()),
+    heuteEl('div', 'hero-kurzzeile'));
+  hero.appendChild(text);
+  band.replaceChildren(hero);
+  band.hidden = false;
+  document.body.classList.add('band-aktiv');
+  return text.querySelector('.hero-kurzzeile');
 }
 
-function heuteGesundheit(entries) {
-  if (!Array.isArray(entries)) {
-    return zustandBlock('fehler', 'Die Gesundheitsdaten sind nicht abrufbar.');
-  }
-  const heuteTag = zeitTagInZone(new Date(), ZEIT_ZONE);
-  const letzterWert = (typ) => entries.find(e => e.type === typ) || null;
-
-  const werte = [
-    (() => {
-      const s = letzterWert('sleep');
-      if (!s) return null;
-      const tag = zeitTagInZone(new Date(s.timestamp), ZEIT_ZONE);
-      const stunden = Math.floor(Number(s.value));
-      const minuten = Math.round((Number(s.value) - stunden) * 60);
-      return {
-        label: 'Schlaf letzte Nacht',
-        wert: tag === heuteTag ? stunden + ' h ' + String(minuten).padStart(2, '0') + ' min' : '—',
-        sub: tag === heuteTag ? 'Oura · ' + fmtDate(s.timestamp)
-          : 'keine Messung für heute (letzte: ' + fmtDate(s.timestamp) + ')',
-      };
-    })(),
-    (() => {
-      const r = letzterWert('readiness');
-      if (!r) return null;
-      return { label: 'Readiness', wert: Number(r.value) + ' / 100',
-        sub: 'Oura · ' + fmtDate(r.timestamp) };
-    })(),
-    (() => {
-      const h = letzterWert('hrv');
-      if (!h) return null;
-      return { label: 'HRV', wert: Number(h.value) + ' ms', sub: 'Oura · ' + fmtDate(h.timestamp) };
-    })(),
-    (() => {
-      const g = letzterWert('weight');
-      if (!g) return null;
-      return { label: 'Gewicht', wert: Number(g.value).toLocaleString('de-DE') + ' kg',
-        sub: 'Withings · ' + fmtDate(g.timestamp) };
-    })(),
-  ].filter(Boolean);
-
-  if (!werte.length) {
-    return zustandBlock('keine_daten', 'Für die letzten zwei Tage liegt kein Messwert vor.');
-  }
-
-  return '<div class="heute-werte">' + werte.map(w => '<div class="heute-wert">'
-    + '<div class="heute-wert-lbl">' + esc(w.label) + '</div>'
-    + '<div class="heute-wert-val">' + esc(w.wert) + '</div>'
-    + '<div class="heute-wert-sub">' + esc(w.sub) + '</div>'
-    + '</div>').join('') + '</div>'
-    + '<div class="heute-mehr"><button type="button" class="btn" onclick="heuteSprung(\'health\', {})">'
-    + 'Gesundheit öffnen</button></div>';
+/* §3.2: n ist exakt der Zähler der Handlungsbedarf-Karte. Zweiter Satz nur,
+   wenn der Banking-Eintrag der Datenquellen grün ist. */
+function heuteKurzzeile(n, bankingGruen) {
+  const satz = n === 1 ? '1 Punkt braucht heute eine Entscheidung.'
+    : n + ' Punkte brauchen heute eine Entscheidung.';
+  return satz + (bankingGruen ? ' Konten abgeglichen.' : '');
 }
 
-/* A7 (Phase 3): Die Statusquelle mischt live geprüfte und gespeicherte
-   Zustände. Diese Zeile trennt beides, nennt den ältesten gespeicherten
-   Prüfzeitpunkt und unterscheidet Abrufzeit (wann wurde die Statusquelle
-   gefragt) von Prüfzeitpunkt (wann wurde der Dienst zuletzt wirklich
-   geprüft). */
-function heuteQuelleSystemstatus(status) {
-  if (!status) {
-    return { quelle: 'Systemstatus (Core)', zustand: 'getrennt', stand: null,
-      abgleich: null, standLabel: 'Abrufzeit', abgleichLabel: 'ältester Prüfzeitpunkt',
-      hinweis: 'Statusquelle nicht erreichbar.' };
-  }
-  const dienste = status.services || [];
-  const live = dienste.filter(d => d.source === 'live');
-  const gespeichert = dienste.filter(d => d.source !== 'live');
-  const pruefzeiten = gespeichert.map(d => d.checked_at).filter(Boolean).sort();
-  const aeltester = pruefzeiten[0] || null;
-  const nichtOben = dienste.filter(d => d.status !== 'up').length;
+/* ── Karten ───────────────────────────────────────────────────────────────── */
+
+function heuteHandlungFuellen(k, posten, fehlend) {
+  const sortiert = heutePostenSortieren(posten);
+  const jetzt = sortiert.filter(p => p.stufe < 4);
+  const spaeter = sortiert.filter(p => p.stufe >= 4);
+  const n = jetzt.length;
+
+  const chip = heuteEl('span', 'chip chip-info tu-zaehler', n + ' offen');
+  k.kopf.querySelector('.chip')?.remove();
+  k.kopf.appendChild(chip);
 
   const teile = [];
-  teile.push(live.length + (live.length === 1 ? ' Dienst live geprüft' : ' Dienste live geprüft'));
-  if (gespeichert.length) {
-    teile.push(gespeichert.length
-      + (gespeichert.length === 1 ? ' gespeicherter Zustand' : ' gespeicherte Zustände')
-      + (aeltester ? ' (ältester vom ' + fmtDate(aeltester) + ')' : ''));
-  }
-  let satz = teile.join(', ') + '.';
-  if (nichtOben) {
-    satz += ' ' + nichtOben + (nichtOben === 1 ? ' Dienst' : ' Dienste')
-      + ' nicht auf „läuft“.';
-  }
-  if (gespeichert.length) {
-    satz += ' Ein gespeicherter Zustand ist nicht nachgeprüft — er sagt nur, '
-      + 'was zuletzt eingetragen wurde.';
+  for (const q of fehlend) {
+    teile.push(heuteHtmlKnoten(zustandBlock('fehler', q + ' nicht abrufbar — die Liste kann unvollständig sein.')));
   }
 
-  return {
-    quelle: 'Systemstatus (Core)',
-    /* Nicht „aktuell“, solange gespeicherte Zustände dabei sind. */
-    zustand: status._stale ? 'degradiert'
-      : gespeichert.length ? 'degradiert'
-      : 'aktuell',
-    live: false,
-    stand: status.timestamp || null,
-    abgleich: aeltester,
-    standLabel: 'Abrufzeit',
-    abgleichLabel: 'ältester Prüfzeitpunkt',
-    hinweis: satz,
+  const zeile = (p, i) => {
+    const li = heuteEl('li');
+    const knopf = heuteEl('button', 'list-row ohne-zeit tu-hzeile' + (i >= HEUTE_HANDLUNG_MOBIL_MAX ? ' tu-ueber' : ''));
+    knopf.type = 'button';
+    knopf.appendChild(heuteEl('span', 'tu-punkt ' + (HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3]).punkt));
+    knopf.querySelector('.tu-punkt').setAttribute('aria-label', (HEUTE_STUFEN[p.stufe] || HEUTE_STUFEN[3]).label);
+    const text = heuteEl('span', 'zeile-text');
+    text.append(heuteEl('span', 'zeile-titel', p.titel), heuteEl('span', 'zeile-sub', p.bereich + ' · ' + p.frist));
+    knopf.append(text, iconElement('chevron-right', 'ic-18'));
+    knopf.addEventListener('click', () => heuteSprung(p.ziel.tab, p.ziel.parameter));
+    li.appendChild(knopf);
+    if (i >= HEUTE_HANDLUNG_MOBIL_MAX) li.className = 'tu-ueber';
+    return li;
   };
+
+  if (!n && !fehlend.length) {
+    const leer = heuteEl('div', 'tu-leer');
+    leer.append(iconElement('check'), heuteEl('span', '', 'Heute nichts zu entscheiden.'));
+    teile.push(leer);
+  } else if (n) {
+    const liste = heuteEl('ul', 'list tu-hliste');
+    jetzt.forEach((p, i) => liste.appendChild(zeile(p, i)));
+    teile.push(liste);
+    if (n > HEUTE_HANDLUNG_MOBIL_MAX) {
+      const alle = heuteEl('button', 'btn btn-ghost tu-alle', 'Alle ' + n + ' anzeigen');
+      alle.type = 'button';
+      alle.setAttribute('aria-expanded', 'false');
+      alle.addEventListener('click', () => {
+        const offen = k.karte.classList.toggle('alle-offen');
+        alle.setAttribute('aria-expanded', String(offen));
+        alle.textContent = offen ? 'Weniger anzeigen' : 'Alle ' + n + ' anzeigen';
+      });
+      teile.push(alle);
+    }
+  }
+  if (spaeter.length) {
+    const d = heuteEl('details', 'tu-spaeter');
+    d.appendChild(heuteEl('summary', '', 'Fristen über ' + HEUTE_FRIST_VORGEMERKT_TAGE + ' Tage anzeigen (' + spaeter.length + ')'));
+    const liste = heuteEl('ul', 'list tu-hliste');
+    spaeter.forEach((p) => liste.appendChild(zeile(p, 0)));
+    d.appendChild(liste);
+    teile.push(d);
+  }
+  heuteFuellen(k.koerper, ...teile);
+  return n;
 }
 
-/* Datenquellen mit Stand und Alter. Veraltete stehen oben — das ist der
-   Baustein aus P1-1, hier über alle Bereiche zusammengezogen. */
-function heuteQuellen(quellen) {
-  const rang = { getrennt: 0, unbekannt: 1, veraltet: 2, degradiert: 3, aktuell: 4 };
-  const bewertet = quellen.map(q => {
-    const code = q.zustand || (q.live ? 'aktuell' : datenstandZustand(q.stand, q.schwelleTage));
-    return { ...q, _code: code };
-  }).sort((a, b) => (rang[a._code] ?? 9) - (rang[b._code] ?? 9));
-
-  const auffaellig = bewertet.filter(q => q._code !== 'aktuell' && q._code !== 'erreichbar').length;
-  const liste = '<div class="ds-liste heute-quellen">'
-    + bewertet.map(datenstandBadge).join('') + '</div>';
-  const zusammenfassung = auffaellig
-    ? '<div class="heute-quellen-fazit">' + esc(auffaellig + ' von ' + bewertet.length
-        + ' Quellen sind veraltet, unbekannt oder nicht erreichbar. Die darauf beruhenden '
-        + 'Anzeigen sind entsprechend alt — das ist kein Fehler der Anzeige.') + '</div>'
-    : '';
-  return zusammenfassung + liste;
+/* Termin-Hilfen: kalenderZeitraum() aus zeit.js liefert Tag, Zeittext, Dauer. */
+function heuteTermineSortiert(events) {
+  return events.map(ev => ({ ev, z: kalenderZeitraum(ev) })).sort((a, b) =>
+    String(a.z.tagesSchluessel || '').localeCompare(String(b.z.tagesSchluessel || ''))
+    || (a.z.ganztags === b.z.ganztags ? 0 : a.z.ganztags ? -1 : 1)
+    || String(a.z.zeitText || '').localeCompare(String(b.z.zeitText || '')));
 }
 
-function heuteOffenePunkte(punkte) {
-  return '<ul class="heute-offen">' + punkte.map(p => '<li>'
-    + '<span class="heute-offen-titel">' + esc(p.titel) + '</span>'
-    + '<span class="heute-offen-text">' + esc(p.text) + '</span>'
-    + '</li>').join('') + '</ul>';
+function heuteNaechsterTermin(events) {
+  if (!Array.isArray(events)) return null;
+  const jetzt = Date.now();
+  const kandidaten = events.filter(ev => !ev.isAllDay)
+    .map(ev => ({ ev, start: graphZeitpunkt(ev.start) }))
+    .filter(x => x.start && x.start.getTime() >= jetzt)
+    .sort((a, b) => a.start - b.start);
+  return kandidaten[0] || null;
 }
 
-/* ── Laden ────────────────────────────────────────────────────────────────── */
+function heuteTile(klasse, label, icon) {
+  const t = heuteEl('div', 'tile ' + (klasse || ''));
+  const kopf = heuteEl('div', 'tile-label');
+  if (icon) kopf.appendChild(iconElement(icon, 'ic-16'));
+  kopf.appendChild(heuteEl('span', '', label));
+  t.append(kopf, heuteEl('div', 'tile-wert'), heuteEl('div', 'tile-sub'));
+  t.querySelector('.tile-wert').appendChild(heuteSkelett('skeleton-wert'));
+  return t;
+}
 
-/* ── Briefing-Panel (Owner-Auftrag 26.10.2026, Punkt 5) ─────────────────────
-   Zeigt Morgen- und Abendbriefing so, wie sie an Telegram gingen — jeweils
-   das aktuelle, dazu die letzten 7 Tage zum Nachlesen. Quelle ist die Tabelle
-   `briefings` im Core (GET /api/briefing). */
+function heuteTileSetzen(t, wert, sub, opt) {
+  const o = opt || {};
+  const w = t.querySelector('.tile-wert');
+  w.replaceChildren(document.createTextNode(wert));
+  w.classList.toggle('wert-fehlt', wert === '—');
+  w.classList.toggle('tile-wert-text', !!o.text);
+  t.querySelector('.tile-sub').textContent = sub || '';
+  if (o.titel) t.title = o.titel; else t.removeAttribute('title');
+}
+
+function heuteKachelnFuellen(kacheln, kalender, umfeld) {
+  const [tTermin, tOrt] = kacheln;
+  if (!Array.isArray(kalender)) {
+    heuteTileSetzen(tTermin, '—', 'Kalender', { titel: 'Quelle nicht erreichbar' });
+  } else {
+    const n = heuteNaechsterTermin(kalender);
+    if (!n) heuteTileSetzen(tTermin, 'Keine Termine', 'in den nächsten 7 Tagen', { text: true });
+    else {
+      const tag = zeitTagInZone(n.start, ZEIT_ZONE);
+      const heute = zeitTagInZone(new Date(), ZEIT_ZONE);
+      heuteTileSetzen(tTermin, zeitUhr(n.start),
+        (tag === heute ? '' : heuteWochentag(tag) + ' · ') + (n.ev.subject || '(kein Titel)'));
+    }
+  }
+  const ort = umfeld && umfeld.ort && umfeld.ort.label ? umfeld.ort.label : 'Wetter';
+  tOrt.querySelector('.tile-label span').textContent = ort;
+  const w = umfeld && umfeld.wetter;
+  if (!w || w.jetzt_grad == null) {
+    heuteTileSetzen(tOrt, '—', '', { titel: 'Quelle nicht erreichbar' });
+  } else {
+    const sonne = umfeld.astro && umfeld.astro.sonnenuntergang ? ' · Sonne bis ' + umfeld.astro.sonnenuntergang : '';
+    heuteTileSetzen(tOrt, w.jetzt_grad + ' °C', (w.jetzt_text || '') + sonne);
+  }
+}
+
+/* Letzter Wert je Messart aus /api/health (neueste zuerst geliefert). */
+function heuteLetzterWert(entries, typ) {
+  return entries.filter(e => e && e.type === typ)
+    .sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)))[0] || null;
+}
+
+function heuteGesundheitFuellen(k, entries) {
+  if (!Array.isArray(entries)) {
+    heuteFuellen(k.koerper, heuteHtmlKnoten(zustandBlock('fehler', 'Die Gesundheitsdaten sind nicht abrufbar.')));
+    return;
+  }
+  const kurzDatum = (ts) => { const t = zeitTagInZone(new Date(ts), ZEIT_ZONE); return t ? heuteTagKurz(t) : ''; };
+  const schlaf = heuteLetzterWert(entries, 'sleep');
+  const hrv = heuteLetzterWert(entries, 'hrv');
+  const schritte = heuteLetzterWert(entries, 'steps');
+  const kacheln = heuteEl('div', 'tiles-3');
+  const tS = heuteTile('', 'Schlaf');
+  const tH = heuteTile('', 'HRV');
+  const tF = heuteTile('', 'Schritte');
+  heuteTileSetzen(tS, schlaf ? Number(schlaf.value).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + ' h' : '—',
+    schlaf ? kurzDatum(schlaf.timestamp) : 'keine Messung');
+  heuteTileSetzen(tH, hrv ? Math.round(Number(hrv.value)) + ' ms' : '—', hrv ? kurzDatum(hrv.timestamp) : 'keine Messung');
+  heuteTileSetzen(tF, schritte ? Number(schritte.value).toLocaleString('de-DE') : '—',
+    schritte ? kurzDatum(schritte.timestamp) : 'keine Messung');
+  kacheln.append(tS, tH, tF);
+  heuteFuellen(k.koerper, kacheln);
+}
+
+function heuteTerminZeile(ev, z, folgetag) {
+  const li = heuteEl('li', 'list-row' + (folgetag ? ' tu-folgetag' : ''));
+  const zeit = folgetag ? heuteWochentag(z.tagesSchluessel)
+    : z.ganztags ? 'ganzt.' : (z.zeitText.split(/[–-]/)[0] || '').trim();
+  li.appendChild(heuteEl('span', 'tu-zeit' + (z.ganztags && !folgetag ? ' tu-zeit-klein' : ''), zeit));
+  const text = heuteEl('span', 'zeile-text');
+  const ort = ev.location && ev.location.displayName ? ev.location.displayName : '';
+  const sub = [z.ganztags ? (z.mehrtaegig ? z.spanneText : 'ganztägig') : z.dauerText, ort].filter(Boolean).join(' · ');
+  text.appendChild(heuteEl('span', 'zeile-titel tu-termin-titel', ev.subject || '(kein Titel)'));
+  if (sub) text.appendChild(heuteEl('span', 'zeile-sub', sub));
+  if (z.unplausibel) text.appendChild(heuteEl('span', 'zeile-sub tu-warn', 'Zeitangabe unplausibel'));
+  li.appendChild(text);
+  return li;
+}
+
+function heuteTermineFuellen(k, events) {
+  if (!Array.isArray(events)) {
+    heuteFuellen(k.koerper, heuteHtmlKnoten(zustandBlock('fehler', 'Der Kalender ist nicht abrufbar. Es fehlen Termine — die Liste ist nicht leer.')));
+    return;
+  }
+  const heute = zeitTagInZone(new Date(), ZEIT_ZONE);
+  const morgen = zeitTagVerschieben(heute, 1);
+  const alle = heuteTermineSortiert(events);
+  const heuteListe = alle.filter(x => x.z.tagesSchluessel === heute);
+  const folge = alle.filter(x => x.z.tagesSchluessel === morgen).slice(0, 2);
+  const teile = [];
+  if (!heuteListe.length) {
+    teile.push(heuteHtmlKnoten(zustandBlock('keine_daten', 'Heute steht kein Termin im Kalender.')));
+  } else {
+    const liste = heuteEl('ul', 'list');
+    heuteListe.slice(0, HEUTE_TERMINE_MAX).forEach(x => liste.appendChild(heuteTerminZeile(x.ev, x.z, false)));
+    teile.push(liste);
+  }
+  if (folge.length) {
+    const liste = heuteEl('ul', 'list tu-folgetag-liste');
+    folge.forEach(x => liste.appendChild(heuteTerminZeile(x.ev, x.z, true)));
+    teile.push(liste);
+  }
+  if (heuteListe.length > HEUTE_TERMINE_MAX) {
+    const mehr = heuteEl('button', 'btn btn-ghost tu-alle', 'Alle Termine');
+    mehr.type = 'button';
+    mehr.addEventListener('click', () => heuteSprung('calendar', {}));
+    teile.push(mehr);
+  }
+  heuteFuellen(k.koerper, ...teile);
+}
+
+/* ── Briefing ─────────────────────────────────────────────────────────────── */
 
 let _heuteBriefings = [];
 let _heuteBriefingWahl = null;   // { art, datum }
+let _heuteBriefingKarte = null;
 
 const HEUTE_BRIEFING_ART = { morgen: 'Morgen', abend: 'Abend' };
 
-/* Der gespeicherte Text ist Telegram-HTML: Inhalt bereits maskiert, als
-   einzige Auszeichnung <b>. Statt ihn ungeprüft einzusetzen, wird er an den
-   <b>-Marken zerlegt, jedes Stück entmaskiert und mit esc() neu maskiert —
-   so kann aus dem Speicher kein anderes Element in die Seite gelangen. */
-function heuteBriefingHtml(textHtml) {
-  const entmaskiert = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-  return String(textHtml || '').split(/(<\/?b>)/).map(teil => {
-    if (teil === '<b>') return '<strong>';
-    if (teil === '</b>') return '</strong>';
-    return esc(entmaskiert(teil));
-  }).join('');
+/* Der gespeicherte Text ist Telegram-HTML: Inhalt maskiert, einzige
+   Auszeichnung <b>. Zerlegt in Absätze (Leerzeile) aus Stücken
+   { text, fett }; einfache Umbrüche werden zu Leerzeichen (§3.7). Alles
+   außer <b>/</b> bleibt TEXT — auch ein unmaskiert gespeichertes Element. */
+function heuteBriefingAbsaetze(textHtml) {
+  const entmaskiert = (t) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  const absaetze = [[]];
+  let fett = false;
+  for (const teil of String(textHtml || '').split(/(<\/?b>)/)) {
+    if (teil === '<b>') { fett = true; continue; }
+    if (teil === '</b>') { fett = false; continue; }
+    const stuecke = entmaskiert(teil).split(/\n[ \t]*\n+/);
+    stuecke.forEach((s, i) => {
+      if (i > 0) absaetze.push([]);
+      const text = s.replace(/[ \t]*\n[ \t]*/g, ' ').replace(/[ \t]{2,}/g, ' ');
+      if (text) absaetze[absaetze.length - 1].push({ text, fett });
+    });
+  }
+  return absaetze
+    .map(a => {
+      const b = a.map(s => ({ ...s }));
+      if (b.length) { b[0].text = b[0].text.replace(/^\s+/, ''); b[b.length - 1].text = b[b.length - 1].text.replace(/\s+$/, ''); }
+      return b.filter(s => s.text);
+    })
+    .filter(a => a.length);
+}
+
+/* Absätze als DOM: <p> mit Textknoten und <strong>, nur textContent. */
+function heuteBriefingTextKnoten(absaetze) {
+  const box = document.createElement('div');
+  box.className = 'hb-text';
+  for (const absatz of absaetze) {
+    const p = document.createElement('p');
+    for (const s of absatz) {
+      if (s.fett) { const b = document.createElement('strong'); b.textContent = s.text; p.appendChild(b); }
+      else p.appendChild(document.createTextNode(s.text));
+    }
+    box.appendChild(p);
+  }
+  return box;
 }
 
 function heuteBriefingStatus(b) {
@@ -528,10 +528,10 @@ function heuteBriefingStatus(b) {
     if (b.mailOk === true) teile.push('Mail ✓');
     if (b.mailOk === false) teile.push('Mail fehlgeschlagen');
     if (b.versuche > 1) teile.push('nachgeholt');
-    return { klasse: 'hb-ok', text: teile.join(' · ') };
+    return { klasse: 'chip-ok', text: teile.join(' · ') };
   }
-  if (b.status === 'erzeugt') return { klasse: 'hb-warn', text: 'Erzeugt, Zustellung an Telegram fehlgeschlagen' };
-  return { klasse: 'hb-fehler', text: 'Ausgefallen' + (b.fehler ? ': ' + b.fehler : '') };
+  if (b.status === 'erzeugt') return { klasse: 'chip-warn', text: 'Erzeugt, Zustellung an Telegram fehlgeschlagen' };
+  return { klasse: 'chip-err', text: 'Ausgefallen' + (b.fehler ? ': ' + b.fehler : '') };
 }
 
 /* Voreinstellung: das jüngste Briefing — abends also das Abendbriefing. */
@@ -543,63 +543,246 @@ function heuteBriefingVorwahl(liste) {
 }
 
 function heuteBriefingInhalt() {
+  const k = _heuteBriefingKarte;
+  if (!k) return;
   const liste = _heuteBriefings;
   const wahl = _heuteBriefingWahl;
-  const tage = [...new Set(liste.map(b => b.datum))].sort().reverse();
 
-  const reiter = ['morgen', 'abend'].map(art => {
-    const aktiv = wahl && wahl.art === art;
-    return '<button type="button" class="hb-reiter' + (aktiv ? ' aktiv' : '') + '" aria-pressed="' + aktiv + '"'
-      + ' onclick="heuteBriefingWaehle(\'' + art + '\', null)">' + HEUTE_BRIEFING_ART[art] + '</button>';
-  }).join('');
+  /* Segment Morgen/Abend im Kartenkopf */
+  let segment = k.kopf.querySelector('.segment');
+  if (!segment) {
+    segment = heuteEl('div', 'segment');
+    segment.setAttribute('role', 'group');
+    segment.setAttribute('aria-label', 'Briefing-Art');
+    for (const art of ['morgen', 'abend']) {
+      const b = heuteEl('button', '', HEUTE_BRIEFING_ART[art]);
+      b.type = 'button';
+      b.dataset.art = art;
+      b.addEventListener('click', () => heuteBriefingWaehle(art, null));
+      segment.appendChild(b);
+    }
+    k.kopf.appendChild(segment);
+  }
+  segment.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(!!wahl && wahl.art === b.dataset.art)));
 
-  const optionen = tage.map(d => '<option value="' + esc(d) + '"' + (wahl && wahl.datum === d ? ' selected' : '') + '>'
-    + esc(heuteTagKurz(d)) + '</option>').join('');
-  const auswahl = '<span class="hb-tag"><select aria-label="Tag des Briefings"'
-    + ' onchange="heuteBriefingWaehle(null, this.value)">' + optionen + '</select></span>';
-
+  const teile = [];
   const b = wahl ? liste.find(x => x.art === wahl.art && x.datum === wahl.datum) : null;
-  let koerper;
   if (!b) {
-    koerper = zustandBlock('keine_daten', 'Für diesen Tag liegt kein '
-      + (wahl && wahl.art === 'abend' ? 'Abendbriefing' : 'Morgenbriefing') + ' vor.');
+    teile.push(heuteHtmlKnoten(zustandBlock('keine_daten', 'Kein Briefing für diesen Tag.',
+      { titel: 'Kein ' + (wahl && wahl.art === 'abend' ? 'Abendbriefing' : 'Morgenbriefing') })));
   } else {
     const st = heuteBriefingStatus(b);
-    koerper = '<div class="hb-status ' + st.klasse + '">' + esc(st.text) + '</div>'
-      + (b.textHtml ? '<div class="hb-text">' + heuteBriefingHtml(b.textHtml) + '</div>' : '');
+    teile.push(heuteEl('div', 'chip ' + st.klasse + ' hb-status', st.text));
+    if (b.textHtml) {
+      const text = heuteBriefingTextKnoten(heuteBriefingAbsaetze(b.textHtml));
+      teile.push(text);
+      const voll = heuteEl('button', 'btn btn-ghost hb-voll', 'Vollständig lesen');
+      voll.type = 'button';
+      voll.setAttribute('aria-expanded', 'false');
+      voll.addEventListener('click', () => {
+        const offen = text.classList.toggle('offen');
+        voll.setAttribute('aria-expanded', String(offen));
+        voll.textContent = offen ? 'Weniger anzeigen' : 'Vollständig lesen';
+      });
+      teile.push(voll);
+    }
   }
-  return '<div class="hb-leiste"><div class="hb-reiterleiste" role="group" aria-label="Briefing-Art">'
-    + reiter + '</div>' + auswahl + '</div>' + koerper;
+
+  /* Tagesauswahl unter dem Text */
+  const tage = [...new Set(liste.map(x => x.datum))].sort().reverse();
+  const feld = heuteEl('label', 'field hb-tag');
+  feld.appendChild(heuteEl('span', 'field-label', 'Tag'));
+  const select = heuteEl('select', 'select');
+  select.setAttribute('aria-label', 'Tag des Briefings');
+  for (const d of tage) {
+    const o = heuteEl('option', '', heuteTagKurz(d));
+    o.value = d;
+    if (wahl && wahl.datum === d) o.selected = true;
+    select.appendChild(o);
+  }
+  select.addEventListener('change', () => heuteBriefingWaehle(null, select.value));
+  feld.appendChild(select);
+  teile.push(feld);
+
+  heuteFuellen(k.koerper, ...teile);
+  /* „Vollständig lesen" nur zeigen, wenn die Kürzung greift (mobil 4 Zeilen). */
+  const text = k.koerper.querySelector('.hb-text');
+  const voll = k.koerper.querySelector('.hb-voll');
+  if (text && voll) voll.hidden = text.scrollHeight <= text.clientHeight + 2;
 }
 
-function heuteBriefingBlock(liste) {
+function heuteBriefingBlock(k, liste) {
+  _heuteBriefingKarte = k;
   if (!Array.isArray(liste)) {
-    return zustandBlock('fehler', 'Briefings nicht abrufbar.');
+    heuteFuellen(k.koerper, heuteHtmlKnoten(zustandBlock('fehler', 'Briefings nicht abrufbar.')));
+    return;
   }
   _heuteBriefings = liste;
   _heuteBriefingWahl = heuteBriefingVorwahl(liste);
   if (!_heuteBriefingWahl) {
-    return zustandBlock('keine_daten', 'Noch kein Briefing gespeichert. Die Ablage besteht seit dem 26.10.2026; '
-      + 'das erste Abendbriefing kommt um 21:00 Uhr, das erste Morgenbriefing um 07:00 Uhr.');
+    heuteFuellen(k.koerper, heuteHtmlKnoten(zustandBlock('keine_daten', 'Noch kein Briefing gespeichert. Das erste Abendbriefing kommt um 21:00 Uhr, das erste Morgenbriefing um 07:00 Uhr.')));
+    return;
   }
-  return '<div id="heute-briefing">' + heuteBriefingInhalt() + '</div>';
+  heuteBriefingInhalt();
 }
 
-/* Klick auf Reiter oder Tagesauswahl. null = diesen Teil der Wahl behalten. */
+/* Klick auf Segment oder Tagesauswahl. null = diesen Teil der Wahl behalten. */
 function heuteBriefingWaehle(art, datum) {
   if (!_heuteBriefingWahl) return;
-  _heuteBriefingWahl = {
-    art: art || _heuteBriefingWahl.art,
-    datum: datum || _heuteBriefingWahl.datum,
-  };
-  const ziel = document.getElementById('heute-briefing');
-  if (ziel) ziel.innerHTML = heuteBriefingInhalt();
+  _heuteBriefingWahl = { art: art || _heuteBriefingWahl.art, datum: datum || _heuteBriefingWahl.datum };
+  heuteBriefingInhalt();
 }
+
+/* ── Wetter (ab 640 px) ───────────────────────────────────────────────────── */
+
+function heuteWetterFuellen(k, u) {
+  const w = u && u.wetter;
+  const a = u && u.astro;
+  const ort = u && u.ort && u.ort.label ? u.ort.label : 'Standort unbekannt';
+  const zeile = heuteEl('div', 'tu-wetter-zeile');
+  const tag = a && a.sonnenaufgang && a.sonnenuntergang
+    ? (() => { const jetzt = zeitUhr(new Date()); return jetzt >= a.sonnenaufgang && jetzt < a.sonnenuntergang; })()
+    : heuteStunde() >= 7 && heuteStunde() < 18;
+  const symbol = heuteEl('span', 'tu-wetter-symbol');
+  symbol.appendChild(iconElement(tag ? 'sun' : 'moon'));
+  const werte = heuteEl('div', 'tu-wetter-werte');
+  if (!w || w.jetzt_grad == null) {
+    const grad = heuteEl('div', 'tu-wetter-grad wert-fehlt', '—');
+    grad.title = 'Quelle nicht erreichbar';
+    werte.append(grad, heuteEl('div', 'tu-wetter-ort', ort));
+  } else {
+    werte.append(heuteEl('div', 'tu-wetter-grad', w.jetzt_grad + ' °C'),
+      heuteEl('div', 'tu-wetter-ort', ort + ' · ' + (w.jetzt_text || '')));
+  }
+  zeile.append(symbol, werte);
+  const teile = [zeile];
+  if (w && Array.isArray(w.tage) && w.tage.length) {
+    const namen = ['Heute', 'Morgen'];
+    const tageText = w.tage.slice(0, 3).map((t, i) => (namen[i] || heuteWochentag(t.datum))
+      + ' ' + (t.min != null && t.max != null ? t.min + '–' + t.max + '°' : '—')).join(' · ');
+    const sonne = a && a.sonnenaufgang ? 'Sonne ' + a.sonnenaufgang + '–' + (a.sonnenuntergang || '–') + ' · ' : '';
+    teile.push(heuteEl('div', 'tu-wetter-tage', sonne + tageText));
+  }
+  heuteFuellen(k.koerper, ...teile);
+}
+
+/* ── Datenquellen ─────────────────────────────────────────────────────────── */
+
+/* A7 (Phase 3): Die Statusquelle mischt live geprüfte und gespeicherte
+   Zustände. Ein gespeicherter Zustand ist keine Aussage über jetzt und darf
+   nicht grün erscheinen. */
+function heuteQuelleSystemstatus(status) {
+  if (!status) {
+    return { kurz: 'Systemstatus', quelle: 'Systemstatus (Core)', zustand: 'getrennt', stand: null,
+      hinweis: 'Statusquelle nicht erreichbar.' };
+  }
+  const dienste = status.services || [];
+  const live = dienste.filter(d => d.source === 'live');
+  const gespeichert = dienste.filter(d => d.source !== 'live');
+  const aeltester = gespeichert.map(d => d.checked_at).filter(Boolean).sort()[0] || null;
+  const nichtOben = dienste.filter(d => d.status !== 'up').length;
+  let satz = live.length + (live.length === 1 ? ' Dienst live geprüft' : ' Dienste live geprüft');
+  if (gespeichert.length) {
+    satz += ', ' + gespeichert.length + (gespeichert.length === 1 ? ' gespeicherter Zustand' : ' gespeicherte Zustände')
+      + (aeltester ? ' (ältester vom ' + fmtDate(aeltester) + ')' : '');
+  }
+  satz += '.';
+  if (nichtOben) satz += ' ' + nichtOben + (nichtOben === 1 ? ' Dienst' : ' Dienste') + ' nicht auf „läuft“.';
+  return {
+    kurz: 'Systemstatus', quelle: 'Systemstatus (Core)',
+    zustand: status._stale || gespeichert.length ? 'degradiert' : 'aktuell',
+    stand: status.timestamp || null, abgleich: aeltester, hinweis: satz,
+  };
+}
+
+function heuteQuellenBewerten(quellen) {
+  const rang = { getrennt: 0, unbekannt: 1, veraltet: 2, degradiert: 3, aktuell: 4, erreichbar: 4 };
+  return quellen.map(q => ({ ...q, _code: q.zustand || (q.live ? 'aktuell' : datenstandZustand(q.stand, q.schwelleTage)) }))
+    .sort((a, b) => (rang[a._code] ?? 9) - (rang[b._code] ?? 9));
+}
+
+function heuteQuellenFuellen(k, bewertet) {
+  const aktuell = bewertet.filter(q => q._code === 'aktuell' || q._code === 'erreichbar').length;
+  k.kopf.querySelector('.chip')?.remove();
+  k.kopf.appendChild(heuteEl('span', 'chip ' + (aktuell === bewertet.length ? 'chip-ok' : 'chip-warn'),
+    aktuell + ' von ' + bewertet.length + ' aktuell'));
+  const reihe = heuteEl('div', 'chip-row');
+  for (const q of bewertet) {
+    let klasse = 'chip-neutral tu-quelle-ok';
+    let text = q.kurz;
+    if (q._code === 'getrennt') { klasse = 'chip-err'; text += ' · nicht erreichbar'; }
+    else if (q._code === 'veraltet') { klasse = 'chip-warn'; text += ' · ' + datenstandAlterTage(q.stand) + ' Tage'; }
+    else if (q._code === 'unbekannt') { klasse = 'chip-warn'; text += ' · Alter unbekannt'; }
+    else if (q._code === 'degradiert') { klasse = 'chip-warn'; text += ' · eingeschränkt'; }
+    const chip = heuteEl('span', 'chip ' + klasse);
+    chip.appendChild(heuteEl('span', '', text));
+    /* Die frühere Textkarte steckt vollständig im Tooltip. */
+    chip.title = [q.quelle, zustandsEintrag(q._code).label,
+      q.stand ? 'Datenstand ' + datenstandZeitpunktText(q.stand) : null, q.hinweis].filter(Boolean).join(' · ');
+    reihe.appendChild(chip);
+  }
+  heuteFuellen(k.koerper, reihe);
+}
+
+/* ── Offene Punkte ────────────────────────────────────────────────────────── */
+
+function heuteOffenFuellen(k, punkte) {
+  if (!punkte.length) {
+    heuteFuellen(k.koerper, heuteHtmlKnoten(zustandBlock('keine_daten', 'Keine offenen Punkte')));
+    return;
+  }
+  const liste = heuteEl('ul', 'list');
+  punkte.forEach((p, i) => {
+    const li = heuteEl('li', 'list-row ohne-zeit tu-offen-zeile' + (i >= HEUTE_OFFEN_MAX ? ' tu-ueber' : ''));
+    const text = heuteEl('span', 'zeile-text');
+    text.append(heuteEl('span', 'zeile-titel tu-offen-titel', p.titel), heuteEl('span', 'zeile-sub tu-umbruch', p.text));
+    li.appendChild(text);
+    liste.appendChild(li);
+  });
+  const teile = [liste];
+  if (punkte.length > HEUTE_OFFEN_MAX) {
+    const alle = heuteEl('button', 'btn btn-ghost tu-alle', 'Alle anzeigen');
+    alle.type = 'button';
+    alle.addEventListener('click', () => { k.karte.classList.add('alle-offen'); alle.remove(); });
+    teile.push(alle);
+  }
+  heuteFuellen(k.koerper, ...teile);
+}
+
+/* ── Laden ────────────────────────────────────────────────────────────────── */
 
 async function loadHeute() {
   const c = document.getElementById('content');
+  delete c.dataset.geladen;
   const wert = (r) => (r.status === 'fulfilled' ? r.value : null);
 
+  /* 1. Gerüst mit Ladezuständen (§3.10) — DOM-Reihenfolge = mobile Reihenfolge. */
+  const kurzzeile = heuteBandAufbauen();
+  const raster = heuteEl('div', 'tu-raster');
+  const kH = heuteKarte('tu-handlung', 'Handlungsbedarf', { navy: true, gesperrt: true });
+  kH.koerper.appendChild(heuteSkelett('skeleton-zeile', 3));
+  const kacheln = heuteEl('div', 'tiles-2 tu-kacheln');
+  const tTermin = heuteTile('tu-kachel-termin', 'Nächster Termin', 'calendar');
+  const tOrt = heuteTile('tu-kachel-ort', 'Wetter', 'sun');
+  kacheln.append(tTermin, tOrt);
+  const kW = heuteKarte('tu-wetter', 'Wetter');
+  kW.koerper.appendChild(heuteSkelett('skeleton-wert'));
+  const kG = heuteKarte('tu-gesundheit', 'Gesundheit', { ziel: 'health', zielText: 'Details' });
+  const skG = heuteEl('div', 'tiles-3');
+  for (let i = 0; i < 3; i++) skG.appendChild(heuteSkelett('skeleton-kachel'));
+  kG.koerper.appendChild(skG);
+  const kT = heuteKarte('tu-termine', 'Termine heute', { ziel: 'calendar', zielText: 'Kalender' });
+  kT.koerper.appendChild(heuteSkelett('skeleton-zeile', 3));
+  const kB = heuteKarte('tu-briefing', 'Briefing');
+  kB.koerper.appendChild(heuteSkelett('skeleton-absatz'));
+  const kQ = heuteKarte('tu-quellen', 'Datenquellen');
+  kQ.koerper.appendChild(heuteSkelett('skeleton-chip', 4));
+  const kO = heuteKarte('tu-offen', 'Offene Punkte');
+  kO.koerper.appendChild(heuteSkelett('skeleton-zeile', 2));
+  raster.append(kH.karte, kacheln, kW.karte, kG.karte, kT.karte, kB.karte, kQ.karte, kO.karte);
+  c.replaceChildren(raster);
+
+  /* 2. Abrufe — unverändert seit P2-5. */
   const [rUmfeld, rKalender, rAlerts, rHealth, rFahrzeuge, rStatus, rSp, rInsta, rKonten, rObjekte, rBriefing]
     = await Promise.allSettled([
       apiFetch('/api/heute/umfeld'),
@@ -614,6 +797,8 @@ async function loadHeute() {
       apiFetch('/api/assets/properties'),
       apiFetch('/api/briefing?tage=7'),
     ]);
+  /* Inzwischen in einen anderen Bereich gewechselt: nichts überschreiben. */
+  if (currentTab !== 'heute' || !c.contains(raster)) return;
 
   const umfeld = wert(rUmfeld);
   const kalender = wert(rKalender);
@@ -627,128 +812,76 @@ async function loadHeute() {
   const objekte = wert(rObjekte);
   const briefing = wert(rBriefing);
 
-  /* §-556-Pflichten je Objekt — ein lesender Abruf je Objekt.
-     Der frühere Abruf von `nk-readiness` entfällt hier: seit der
-     Owner-Entscheidung vom 10.10.2026 erzeugt die Abrechnungsreife keinen
-     Handlungsbedarf mehr, und die Tagesübersicht hat damit auch keinen
-     Grund, sie abzurufen (sechs Anfragen weniger je Seitenaufbau). */
+  /* 3. Karten füllen — jede nur aus ihren eigenen Quellen. */
+  const fehlend = [];
+  if (!Array.isArray(alerts)) fehlend.push('Gesundheitswarnungen');
+  if (!Array.isArray(fahrzeuge)) fehlend.push('TÜV-Fristen');
+  const n = heuteHandlungFuellen(kH, [...heutePostenGesundheit(alerts), ...heutePostenFahrzeuge(fahrzeuge)], fehlend);
+  heuteKachelnFuellen([tTermin, tOrt], kalender, umfeld);
+  heuteWetterFuellen(kW, umfeld);
+  heuteGesundheitFuellen(kG, health);
+  heuteTermineFuellen(kT, kalender);
+  heuteBriefingBlock(kB, briefing && briefing.briefings);
+
+  const letzterKontoAbgleich = Array.isArray(konten)
+    ? (konten.map(k => k.lastSyncAt).filter(Boolean).sort().slice(-1)[0] || null) : null;
+  const letzteHealthMessung = Array.isArray(health) && health.length
+    ? health.map(e => e.timestamp).filter(Boolean).sort().slice(-1)[0] : null;
+  const quellen = heuteQuellenBewerten([
+    { kurz: 'Kalender', quelle: 'Kalender (Microsoft 365)', zustand: Array.isArray(kalender) ? 'aktuell' : 'getrennt',
+      live: Array.isArray(kalender), stand: new Date().toISOString(),
+      hinweis: Array.isArray(kalender) ? kalender.length + ' Termine im 7-Tage-Fenster.' : 'Abruf fehlgeschlagen.' },
+    { kurz: 'Gesundheit', quelle: 'Gesundheit (Oura, Withings)', stand: letzteHealthMessung, schwelleTage: 2,
+      zustand: Array.isArray(health) ? undefined : 'getrennt', hinweis: 'Ein automatischer Abgleich findet nicht statt.' },
+    { kurz: 'Banking', quelle: 'Bankkonten (FinTS)', stand: letzterKontoAbgleich,
+      zustand: Array.isArray(konten) ? undefined : 'getrennt',
+      hinweis: 'Stand des letzten Abgleichs, nicht des letzten Verbindungsaufbaus.' },
+    { kurz: 'SharePoint', quelle: 'SharePoint-Dokumentenindex',
+      stand: spSync ? (spSync.last_success_at || spSync.last_run?.finished_at || null) : null,
+      zustand: spSync ? undefined : 'getrennt',
+      hinweis: spSync && spSync.active_files != null ? Number(spSync.active_files).toLocaleString('de-DE') + ' Dateien im Index.' : undefined },
+    { kurz: 'Instagram', quelle: 'Instagram-Medien', stand: insta ? (insta.datenstand || insta.fetched_at || null) : null,
+      zustand: insta ? undefined : 'getrennt', hinweis: 'Abgleich nur manuell per /instasync im Telegram-Bot.' },
+    heuteQuelleSystemstatus(status),
+    { kurz: 'Fuhrpark', quelle: 'Fuhrpark (Fristen)', live: Array.isArray(fahrzeuge),
+      zustand: Array.isArray(fahrzeuge) ? 'aktuell' : 'getrennt', stand: new Date().toISOString(),
+      hinweis: Array.isArray(fahrzeuge) ? fahrzeuge.length + ' aktive Fahrzeuge.' : 'Abruf fehlgeschlagen.' },
+    { kurz: 'Wetter', quelle: 'Standort und Wetter', live: !!(umfeld && umfeld.wetter),
+      zustand: umfeld ? (umfeld.wetter ? 'aktuell' : 'degradiert') : 'getrennt',
+      stand: umfeld && umfeld.wetter ? umfeld.wetter.abgerufen : null,
+      hinweis: umfeld && umfeld.wetter ? 'Open-Meteo, zwischengespeichert für 10 Minuten.' : 'Wetterabruf fehlgeschlagen.' },
+  ]);
+  heuteQuellenFuellen(kQ, quellen);
+  const banking = quellen.find(q => q.kurz === 'Banking');
+  if (kurzzeile) kurzzeile.textContent = heuteKurzzeile(n, !!banking && banking._code === 'aktuell');
+
+  /* §-556-Pflichten je Objekt — ein lesender Abruf je Objekt. */
   let pflichtenGesamt = null;
   if (Array.isArray(objekte) && objekte.length) {
     const pflichten = await Promise.allSettled(objekte.map(o =>
       apiFetch('/api/assets/properties/' + encodeURIComponent(o.code) + '/nk-period-obligations')));
     const gelungen = pflichten.filter(p => p.status === 'fulfilled');
     pflichtenGesamt = gelungen.length
-      ? gelungen.reduce((n, p) => n + (Array.isArray(p.value) ? p.value.length : 0), 0)
-      : null;
+      ? gelungen.reduce((m, p) => m + (Array.isArray(p.value) ? p.value.length : 0), 0) : null;
   }
-
-  /* ── Handlungsbedarf ── */
-  /* Owner-Entscheidung 10.10.2026: Die Nebenkosten-Blocker erzeugen hier
-     KEINEN Handlungsbedarf mehr — weder eine Zeile noch eine Zählung. Grund:
-     Die Abrechnungsreife ist ein Dauerzustand der Datenpflege, kein Ereignis
-     des Tages; sechs Objekte in der Tagesliste haben alles andere verdrängt.
-     Sichtbar bleibt die Reife unverändert im Bereich Immobilien
-     (Unterbereich „Nebenkosten" und „Abrechnungsreife"). Eine
-     Telegram-Meldung gab es aus dieser Quelle ohnehin nie: gemeldet werden
-     allein die §-556-Fristen aus `nk_period_obligations` (nk/alerts.ts). */
-  const posten = [
-    ...heutePostenGesundheit(alerts),
-    ...heutePostenFahrzeuge(fahrzeuge),
-  ];
-
-  /* ── Datenquellen ── */
-  const letzterKontoAbgleich = Array.isArray(konten)
-    ? (konten.map(k => k.lastSyncAt).filter(Boolean).sort().slice(-1)[0] || null)
-    : null;
-  const letzteHealthMessung = Array.isArray(health) && health.length ? health[0].timestamp : null;
-
-  const quellen = [
-    { quelle: 'Kalender (Microsoft 365)',
-      zustand: Array.isArray(kalender) ? 'aktuell' : 'getrennt',
-      live: Array.isArray(kalender), stand: new Date().toISOString(),
-      hinweis: Array.isArray(kalender)
-        ? kalender.length + (kalender.length === 1 ? ' Termin' : ' Termine') + ' im 7-Tage-Fenster.'
-        : 'Abruf fehlgeschlagen.' },
-    { quelle: 'Gesundheit (Oura, Withings)', stand: letzteHealthMessung, abgleich: letzteHealthMessung,
-      schwelleTage: 2,
-      zustand: Array.isArray(health) ? undefined : 'getrennt',
-      hinweis: 'Ein automatischer Abgleich findet nicht statt.' },
-    { quelle: 'Bankkonten (FinTS)', stand: letzterKontoAbgleich, abgleich: letzterKontoAbgleich,
-      zustand: Array.isArray(konten) ? undefined : 'getrennt',
-      /* A2 (Phase 3): Der Owner hielt den Verbindungsaufbau vom 05.10.2026 für
-         einen Abgleich. Die Zeile sagt jetzt, welcher Zeitpunkt hier steht. */
-      hinweis: 'Stand des letzten ABGLEICHS, nicht des letzten Verbindungsaufbaus. '
-        + 'Ein Abgleich wird nicht aus dem Dashboard ausgelöst; der Bereich Banking '
-        + 'nennt beide Zeitpunkte.' },
-    { quelle: 'SharePoint-Dokumentenindex',
-      stand: spSync ? (spSync.last_success_at || spSync.last_run?.finished_at || null) : null,
-      abgleich: spSync ? (spSync.last_success_at || null) : null,
-      zustand: spSync ? undefined : 'getrennt',
-      hinweis: spSync && spSync.active_files != null
-        ? Number(spSync.active_files).toLocaleString('de-DE') + ' Dateien im Index.' : undefined },
-    { quelle: 'Instagram-Medien', stand: insta ? (insta.datenstand || insta.fetched_at || null) : null,
-      abgleich: insta ? (insta.datenstand || insta.fetched_at || null) : null,
-      zustand: insta ? undefined : 'getrennt',
-      hinweis: 'Abgleich nur manuell per /instasync im Telegram-Bot.' },
-    /* A7 (Phase 3): Hier stand „Live-Abruf · 6 Dienste laufen“. Von den sechs
-       Diensten werden aber nur zwei live geprüft (Postgres, IB Gateway); für
-       Core, Dashboard, Trading und n8n liefert die Statusquelle gespeicherte
-       Zustände aus Mai und Juli. Ein gespeicherter Zustand ist keine Aussage
-       über jetzt und darf nicht grün erscheinen. */
-    heuteQuelleSystemstatus(status),
-    { quelle: 'Fuhrpark (Fristen)', live: Array.isArray(fahrzeuge),
-      zustand: Array.isArray(fahrzeuge) ? 'aktuell' : 'getrennt',
-      stand: new Date().toISOString(),
-      hinweis: Array.isArray(fahrzeuge) ? fahrzeuge.length + ' aktive Fahrzeuge.' : 'Abruf fehlgeschlagen.' },
-    { quelle: 'Standort und Wetter', live: !!(umfeld && umfeld.wetter),
-      zustand: umfeld ? (umfeld.wetter ? 'aktuell' : 'degradiert') : 'getrennt',
-      stand: umfeld && umfeld.wetter ? umfeld.wetter.abgerufen : null,
-      hinweis: umfeld && umfeld.wetter ? 'Open-Meteo, zwischengespeichert für 10 Minuten.'
-        : 'Wetterabruf fehlgeschlagen.' },
-  ];
-
-  /* ── Offene Punkte: ausdrücklich benannt, nicht als Erfolg verbucht ── */
-  const offen = [
+  if (currentTab !== 'heute' || !c.contains(raster)) return;
+  heuteOffenFuellen(kO, [
     { titel: '§556-Pflichten',
-      text: pflichtenGesamt === null
-        ? 'Nicht abrufbar — der Stand ist unbekannt.'
-        : pflichtenGesamt === 0
-          ? 'Nicht eingerichtet. Es ist keine einzige Pflicht erfasst — das ist kein „keine Pflichten", '
-            + 'sondern eine nicht in Betrieb genommene Funktion.'
-          : pflichtenGesamt + ' Pflichten erfasst.' },
+      text: pflichtenGesamt === null ? 'Nicht abrufbar — der Stand ist unbekannt.'
+        : pflichtenGesamt === 0 ? 'Nicht eingerichtet. Keine Pflicht erfasst — das ist kein „keine Pflichten", sondern eine nicht in Betrieb genommene Funktion.'
+        : pflichtenGesamt + ' Pflichten erfasst.' },
     { titel: 'Änderungen seit dem letzten Besuch',
-      text: 'Nicht umgesetzt. Dafür müsste festgehalten werden, wann Sie zuletzt hier waren — '
-        + 'eine solche Speicherung gibt es nicht und sie wurde noch nicht entschieden.' },
+      text: 'Nicht umgesetzt. Dafür müsste festgehalten werden, wann Sie zuletzt hier waren — eine solche Speicherung gibt es nicht.' },
     { titel: 'Automatischer Abgleich',
-      text: 'Abgeschaltet. Banking, SharePoint und Instagram werden nicht selbsttätig '
-        + 'aktualisiert; das Alter der Daten steht oben.' },
+      text: 'Abgeschaltet. Banking, SharePoint und Instagram werden nicht selbsttätig aktualisiert; das Alter steht bei den Datenquellen.' },
     { titel: 'Offene Vorgänge',
       text: status && status.workflows
-        ? (status.workflows.pending || 0) + ' offene Vorgänge erfasst. Das ist keine Aussage '
-          + 'über den Zustand der Automatisierung — siehe Bereich Automatisierung.'
+        ? (status.workflows.pending || 0) + ' offene Vorgänge erfasst — siehe Bereich Automatisierung.'
         : 'Nicht abrufbar.' },
-  ];
-
-  const jetzt = new Date();
-  const datumLang = new Intl.DateTimeFormat('de-DE', {
-    timeZone: ZEIT_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric',
-  }).format(jetzt);
-
-  c.innerHTML =
-    '<div class="heute-datum"><span aria-hidden="true">📅</span> ' + esc(datumLang)
-      + ' · ' + esc(zeitUhr(jetzt)) + ' Uhr</div>'
-    + heuteAbschnitt('Handlungsbedarf', heuteHandlungsliste(posten),
-        esc(heuteStufenZaehler(posten)))
-    + heuteAbschnitt('Briefing', heuteBriefingBlock(briefing && briefing.briefings))
-    + heuteAbschnitt('Tag und Wetter', heuteUmfeldBlock(umfeld))
-    + heuteAbschnitt('Nächste Termine', heuteTermine(kalender))
-    + heuteAbschnitt('Gesundheit', heuteGesundheit(health))
-    + heuteAbschnitt('Datenquellen', heuteQuellen(quellen))
-    + heuteAbschnitt('Offene Punkte', heuteOffenePunkte(offen));
+  ]);
 
   stamp();
-  /* Die Datenstand-Leiste bleibt in dieser Ansicht leer: der Abschnitt
-     „Datenquellen" sagt dasselbe vollständiger. Zwei Darstellungen derselben
-     Angabe auf einer Seite sind Rauschen (vgl. P2-3, Kalender). */
+  /* Die Datenstand-Leiste bleibt hier leer: „Datenquellen" sagt dasselbe. */
   setDatenstand([]);
+  c.dataset.geladen = '1';
 }

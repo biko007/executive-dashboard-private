@@ -1,311 +1,185 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   Tagesübersicht — Paket P2-5
-   Gehört zu public/js/tagesuebersicht.js.
-   Mobile-first: schmal steht alles untereinander, ab 640 px wird verdichtet.
-   Farben ausschließlich über die Tokens aus index.html.
+   Tagesübersicht „Heute" — Variante A „Horizont" (Spec-Dashboard-Design-v2 §3)
+   Bausteine (.card, .tile, .list-row, .chip, .segment …) aus design.css.
+   Mobil zuerst; ab 640 px zwei Spalten, ab 1024 px drei (§3.9).
    ═══════════════════════════════════════════════════════════════════════════ */
 
-.heute-datum {
-  font-size: 14px;
-  color: var(--text-soft);
-  margin: 2px 0 14px;
-}
-
+/* ── Weiterverwendet vom Bereich Automatisierung (index.html loadAgents) ── */
 .heute-block { margin-bottom: 16px; }
-
-.heute-kopf {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.heute-titel {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: .4px;
-}
-
+.heute-kopf { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.heute-titel { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; }
 .heute-kopf-zusatz { font-size: 13px; color: var(--muted); }
-
-/* ── Handlungsbedarf ──────────────────────────────────────────────────────── */
-
-.hu-liste { list-style: none; }
-
-.hu-zeile {
-  border-left: 3px solid var(--border-strong);
-  border-bottom: 1px solid var(--border);
-}
-
-.hu-zeile:last-child { border-bottom: none; }
-
-.hu-kritisch   { border-left-color: var(--red); }
-.hu-dringend   { border-left-color: var(--yellow); }
-.hu-offen      { border-left-color: var(--accent); }
-.hu-vorgemerkt { border-left-color: var(--border-strong); }
-
-/* Die ganze Zeile ist die Schaltfläche — am Telefon ist ein kleiner Link
-   darin nicht zu treffen (Spec §6, 44 px Mindestmaß). */
-.hu-knopf {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 56px;
-  padding: 12px 14px;
-  background: none;
-  border: none;
-  text-align: left;
-  font-family: var(--font);
-  font-size: 14px;
-  color: var(--text);
-  cursor: pointer;
-}
-
-.hu-knopf:hover { background: var(--row-hover); }
-
-.hu-symbol { font-size: 18px; line-height: 1; flex: 0 0 auto; }
-
-.hu-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
-
-.hu-titel { font-weight: 600; overflow-wrap: anywhere; }
-
-.hu-zusatz { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
-
-/* Schmal nimmt die Zielangabe eine ganze Spalte weg; die Zeile ist ohnehin
-   vollständig anklickbar, der Pfeil genügt dort. */
-.hu-ziel { display: none; font-size: 13px; color: var(--accent); white-space: nowrap; flex: 0 0 auto; }
-
-/* ── Tag und Wetter ───────────────────────────────────────────────────────── */
-
-.heute-astro { display: flex; flex-direction: column; gap: 6px; }
-.heute-astro-zeile { font-size: 14px; }
-.heute-zeile-fehler { font-size: 13px; color: var(--yellow); }
-
-.heute-ort {
-  font-size: 13px;
-  color: var(--muted);
-  margin: 10px 0 14px;
-  overflow-wrap: anywhere;
-}
-
-.heute-wetter {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-
-.heute-wetter-jetzt { display: flex; flex-direction: column; gap: 3px; }
-.heute-wetter-grad { font-size: 26px; font-weight: 700; line-height: 1; }
-.heute-wetter-text { font-size: 14px; }
-.heute-wetter-sub { font-size: 13px; color: var(--muted); }
-
-.heute-wetter-tage {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.heute-wetter-tag {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 10px 12px;
-}
-
-.heute-wetter-tag-kopf {
-  font-size: 13px;
-  color: var(--text-soft);
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  margin-bottom: 4px;
-}
-
-.heute-wetter-tag-wert { font-size: 16px; font-weight: 600; }
-.heute-wetter-tag-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
-
-/* ── Termine ──────────────────────────────────────────────────────────────── */
-
-.heute-termine { list-style: none; }
-
-.heute-termin {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.heute-termin:last-child { border-bottom: none; }
-.heute-termin-zeit { font-size: 13px; color: var(--muted); white-space: nowrap; }
-.heute-termin-titel { font-size: 14px; overflow-wrap: anywhere; }
-.heute-termin-warn { font-size: 13px; color: var(--yellow); }
-
 .heute-mehr { margin-top: 14px; }
-.heute-mehr .btn { min-height: 44px; }
 
-/* ── Gesundheit ───────────────────────────────────────────────────────────── */
-
-.heute-werte {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.heute-wert {
+/* ── Bildband ─────────────────────────────────────────────────────────────── */
+.kopf-band { width: 100%; }
+.hero {
+  position: relative; overflow: hidden; min-height: 212px;
+  display: flex; align-items: flex-end;
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 12px 14px;
 }
-
-.heute-wert-lbl {
-  font-size: 13px;
+.hero picture, .hero-bild { position: absolute; inset: 0; width: 100%; height: 100%; }
+.hero-bild { object-fit: cover; object-position: 60% 30%; }
+/* Mobil: oben Navy 35 % für die darüberliegende Kopfzeile, unten in den
+   Seitengrund — die Navigation schließt nahtlos an. */
+.hero::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(29,43,69,.35) 0%, rgba(29,43,69,0) 45%, var(--bg) 100%);
+}
+.hero-text { position: relative; z-index: 1; padding: 80px var(--seitenrand) var(--sp-3); min-width: 0; width: 100%; }
+.hero-datum {
+  font-size: var(--fs-12); font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
   color: var(--text-soft);
-  text-transform: uppercase;
-  letter-spacing: .4px;
-  margin-bottom: 5px;
 }
-
-.heute-wert-val { font-size: 20px; font-weight: 700; line-height: 1.1; }
-.heute-wert-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
-
-/* ── Datenquellen ─────────────────────────────────────────────────────────── */
-
-.heute-quellen-fazit { font-size: 13px; color: var(--muted); margin-bottom: 12px; line-height: 1.5; }
-
-/* ── Offene Punkte ────────────────────────────────────────────────────────── */
-
-.heute-offen { list-style: none; }
-
-.heute-offen li {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
+.hero-gruss {
+  font-size: clamp(22px, 7vw, 28px); font-weight: 800; line-height: 1.15; color: var(--text);
+  overflow-wrap: anywhere; margin-top: 2px;
 }
-
-.heute-offen li:last-child { border-bottom: none; }
-.heute-offen-titel { font-size: 14px; font-weight: 600; }
-.heute-offen-text { font-size: 13px; color: var(--muted); line-height: 1.5; }
+.hero-kurzzeile { display: none; }
+@media (prefers-reduced-data: reduce) { .hero picture { display: none; } }
 
 @media (min-width: 640px) {
-  .hu-ziel { display: inline; }
-  .heute-wetter-tage { grid-template-columns: repeat(3, 1fr); }
-  .heute-termin { flex-direction: row; align-items: baseline; gap: 14px; }
-  .heute-termin-zeit { flex: 0 0 120px; }
+  .kopf-band { max-width: 1200px; margin: 0 auto; padding: var(--sp-2) var(--seitenrand) 0; }
+  .hero { min-height: 200px; border-radius: 20px; border: 1px solid var(--border); }
+  .hero::after { background: linear-gradient(to right, rgba(246,243,236,.92) 0%, rgba(246,243,236,.6) 45%, rgba(246,243,236,0) 100%); }
+  .hero-ohne-bild::after { background: none; }
+  .hero-text { padding: var(--sp-7) var(--sp-7); align-self: center; }
+  .hero-datum { font-size: var(--fs-12); }
+  .hero-gruss { font-size: var(--fs-28); }
+  .hero-kurzzeile { display: block; font-size: var(--fs-16); font-weight: 600; color: var(--text-soft); margin-top: var(--sp-2); }
+}
+@media (min-width: 1024px) { .hero-gruss { font-size: var(--fs-34); } }
+
+/* ── Raster ───────────────────────────────────────────────────────────────── */
+.tu-raster { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); align-items: start; }
+.tu-raster > * { min-width: 0; }
+/* .card trägt im Altbestand padding: 0 (index.html); hier gilt der Baustein. */
+.tu-raster > .card { padding: var(--sp-4); margin: 0; overflow: visible; }
+.tu-wetter { display: none; }
+
+@media (min-width: 640px) {
+  .tu-raster > .card { padding: var(--sp-5); }
+  .tu-raster {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5);
+    grid-template-areas: "handlung termine" "wetter gesundheit" "briefing briefing" "quellen quellen" "offen offen";
+  }
+  .tu-kacheln { display: none; }
+  .tu-wetter { display: block; }
+  .tu-handlung { grid-area: handlung; } .tu-termine { grid-area: termine; }
+  .tu-wetter { grid-area: wetter; } .tu-gesundheit { grid-area: gesundheit; }
+  .tu-briefing { grid-area: briefing; } .tu-quellen { grid-area: quellen; } .tu-offen { grid-area: offen; }
+}
+@media (min-width: 1024px) {
+  .tu-raster {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas: "handlung termine wetter" "handlung termine gesundheit" "briefing briefing quellen" "offen offen offen";
+  }
 }
 
-/* Eingeklappte Fristen jenseits der Vormerkfrist. */
-/* C1 (Phase 3): gebündelte Zeile. Die Einzelzeilen stehen eingeklappt
-   darunter, eingerückt und etwas kleiner — sichtbar untergeordnet. */
-.hu-buendel { margin: 0 0 6px 34px; }
-.hu-buendel summary {
-  list-style: none; cursor: pointer; color: var(--muted); font-size: 13px;
-  min-height: 44px; display: flex; align-items: center; gap: 6px;
+/* ── Platzhalter ──────────────────────────────────────────────────────────── */
+.skeleton-zeile { height: 40px; margin: 6px 0; }
+.skeleton-wert { height: 26px; width: 70%; }
+.skeleton-kachel { height: 84px; }
+.skeleton-absatz { height: 88px; }
+.skeleton-chip { display: inline-block; height: 26px; width: 96px; margin: 0 6px 6px 0; border-radius: var(--r-chip); }
+
+/* ── Handlungsbedarf (Navy) ───────────────────────────────────────────────── */
+.tu-handlung .card-head h2 { color: var(--on-navy-soft); }
+.tu-handlung .chip-info { background: rgba(255,255,255,.12); color: var(--on-navy); }
+.tu-handlung .chip-info::before { background: var(--on-navy-soft); }
+.tu-hliste { margin: 0 calc(-1 * var(--sp-2)); }
+.list-row.tu-hzeile {
+  /* Doppelte Klasse: .list-row.ohne-zeit (design.css) setzt sonst zwei Spalten. */
+  width: 100%; grid-template-columns: 10px minmax(0, 1fr) auto; gap: var(--sp-3);
+  background: none; border: 0; border-bottom: 1px solid var(--navy-line); border-radius: 10px;
+  padding: var(--sp-2); color: var(--on-navy); font: inherit; text-align: left; cursor: pointer;
 }
-.hu-buendel summary::-webkit-details-marker { display: none; }
-.hu-buendel summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
-.hu-buendel[open] summary::before { transform: rotate(90deg); }
-.hu-unter { border-bottom: none; }
-.hu-unter .hu-titel { font-weight: 400; }
-
-.hu-spaeter { margin-top: 10px; border-top: 1px solid var(--border); }
-
-.hu-spaeter summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 44px;
-  padding: 10px 0;
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  list-style: none;
+.tu-hliste li:last-child .tu-hzeile { border-bottom: 0; }
+.tu-hzeile:hover { background: rgba(255,255,255,.06); }
+.tu-hzeile .zeile-titel { font-size: var(--fs-15); font-weight: 700; color: var(--on-navy); }
+.tu-hzeile .zeile-sub { font-size: var(--fs-12); color: var(--on-navy-soft); }
+.tu-hzeile .ic { color: var(--on-navy-soft); }
+.tu-punkt { width: 10px; height: 10px; border-radius: 50%; display: block; }
+.tu-punkt-rot  { background: #E36F5C; }
+.tu-punkt-gold { background: #E8B45A; }
+.tu-punkt-blau { background: #7FA7DC; }
+/* Mobil höchstens 5 Zeilen; „Alle {n} anzeigen" klappt auf. */
+.tu-handlung li.tu-ueber { display: none; }
+.tu-handlung.alle-offen li.tu-ueber { display: block; }
+.tu-handlung .btn-ghost { color: var(--on-navy); margin-top: var(--sp-2); }
+.tu-handlung .btn-ghost:hover { background: rgba(255,255,255,.10); color: var(--on-navy); }
+@media (min-width: 640px) {
+  .tu-handlung li.tu-ueber { display: block; }
+  .tu-handlung .tu-alle { display: none; }
 }
-
-.hu-spaeter summary::-webkit-details-marker { display: none; }
-.hu-spaeter summary::before { content: '▶'; font-size: 11px; transition: transform .2s; }
-.hu-spaeter[open] summary::before { transform: rotate(90deg); }
-
-/* ── Automatisierung (P2-10) ──────────────────────────────────────────────── */
-
-.agent-name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
-.agent-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
-
-.agent-hinweis {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.5;
-  margin-top: 14px;
+.tu-spaeter { margin-top: var(--sp-2); }
+.tu-spaeter > summary {
+  min-height: 44px; display: flex; align-items: center; cursor: pointer;
+  font-size: var(--fs-13); font-weight: 600; color: var(--on-navy-soft);
 }
+.tu-leer { display: flex; align-items: center; gap: var(--sp-2); min-height: 48px; font-weight: 700; color: var(--on-navy); }
+.tu-leer .ic { color: #7FD3A0; }
+/* Zustandsblöcke (datenstand.css) auf Navy lesbar halten. */
+.card-navy .zustand { border-color: var(--navy-line); background: rgba(255,255,255,.06); margin-bottom: var(--sp-2); }
+.card-navy .zustand-titel { color: var(--on-navy); }
+.card-navy .zustand-sub { color: var(--on-navy-soft); }
 
-/* inline-flex statt inline-block: nur so greift min-height zuverlaessig
-   (als inline-block ergab die Zeilenhoehe 42 px). Die doppelte Klasse ist
-   noetig, weil P2-2 die Mindesthoehe ab 640 px fuer `a.btn` zuruecknimmt —
-   bei einem Link, der die einzige Aktion des Abschnitts ist, soll sie aber
-   auf jeder Breite gelten. */
-.agent-link.btn {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  text-decoration: none;
-}
+/* ── Kacheln (mobil) ──────────────────────────────────────────────────────── */
+.tu-kacheln .tile { background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow); padding: var(--sp-3) var(--sp-4); }
+.tile-label { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tile-label span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tile-label .ic { color: var(--accent); }
+.tile-wert-text { font-size: var(--fs-16); white-space: normal; }
+/* Untertitel der Kacheln zweizeilig statt mitten im Wort abgeschnitten. */
+.tu-raster .tile-sub { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 
-/* ── Briefing-Panel (26.10.2026) ──────────────────────────────────────────── */
+/* ── Gesundheit ───────────────────────────────────────────────────────────── */
+.tu-gesundheit .tile { padding: var(--sp-3); }
 
-.hb-leiste {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+/* ── Termine ──────────────────────────────────────────────────────────────── */
+.tu-zeit { font-size: var(--fs-14); font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.tu-zeit-klein { font-size: var(--fs-12); color: var(--text-soft); }
+.tu-termin-titel { font-size: var(--fs-15); font-weight: 600; }
+.tu-termine .list-row { grid-template-columns: 48px minmax(0, 1fr); }
+.tu-folgetag-liste { display: none; border-top: 1px dashed var(--border); margin-top: var(--sp-1); }
+.tu-folgetag .tu-zeit, .tu-folgetag .tu-termin-titel { color: var(--muted); font-weight: 600; }
+.tu-warn { color: var(--on-gold-weak); }
+@media (min-width: 640px) { .tu-folgetag-liste { display: block; } }
 
-.hb-reiterleiste { display: flex; gap: 4px; border-bottom: 1px solid var(--border); }
-
-/* Reiter wie die Unterreiter der Fachbereiche: Unterstrich statt Fläche. */
-.hb-reiter {
-  min-height: 44px;
-  padding: 8px 14px;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--muted);
-  font-weight: 600;
-  cursor: pointer;
-}
-.hb-reiter:hover { color: var(--text); }
-.hb-reiter.aktiv { color: var(--accent); border-bottom-color: var(--accent); }
-
-.hb-tag select { min-height: 44px; }
-
-.hb-status {
-  font-size: 13px;
-  padding: 6px 10px;
-  border-left: 3px solid var(--border-strong);
-  border-radius: 0 var(--r) var(--r) 0;
-  margin-bottom: 10px;
-}
-.hb-ok     { border-left-color: var(--green);  background: var(--green-weak);  color: var(--green); }
-.hb-warn   { border-left-color: var(--yellow); background: var(--yellow-weak); color: var(--yellow); }
-.hb-fehler { border-left-color: var(--red);    background: var(--red-weak);    color: var(--red); }
-
-/* Der Text kommt zeilengenau aus Telegram; Einrückungen der Terminliste
-   bleiben erhalten, lange Zeilen brechen um statt seitlich zu laufen. */
+/* ── Briefing ─────────────────────────────────────────────────────────────── */
+.tu-briefing .card-head { flex-wrap: wrap; }
+.hb-status { margin-bottom: var(--sp-3); white-space: normal; }
 .hb-text {
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  font-size: 14px;
-  line-height: 1.5;
-  max-height: 520px;
-  overflow-y: auto;
+  font-size: var(--fs-15); line-height: 1.55; color: var(--text); overflow-wrap: anywhere;
+  /* Mobil 4 Zeilen; „Vollständig lesen" klappt auf. */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
 }
-.hb-text strong { display: inline-block; margin-top: 4px; }
+.hb-text p { margin: 0 0 var(--sp-2); }
+.hb-text p:last-child { margin-bottom: 0; }
+.hb-text.offen { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.hb-voll { margin-top: var(--sp-1); padding-left: 0; }
+.hb-tag { margin: var(--sp-3) 0 0; max-width: 220px; }
+@media (min-width: 640px) {
+  .hb-text { display: block; -webkit-line-clamp: unset; overflow: visible; max-width: 68ch; }
+  .hb-voll { display: none; }
+}
+
+/* ── Wetter ───────────────────────────────────────────────────────────────── */
+.tu-wetter-zeile { display: flex; align-items: center; gap: var(--sp-3); }
+.tu-wetter-symbol {
+  width: 48px; height: 48px; flex: 0 0 48px; border-radius: var(--r-inner);
+  background: var(--gold-weak); color: var(--on-gold-weak); display: inline-flex; align-items: center; justify-content: center;
+}
+.tu-wetter-werte { min-width: 0; }
+.tu-wetter-grad { font-size: var(--fs-26); font-weight: 800; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tu-wetter-ort { font-size: var(--fs-14); color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tu-wetter-tage { margin-top: var(--sp-3); font-size: var(--fs-13); color: var(--text-soft); }
+
+/* ── Datenquellen ─────────────────────────────────────────────────────────── */
+.tu-quelle-ok::before { background: var(--green); }
+
+/* ── Offene Punkte ────────────────────────────────────────────────────────── */
+.tu-offen-titel { font-weight: 700; }
+.list-row .zeile-sub.tu-umbruch { white-space: normal; overflow: visible; font-size: var(--fs-13); color: var(--muted); }
+.tu-offen li.tu-ueber { display: none; }
+.tu-offen.alle-offen li.tu-ueber { display: grid; }
