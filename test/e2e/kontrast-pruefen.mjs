@@ -55,6 +55,14 @@ add(H('Kopf: „Stand" --on-navy-soft', wert('on-navy-soft')), [T('navy')], 4.5,
 add(H('Kopf: Marke Navy-Icon', wert('navy')), [H('weißes Quadrat', wert('on-navy'))], 3, 'UI');
 add(gemischt('kopf-rand', wert('navy')), [T('navy')], 3, 'UI');
 
+/* Tagesbogen im Briefing (CP1-9): Legende im unteren Teil des Verlaufs
+   (--surface bei 58 % bis --sky-bottom), nachts auf --night-top/--night-bottom.
+   Wochentag mobil oben auf --sky-top in --text-soft. Gemessen am tatsächlichen
+   Verlaufston prüft das cp1-abnahme.mjs (--nur=tagesbogen). */
+for (const t of ['text', 'text-soft', 'muted']) add(H('Tagesbogen Legende tags --' + t, wert(t)), ['surface', 'sky-bottom'].map(T), 4.5, 'Text');
+for (const t of ['on-navy', 'on-navy-soft']) add(H('Tagesbogen Legende nachts --' + t, wert(t)), ['night-top', 'night-bottom'].map(T), 4.5, 'Text');
+add(H('Tagesbogen Wochentag mobil --text-soft', wert('text-soft')), [T('sky-top')], 4.5, 'Text');
+
 const zeilen = paare.map(p => ({ ...p, r: ratio(p.vg.hex, p.hg.hex) }));
 const fehlText = zeilen.filter(z => z.r < z.soll && z.art === 'Text');
 const fehlUi = zeilen.filter(z => z.r < z.soll && z.art !== 'Text');

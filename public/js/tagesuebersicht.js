@@ -687,10 +687,11 @@ function heuteBriefingIcon(titel) {
 }
 
 /* Gegliedertes Briefing als DOM, ausschließlich textContent. Nichts wird
-   gekürzt oder ausgeblendet (CP1-8). */
-function heuteBriefingGegliedertKnoten(g) {
+   gekürzt oder ausgeblendet (CP1-8). Kopf seit CP1-9 als Tagesbogen;
+   jetzt = Minuten seit Mitternacht Berlin (für Tests injizierbar). */
+function heuteBriefingGegliedertKnoten(g, jetzt) {
   const box = heuteEl('div', 'hb-inhalt');
-  if (g.kopf) box.appendChild(heuteEl('p', 'hb-kopf', g.kopf.join(' · ')));
+  if (g.kopf) box.appendChild(heuteBriefingKopfKnoten(g.kopf, jetzt));
   for (const a of g.abschnitte) {
     const s = heuteEl('section', 'hb-abschnitt' + (a.art === 'wetter' ? ' hb-wetter' : ''));
     const h = heuteEl('h3', 'hb-titel');
@@ -742,6 +743,255 @@ function heuteBriefingGegliedertKnoten(g) {
     box.appendChild(s);
   }
   return box;
+}
+
+/* ── Tagesbogen (CP1-9) ───────────────────────────────────────────────────
+   Ersetzt die einzeilige Kopfzeile des Briefings durch den Tagesbogen aus
+   dem Owner-Prototyp (Dropbox /Austausch/dashboard-design/
+   tagesbogen-prototyp.html): links Datum, Zustellzeit, Ort und Tageslicht,
+   rechts Sonnen- und Mondbahn über dem Horizont, darunter die Legende.
+   Eingaben stammen ausschließlich aus der geparsten Kopfzeile des Briefings
+   (heuteBriefingGliedern → g.kopf); berechnet werden nur Tageslichtdauer,
+   Lage der Bahnen und die Position „jetzt" (Europe/Berlin).
+   Pflicht sind Datum mit Zustellzeit, Ort und Sonnenzeiten — sonst bleibt die
+   bisherige Textzeile. Der Mond ist optional: Ohne Mondzeilen entfallen
+   Mondbahn und Mondlegende; sind die Mondzeiten nicht als ein Bogen innerhalb
+   des Tages darstellbar (Aufgang fehlt, oder der Mond geht erst nach seinem
+   Untergang wieder auf), entfällt nur die Mondbahn, die Legende nennt die
+   Zeiten wörtlich. So geht keine Angabe der Kopfzeile verloren. */
+
+/* Kopfzeile → Eingaben des Bogens, oder null (dann Textzeile). Zeiten in
+   Minuten seit Mitternacht. Eine unbekannte Zeile führt ebenfalls zu null,
+   damit sie nicht stillschweigend verschwindet. */
+function heuteTagesbogenLesen(kopf) {
+  if (!Array.isArray(kopf) || !kopf.length) return null;
+  const minuten = (t) => {
+    const m = /^(\d{1,2}):(\d\d)$/.exec(t || '');
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+  const titel = /^(\p{L}+), (\d{1,2}\. \p{L}+) (\d{4}) — (\d{1,2}:\d\d) Uhr$/u.exec(kopf[0]);
+  if (!titel) return null;
+  const d = { wochentag: titel[1], tagMonat: titel[2], jahr: titel[3], zeit: titel[4],
+    ort: '', sonneAuf: null, sonneUnter: null, sonneAufText: '', sonneUnterText: '', mond: null };
+  let phase = null, mondZeile = null;
+  for (const z of kopf.slice(1)) {
+    const sonne = /^Sonne Aufgang (\d{1,2}:\d\d) · Untergang (\d{1,2}:\d\d)$/.exec(z);
+    const ph = /^(.+?) \((\d{1,3}) ?%\)$/.exec(z);
+    if (sonne && d.sonneAuf === null) {
+      d.sonneAufText = sonne[1]; d.sonneUnterText = sonne[2];
+      d.sonneAuf = minuten(sonne[1]); d.sonneUnter = minuten(sonne[2]);
+    } else if (/^Mond (Aufgang|Untergang) /.test(z) && !mondZeile) mondZeile = z;
+    else if (ph && !phase) phase = { text: ph[1], prozent: Number(ph[2]) };
+    else if (!d.ort && z) d.ort = z;
+    else return null;
+  }
+  if (!d.ort || d.sonneAuf === null || d.sonneUnter === null || d.sonneAuf >= d.sonneUnter) return null;
+  if (phase || mondZeile) {
+    const auf = mondZeile ? (/Aufgang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
+    const unter = mondZeile ? (/Untergang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
+    if (mondZeile && !auf && !unter) return null;
+    const p = phase ? phase.text : '';
+    const m = { phase: p, prozent: phase ? phase.prozent : null,
+      richtung: /abnehm|letztes viertel/i.test(p) ? 'abnehmend' : /zunehm|erstes viertel/i.test(p) ? 'zunehmend' : '',
+      aufText: auf, unterText: unter, auf: minuten(auf), unter: minuten(unter), bahn: false };
+    /* Eine Bahn nur, wenn der Mond an diesem Tag auf- und danach untergeht
+       und die Phase bekannt ist (sie bestimmt die Sichel). */
+    m.bahn = m.auf !== null && m.unter !== null && m.auf < m.unter && m.prozent !== null;
+    d.mond = m;
+  }
+  return d;
+}
+
+/* Punkt auf einer Bahn bei Anteil u (0 = Aufgang, 1 = Untergang), wie im Prototyp. */
+function heuteTagesbogenPunkt(b, u) {
+  const a = Math.PI * (1 - u);
+  return { x: b.cx + b.rx * Math.cos(a), y: 118 - b.ry * Math.sin(a) };
+}
+
+/* Beleuchteter Teil der Mondscheibe (Radius 13), wie im Prototyp:
+   f = beleuchteter Anteil 0…1, abnehmend = Licht links. Die innere
+   Ellipse ist auf r − 3 begrenzt, damit die Sichel nie zur Linie wird. */
+function heuteTagesbogenMondPfad(f, abnehmend) {
+  const r = 13;
+  const rx = Math.min(r * Math.abs(1 - 2 * f), r - 3);
+  const aussen = abnehmend ? 0 : 1;
+  const innen = (f < 0.5) ? 1 - aussen : aussen;
+  return 'M0,' + (-r) + ' A' + r + ',' + r + ' 0 0 ' + aussen + ' 0,' + r +
+    ' A' + rx.toFixed(2) + ',' + r + ' 0 0 ' + innen + ' 0,' + (-r) + ' Z';
+}
+
+/* Geometrie und Zustand des Bogens für „jetzt" (Minuten seit Mitternacht).
+   Zeitfenster: frühester Aufgang − 30 min bis spätester Untergang + 30 min,
+   abgebildet auf x 20…580; Horizont bei y 118; Sonnenbahn 104 hoch,
+   Mondbahn 66 (flacher, liegt hinten). Nacht = Sonne nicht über dem Horizont. */
+function heuteTagesbogenGeometrie(d, jetzt) {
+  const mitMond = !!(d.mond && d.mond.bahn);
+  const winA = Math.min(d.sonneAuf, mitMond ? d.mond.auf : Infinity) - 30;
+  const winE = Math.max(d.sonneUnter, mitMond ? d.mond.unter : -Infinity) + 30;
+  const X = (t) => 20 + (t - winA) / (winE - winA) * 560;
+  const bahn = (auf, unter, ry) => {
+    const x1 = X(auf), x2 = X(unter), rx = (x2 - x1) / 2;
+    return { x1, x2, rx, ry, cx: (x1 + x2) / 2,
+      d: 'M' + x1.toFixed(1) + ' 118 A' + rx.toFixed(1) + ' ' + ry + ' 0 0 1 ' + x2.toFixed(1) + ' 118' };
+  };
+  const anteil = (auf, unter) => jetzt < auf ? 0 : jetzt > unter ? 1 : (jetzt - auf) / (unter - auf);
+  const S = bahn(d.sonneAuf, d.sonneUnter, 104);
+  const uS = anteil(d.sonneAuf, d.sonneUnter);
+  const sonneOben = jetzt >= d.sonneAuf && jetzt <= d.sonneUnter;
+  const g = { S, uS, sonneOben, pS: heuteTagesbogenPunkt(S, uS), M: null, uM: 0, mondOben: false, pM: null, mondPfad: '' };
+  if (mitMond) {
+    g.M = bahn(d.mond.auf, d.mond.unter, 66);
+    g.uM = anteil(d.mond.auf, d.mond.unter);
+    g.mondOben = jetzt >= d.mond.auf && jetzt <= d.mond.unter;
+    g.pM = heuteTagesbogenPunkt(g.M, g.uM);
+    g.mondPfad = heuteTagesbogenMondPfad(d.mond.prozent / 100, d.mond.richtung === 'abnehmend');
+  }
+  g.nacht = !sonneOben;
+  /* Jetzt-Chip unter der Sonne (tags), unter dem Mond oder mittig (nachts). */
+  const ref = sonneOben ? g.pS.x : (g.mondOben ? g.pM.x : 300);
+  g.chipX = ((ref - 14) / 572 * 100).toFixed(1) + '%';
+  const hh = String(Math.floor(jetzt / 60)).padStart(2, '0') + ':' + String(jetzt % 60).padStart(2, '0');
+  g.chipText = (sonneOben ? 'jetzt ' : 'Nacht · ') + hh;
+  return g;
+}
+
+/* Aktuelle Uhrzeit in Europe/Berlin als Minuten seit Mitternacht. */
+function heuteJetztMinuten(datum) {
+  const teile = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+    .formatToParts(datum);
+  const wert = (art) => Number((teile.find(t => t.type === art) || {}).value);
+  return wert('hour') * 60 + wert('minute');
+}
+
+/* SVG-Element mit Attributen; Klassen per setAttribute (SVG kennt kein
+   className als Zeichenkette). */
+function heuteSvg(tag, attribute) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attribute || {})) e.setAttribute(k, String(v));
+  return e;
+}
+
+/* Tagesbogen als DOM — Texte ausschließlich per textContent bzw. Textknoten. */
+function heuteTagesbogenKnoten(d, jetzt) {
+  const g = heuteTagesbogenGeometrie(d, jetzt);
+  const tb = heuteEl('section', 'tb' + (g.nacht ? ' nacht' : ''));
+  tb.setAttribute('aria-label', 'Tagesbogen: Datum, Sonnen- und Mondbahn');
+
+  const licht = d.sonneUnter - d.sonneAuf;
+  const datum = heuteEl('div', 'tb-datum');
+  const datumZeile = heuteEl('div', 'datum');
+  datumZeile.append(document.createTextNode(d.tagMonat), document.createElement('br'), document.createTextNode(d.jahr));
+  datum.append(heuteEl('div', 'tag', d.wochentag + ' · ' + d.zeit + ' Uhr'), datumZeile,
+    heuteEl('div', 'ort', d.ort + ' · ' + Math.floor(licht / 60) + ' h ' + (licht % 60) + ' min Tageslicht'));
+
+  const svg = heuteSvg('svg', { viewBox: '0 -14 600 156', role: 'img', 'aria-label': 'Sonnen- und Mondbahn des Tages' });
+  const defs = heuteSvg('defs');
+  const verlauf = heuteSvg('linearGradient', { id: 'tbSonneGrad', x1: 0, x2: 1 });
+  verlauf.append(heuteSvg('stop', { offset: 0, class: 'tb-stop-sonne' }), heuteSvg('stop', { offset: '.5', class: 'tb-stop-kern' }),
+    heuteSvg('stop', { offset: 1, class: 'tb-stop-gold' }));
+  const kern = heuteSvg('radialGradient', { id: 'tbSonneKern' });
+  kern.append(heuteSvg('stop', { offset: 0, class: 'tb-stop-glanz' }), heuteSvg('stop', { offset: '.55', class: 'tb-stop-kern' }),
+    heuteSvg('stop', { offset: 1, class: 'tb-stop-sonne' }));
+  defs.append(verlauf, kern);
+  const sterne = heuteSvg('g', { class: 'tb-sterne' });
+  for (const [cx, cy, r] of [[70, 18, 1.4], [160, -4, 1.1], [300, -8, 1.6], [430, 2, 1.2], [530, 24, 1.4], [240, 28, 1], [380, 34, 1]]) {
+    sterne.appendChild(heuteSvg('circle', { class: 'stern', cx, cy, r }));
+  }
+  sterne.style.display = g.nacht ? '' : 'none';
+  svg.append(defs, sterne,
+    heuteSvg('line', { class: 'tb-horizont', x1: 14, y1: 118, x2: 586, y2: 118, 'stroke-width': 1.5, 'stroke-linecap': 'round', opacity: '.7' }));
+
+  /* Bahn: gestrichelter Rest und gezeichneter Teil bis „jetzt". */
+  const bahnFertig = (klasse, b, u, breite, extra) => {
+    const p = heuteSvg('path', Object.assign({ class: klasse + ' bahn-fertig', d: b.d, fill: 'none', 'stroke-width': breite,
+      'stroke-linecap': 'round', pathLength: 1000 }, extra));
+    p.style.setProperty('--rest', String(Math.round(1000 - u * 1000)));
+    return p;
+  };
+  if (g.M) {
+    svg.append(heuteSvg('path', { class: 'tb-mond-rest', d: g.M.d, fill: 'none', 'stroke-width': 1.6, 'stroke-dasharray': '2 6', 'stroke-linecap': 'round', opacity: '.7' }),
+      bahnFertig('tb-mond-fertig', g.M, g.uM, 2.4, { opacity: '.9' }));
+  }
+  svg.append(heuteSvg('path', { class: 'tb-sonne-rest', d: g.S.d, fill: 'none', 'stroke-width': 2, 'stroke-dasharray': '3 7', 'stroke-linecap': 'round', opacity: '.6' }),
+    bahnFertig('tb-sonne-fertig', g.S, g.uS, 3.5, { stroke: 'url(#tbSonneGrad)' }));
+
+  /* Auf- und Untergangsmarken an den Bahnenden */
+  const marken = heuteSvg('g');
+  marken.append(heuteSvg('circle', { class: 'tb-marke-sonne', cx: g.S.x1.toFixed(1), cy: 118, r: 4 }),
+    heuteSvg('circle', { class: 'tb-marke-sonne', cx: g.S.x2.toFixed(1), cy: 118, r: 4 }));
+  if (g.M) {
+    marken.append(heuteSvg('circle', { class: 'tb-marke-mond', cx: g.M.x1.toFixed(1), cy: 118, r: 3 }),
+      heuteSvg('circle', { class: 'tb-marke-mond', cx: g.M.x2.toFixed(1), cy: 118, r: 3 }));
+  }
+  svg.appendChild(marken);
+
+  /* Himmelskörper: Start am Aufgangspunkt, dann per CSS-Übergang zur
+     aktuellen Position (zwei Frames später, damit der Start gemalt ist). */
+  const setze = (el, b, u, sichtbar) => {
+    const p0 = heuteTagesbogenPunkt(b, 0), p1 = heuteTagesbogenPunkt(b, u);
+    el.style.display = sichtbar ? '' : 'none';
+    el.setAttribute('transform', 'translate(' + p0.x.toFixed(1) + ' ' + p0.y.toFixed(1) + ')');
+    el.style.transform = 'translate(' + p0.x.toFixed(1) + 'px,' + p0.y.toFixed(1) + 'px)';
+    const ziel = 'translate(' + p1.x.toFixed(1) + 'px,' + p1.y.toFixed(1) + 'px)';
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.transform = ziel; }));
+    } else el.style.transform = ziel;
+  };
+  if (g.M) {
+    const mond = heuteSvg('g', { class: 'koerper tb-mond' });
+    mond.append(heuteSvg('circle', { class: 'mond-glow', r: 20, opacity: '.35' }), heuteSvg('circle', { class: 'tb-mond-scheibe', r: 13 }),
+      heuteSvg('path', { class: 'tb-mond-licht', d: g.mondPfad }),
+      heuteSvg('circle', { class: 'tb-mond-rand', r: 13, fill: 'none', 'stroke-width': 1, opacity: '.9' }));
+    svg.appendChild(mond);
+    setze(mond, g.M, g.uM, g.mondOben);
+  }
+  const sonne = heuteSvg('g', { class: 'koerper tb-sonne' });
+  sonne.append(heuteSvg('circle', { class: 'sonne-glow', r: 22, opacity: '.55' }),
+    heuteSvg('circle', { class: 'tb-sonne-kern', r: 11, fill: 'url(#tbSonneKern)', 'stroke-width': 2 }));
+  svg.appendChild(sonne);
+  setze(sonne, g.S, g.uS, g.sonneOben);
+
+  const chip = heuteEl('div', 'jetzt-chip');
+  chip.style.setProperty('--x', g.chipX);
+  chip.append(heuteEl('i'), heuteEl('span', 'jetzt-text', g.chipText));
+  const himmel = heuteEl('div', 'himmel');
+  himmel.append(svg, chip);
+
+  /* Legende: Werte fett (<b>), Bezeichnungen kräftig (<strong>). */
+  const legende = heuteEl('div', 'legende');
+  const eintrag = (punkt, name, teile) => {
+    const s = heuteEl('span', '');
+    s.append(heuteEl('i', punkt), heuteEl('strong', '', name));
+    for (const [text, fett] of teile) s.appendChild(fett ? heuteEl('b', '', text) : document.createTextNode(text));
+    legende.appendChild(s);
+  };
+  eintrag('s', 'Sonne', [[' ', false], [d.sonneAufText, true], [' – ', false], [d.sonneUnterText, true]]);
+  if (d.mond) {
+    const m = d.mond, teile = [];
+    if (m.bahn) teile.push([' ', false], [m.aufText, true], [' – ', false], [m.unterText, true]);
+    else {
+      if (m.aufText) teile.push([' Aufgang ', false], [m.aufText, true]);
+      if (m.unterText) teile.push([(m.aufText ? ' · ' : ' ') + 'Untergang ', false], [m.unterText, true]);
+    }
+    if (m.phase) teile.push([(teile.length ? ' · ' : ' ') + m.phase, false]);
+    if (m.prozent !== null) teile.push([' · ', false], [m.prozent + ' %', true]);
+    eintrag('m', 'Mond', teile);
+  }
+
+  const bogen = heuteEl('div', 'tb-bogen');
+  bogen.append(himmel, legende);
+  tb.append(datum, bogen);
+  return tb;
+}
+
+/* Kopf des gegliederten Briefings: Tagesbogen, sonst die bisherige
+   Textzeile. Ein Fehler im Bogen darf das Briefing nicht blockieren. */
+function heuteBriefingKopfKnoten(kopf, jetzt) {
+  try {
+    const d = heuteTagesbogenLesen(kopf);
+    if (d) return heuteTagesbogenKnoten(d, Number.isFinite(jetzt) ? jetzt : heuteJetztMinuten(new Date()));
+  } catch (e) { /* weiter mit der Textzeile */ }
+  return heuteEl('p', 'hb-kopf', kopf.join(' · '));
 }
 
 function heuteBriefingStatus(b) {

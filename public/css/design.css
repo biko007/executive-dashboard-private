@@ -62,6 +62,20 @@
 
   --sand:          #C9B08E;
 
+  /* Tagesbogen im Briefing (CP1-9, Werte aus dem Owner-Prototyp).
+     --sun-glanz und --moon-licht sind die beiden hellsten Töne des Prototyps
+     (Sonnenkern-Mitte, beleuchtete Mondsichel); sie standen dort als Literal. */
+  --sun:          #E8B45A;
+  --sun-core:     #F6D27A;
+  --sun-glanz:    #FFF4CC;
+  --moon:         #7F97BE;
+  --moon-dark:    #2E4166;
+  --moon-licht:   #FFFBEF;
+  --sky-top:      #DCE9F7;
+  --sky-bottom:   #FBF1DC;
+  --night-top:    #1D2B45;
+  --night-bottom: #2E4166;
+
   /* Status */
   --green: #2E7D4F;  --green-weak: #E5F3EA;  --on-green-weak: #1F6B40;
   /* --gold nie als Textfarbe und auch nicht als Statuspunkt: auf --gold-weak

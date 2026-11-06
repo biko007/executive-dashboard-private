@@ -33,6 +33,10 @@ Dokument erklärt sie, es ersetzt sie nicht.
 | `--green*` | #2E7D4F / #E5F3EA / #1F6B40 | in Ordnung |
 | `--gold*` | #C8923A / #FBF1DC / #8A5E12 | fällig |
 | `--red*` | #B9402F / #FBE9E6 / #9C3324 | überfällig, Fehler |
+| `--sun` / `--sun-core` / `--sun-glanz` | #E8B45A / #F6D27A / #FFF4CC | Tagesbogen: Sonne, Sonnenbahn (CP1-9) |
+| `--moon` / `--moon-dark` / `--moon-licht` | #7F97BE / #2E4166 / #FFFBEF | Tagesbogen: Mondbahn, Mondscheibe, Sichel |
+| `--sky-top` / `--sky-bottom` | #DCE9F7 / #FBF1DC | Tagesbogen: Himmelsverlauf tags |
+| `--night-top` / `--night-bottom` | #1D2B45 / #2E4166 | Tagesbogen: Himmelsverlauf nachts |
 
 **Abweichungen von der Spec-Tabelle (begründet):**
 
@@ -54,6 +58,9 @@ Text ≥ 4,5:1, Icons/Rahmen/Statuspunkte ≥ 3:1. Geprüft wird programmatisch 
 - `--on-accent` auf `--accent`; `--on-navy`, `--on-navy-soft` auf `--navy`
 - `--on-green-weak` / `--on-gold-weak` / `--on-red-weak` auf der jeweiligen `-weak`
 - `--border-strong`, Statuspunkte auf ihrem Hintergrund (3:1)
+- Tagesbogen (CP1-9): `--text`, `--text-soft`, `--muted` auf `--surface` und
+  `--sky-bottom` (Legende tags); `--on-navy`, `--on-navy-soft` auf `--night-top`
+  und `--night-bottom` (nachts); `--text-soft` auf `--sky-top` (Wochentag mobil)
 
 Andere Kombinationen sind nicht vorgesehen.
 
@@ -170,9 +177,9 @@ nicht als Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
   Dauer). Kein Aufklappen, kein `line-clamp`, keine Auslassungspunkte, auf allen
   Breiten. `briefing-panel.test.mjs` prüft das gegen 13 echte Briefings.
 - **Kopf:** Statuschip („Zugestellt 07:00 · Telegram“ `.chip-ok`, „Noch nicht
-  zugestellt“ `.chip-neutral`), darunter eine Zeile 13 px `--muted` mit allen
-  Angaben: Datum mit Uhrzeit · Ort · Sonne Aufgang/Untergang · Mondphase · Mond
-  Aufgang/Untergang.
+  zugestellt“ `.chip-neutral`), darunter seit CP1-9 der Tagesbogen (siehe dort);
+  als Rückfall eine Zeile 13 px `--muted` mit allen Angaben: Datum mit Uhrzeit ·
+  Ort · Sonne Aufgang/Untergang · Mondphase · Mond Aufgang/Untergang.
 - **Wetter** (erster Abschnitt): Icon `sun` (sonnig, klar, heiter) oder `cloud`;
   „Jetzt“ mit Wert 22/800 und Zustand 14 px; je eine Zeile Heute / Morgen /
   Überm. (Bezeichnung links, Temperaturspanne fett, Wind · Regen · UV als
@@ -199,6 +206,47 @@ nicht als Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
 | Fristen | `clock` |
 | Wetter | `sun` / `cloud` (nach Zustand) |
 | alles andere („Sonstiges“) | `info` |
+
+## Tagesbogen (CP1-9)
+
+Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
+(`/Austausch/dashboard-design/tagesbogen-prototyp.html`, CSS-Block „Tagesbogen v2“
+1:1 in `tagesuebersicht.css`, Selektoren unter `.tb`).
+
+- **Eingaben** (alle aus der geparsten Kopfzeile, `heuteTagesbogenLesen()`):
+  Wochentag, Datum, Zustellzeit, Ort, Sonnenauf- und -untergang, Mondauf- und
+  -untergang, Mondphase als Text und Beleuchtung in %. „zunehmend/abnehmend“
+  folgt aus dem Phasentext (Abnehmend…, Letztes Viertel / Zunehmend…, Erstes
+  Viertel; Voll- und Neumond ohne Richtung). Berechnet werden nur die
+  Tageslichtdauer („9 h 44 min Tageslicht“), die Bahnen und „jetzt“ (Minuten seit
+  Mitternacht in Europe/Berlin, `heuteJetztMinuten()`; in Tests als Parameter).
+- **Geometrie** (`heuteTagesbogenGeometrie()`): Zeitfenster frühester Aufgang
+  − 30 min bis spätester Untergang + 30 min auf x 20…580, Horizont y 118,
+  Sonnenbahn 104 hoch, Mondbahn 66. Der gezeichnete Teil der Bahn reicht bis
+  „jetzt“. Mondsichel `heuteTagesbogenMondPfad()` wie im Prototyp; dessen
+  innere Ellipse ist auf r − 3 begrenzt, unter etwa 12 % und über etwa 88 %
+  sieht die Sichel deshalb gleich aus.
+- **Zustände:** Tag = Sonne über dem Horizont (Aufgang ≤ jetzt ≤ Untergang):
+  heller Verlauf, Sonne sichtbar, Chip „jetzt HH:MM“ unter der Sonne. Nacht =
+  sonst: Klasse `nacht`, Navy-Verlauf, Sterne, keine Sonne, Chip „Nacht · HH:MM“
+  unter dem Mond (wenn er oben ist) oder mittig. Der Mond ist sichtbar, solange
+  er über dem Horizont steht.
+- **Mobil (< 900 px):** einspaltig, Legende untereinander und umbrechend. Der
+  Wochentag steht dort tags in `--text-soft` statt `--muted` (oben auf
+  `--sky-top` hätte `--muted` nur 4,49:1).
+- **Bewegung:** Bahn zeichnet sich in 1,6 s, Sonne und Mond gleiten vom
+  Aufgangspunkt an ihren Platz, Glühen und Sternfunkeln; bei
+  `prefers-reduced-motion` alles ohne Animation.
+- **Fallback:** Fehlen Datum mit Uhrzeit, Ort oder Sonnenzeiten, oder steht eine
+  unbekannte Zeile im Kopf, bleibt die bisherige Textzeile (`.hb-kopf`) mit allen
+  Angaben — so beim Abendbriefing, dessen Kopf nur das Datum trägt. Fehlt nur der
+  Mond, erscheint der Bogen ohne Mondbahn und ohne Mondlegende. Lassen sich die
+  Mondzeiten nicht als ein Bogen innerhalb des Tages zeichnen (Aufgang fehlt,
+  oder Aufgang nach dem Untergang), entfällt nur die Mondbahn; die Legende nennt
+  „Aufgang …/Untergang …“ wörtlich. Ein Fehler beim Bauen fällt auf die Textzeile
+  zurück und blockiert nichts.
+- **Sicherheit:** Texte nur per `textContent`/Textknoten, SVG per
+  `createElementNS`, kein Alpine, keine fremden Hosts, CSP unverändert.
 
 ## Alpine
 

@@ -202,3 +202,89 @@
 .list-row .zeile-sub.tu-umbruch { white-space: normal; overflow: visible; font-size: var(--fs-13); color: var(--muted); }
 .tu-offen li.tu-ueber { display: none; }
 .tu-offen.alle-offen li.tu-ueber { display: grid; }
+
+/* ── Tagesbogen v2 (CP1-9) ────────────────────────────────────────────────
+   Übernommen aus dem Owner-Prototyp tagesbogen-prototyp.html (Block
+   „Tagesbogen v2" samt Keyframes und Media-Queries). Abweichungen nur
+   technisch: Selektoren unter .tb, damit .tag/.datum/.ort/.legende keine
+   anderen Bausteine treffen; Farben als Tokens aus design.css statt
+   Literalen, auch für die SVG-Füllungen (im Prototyp Attribute). */
+.tb {
+  display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 16px; margin: 0 0 var(--sp-4);
+  border-radius: 14px; overflow: hidden; border: 1px solid var(--border-soft);
+  background: linear-gradient(180deg, var(--sky-top) 0%, var(--surface) 58%, var(--sky-bottom) 100%);
+}
+.tb.nacht { background: linear-gradient(180deg, var(--night-top) 0%, var(--night-bottom) 100%); color: var(--on-navy); }
+.tb.nacht .tag, .tb.nacht .ort, .tb.nacht .legende, .tb.nacht .legende b { color: var(--on-navy-soft); }
+.tb.nacht .legende strong { color: var(--on-navy); }
+.tb .tb-datum { padding: 18px 0 18px 20px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+.tb .tag { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tb .datum { font-size: 26px; font-weight: 800; letter-spacing: -.01em; line-height: 1.05; }
+.tb .ort { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.tb .tb-bogen { position: relative; min-width: 0; padding: 8px 16px 0 0; }
+.tb .himmel { position: relative; margin-bottom: 30px; }
+.tb .tb-bogen svg { display: block; width: 100%; height: auto; overflow: visible; }
+.tb .legende {
+  display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted);
+  padding: 2px 2px 12px; font-variant-numeric: tabular-nums;
+}
+.tb .legende span { display: inline-flex; align-items: center; gap: 7px; white-space: nowrap; }
+@media (max-width: 900px) { .tb .legende span { white-space: normal; flex-wrap: wrap; row-gap: 2px; } }
+.tb .legende i { width: 9px; height: 9px; border-radius: 999px; display: inline-block; }
+.tb .legende i.s { background: var(--sun); box-shadow: 0 0 0 2px rgba(232,180,90,.35); }
+.tb .legende i.m { background: var(--moon); }
+.tb .legende strong { color: var(--text); font-weight: 800; }
+.tb .legende b { font-weight: 600; color: var(--text-soft); }
+.tb .jetzt-chip {
+  position: absolute; left: var(--x, 50%); transform: translateX(-50%); top: calc(100% - 10px);
+  display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--text);
+  background: rgba(255,255,255,.88); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;
+  white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; animation: tb-einblenden .6s 1.5s forwards;
+}
+.tb .jetzt-chip i { width: 7px; height: 7px; border-radius: 999px; background: var(--gold); }
+.tb.nacht .jetzt-chip { background: rgba(29,43,69,.75); color: var(--on-navy); border-color: rgba(255,255,255,.25); }
+@keyframes tb-einblenden { to { opacity: 1; } }
+
+/* SVG-Farben (im Prototyp als Attribute) */
+.tb .tb-stop-sonne { stop-color: var(--sun); }
+.tb .tb-stop-kern  { stop-color: var(--sun-core); }
+.tb .tb-stop-gold  { stop-color: var(--gold); }
+.tb .tb-stop-glanz { stop-color: var(--sun-glanz); }
+.tb .tb-sterne { fill: var(--on-navy); }
+.tb .tb-horizont, .tb .tb-sonne-rest { stroke: var(--sand); }
+.tb .tb-mond-rest, .tb .tb-mond-fertig { stroke: var(--moon); }
+.tb .tb-marke-sonne { fill: var(--gold); }
+.tb .tb-marke-mond { fill: var(--moon); }
+.tb .mond-glow { fill: var(--on-navy-soft); }
+.tb .tb-mond-scheibe { fill: var(--moon-dark); }
+.tb .tb-mond-licht { fill: var(--moon-licht); }
+.tb .tb-mond-rand { stroke: var(--surface-3); }
+.tb .sonne-glow { fill: var(--sun-core); }
+.tb .tb-sonne-kern { stroke: var(--on-navy); }
+
+.tb .bahn-fertig { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: tb-zeichnen 1.6s cubic-bezier(.4,0,.2,1) forwards; }
+@keyframes tb-zeichnen { to { stroke-dashoffset: var(--rest); } }
+.tb .koerper { transition: transform 1.6s cubic-bezier(.4,0,.2,1); }
+.tb .sonne-glow { transform-box: fill-box; transform-origin: center; animation: tb-glow 3.2s ease-in-out infinite; }
+@keyframes tb-glow { 0%, 100% { opacity: .5; transform: scale(1); } 50% { opacity: .9; transform: scale(1.18); } }
+.tb .mond-glow { transform-box: fill-box; transform-origin: center; animation: tb-glow 5s ease-in-out infinite; }
+.tb .stern { animation: tb-funkeln 2.8s ease-in-out infinite; }
+.tb .stern:nth-child(2n) { animation-delay: .7s; }
+.tb .stern:nth-child(3n) { animation-delay: 1.4s; }
+@keyframes tb-funkeln { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .tb .sonne-glow, .tb .mond-glow, .tb .stern { animation: none; }
+  .tb .bahn-fertig { animation-duration: .01s; }
+  .tb .koerper { transition: none; }
+  .tb .jetzt-chip { animation-duration: .01s; animation-delay: 0s; }
+}
+
+@media (max-width: 900px) {
+  .tb { grid-template-columns: 1fr; }
+  .tb .tb-datum { padding: 16px 16px 0; }
+  .tb .tb-bogen { padding: 0 12px; }
+  .tb .legende { flex-direction: column; gap: 4px; padding-bottom: 14px; }
+  /* Abweichung vom Prototyp: Einspaltig steht die Wochentagszeile ganz oben
+     auf --sky-top; --muted erreicht dort nur 4,49:1 (gemessen), --text-soft 6,1:1. */
+  .tb:not(.nacht) .tag { color: var(--text-soft); }
+}
