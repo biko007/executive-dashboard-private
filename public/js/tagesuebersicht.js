@@ -381,8 +381,11 @@ function heuteKachelnFuellen(kacheln, kalender, umfeld) {
     else {
       const tag = zeitTagInZone(n.start, ZEIT_ZONE);
       const heute = zeitTagInZone(new Date(), ZEIT_ZONE);
+      /* Countdown aus Zeitstempeln (zeit.js), nicht aus Uhrzeiten-Text:
+         sonst verschiebt die Zone von Browser oder Server das Ergebnis. */
+      const bis = zeitBisText(n.start.getTime(), Date.now());
       heuteTileSetzen(tTermin, zeitUhr(n.start),
-        (tag === heute ? '' : heuteWochentag(tag) + ' · ') + (n.ev.subject || '(kein Titel)'));
+        [tag === heute ? '' : heuteWochentag(tag), bis, n.ev.subject || '(kein Titel)'].filter(Boolean).join(' · '));
     }
   }
   const ort = umfeld && umfeld.ort && umfeld.ort.label ? umfeld.ort.label : 'Wetter';
@@ -431,7 +434,14 @@ function heuteTerminZeile(ev, z, folgetag) {
   li.appendChild(heuteEl('span', 'tu-zeit' + (z.ganztags && !folgetag ? ' tu-zeit-klein' : ''), zeit));
   const text = heuteEl('span', 'zeile-text');
   const ort = ev.location && ev.location.displayName ? ev.location.displayName : '';
-  const sub = [z.ganztags ? (z.mehrtaegig ? z.spanneText : 'ganztägig') : z.dauerText, ort].filter(Boolean).join(' · ');
+  /* Neben der Startzeit steht das Ende ausdruecklich ("bis 15:00 · 1 Std.").
+     Eine nackte Dauer "1 Std." unter 14:00 las sich wie ein Countdown
+     "in 1 h" (Owner-Befund 06.11.2026). */
+  const ende = !z.ganztags && !z.mehrtaegig && !z.unplausibel ? graphZeitpunkt(ev.end) : null;
+  /* Folgetag: links steht der Wochentag, also hier die volle Spanne. */
+  const spanne = folgetag ? z.zeitText : 'bis ' + zeitUhr(ende);
+  const dauer = ende ? spanne + (z.dauerText ? ' · ' + z.dauerText : '') : z.dauerText;
+  const sub = [z.ganztags ? (z.mehrtaegig ? z.spanneText : 'ganztägig') : dauer, ort].filter(Boolean).join(' · ');
   text.appendChild(heuteEl('span', 'zeile-titel tu-termin-titel', ev.subject || '(kein Titel)'));
   if (sub) text.appendChild(heuteEl('span', 'zeile-sub', sub));
   if (z.unplausibel) text.appendChild(heuteEl('span', 'zeile-sub tu-warn', 'Zeitangabe unplausibel'));

@@ -137,6 +137,23 @@ function zeitDauerText(minuten) {
   return text + ' Std.';
 }
 
+/* Abstand bis zu einem Termin als Klartext: 'in 5 h', 'in 25 Min.', 'jetzt'.
+   Gerechnet wird ausschliesslich mit echten Zeitstempeln (ms seit 1970, UTC);
+   die Zeitzone von Browser oder Server spielt dafuer keine Rolle. Ab einer
+   Stunde wird auf ganze Stunden gerundet (09:02 -> 14:00 ergibt 'in 5 h').
+   Liegt der Zeitpunkt 24 h oder weiter entfernt, gibt es keinen Text — dort
+   nennt die Anzeige den Wochentag. */
+function zeitBisText(zielMs, jetztMs) {
+  if (!Number.isFinite(zielMs) || !Number.isFinite(jetztMs)) return '';
+  const minuten = Math.round((zielMs - jetztMs) / 60000);
+  if (minuten < 0) return '';
+  if (minuten < 1) return 'jetzt';
+  if (minuten < 60) return 'in ' + minuten + ' Min.';
+  const stunden = Math.round(minuten / 60);
+  if (stunden >= 24) return '';
+  return 'in ' + stunden + ' h';
+}
+
 /* ── Kern: ein Graph-Termin -> alles, was die Anzeige braucht ─────────────── */
 /*
    Rueckgabe:
