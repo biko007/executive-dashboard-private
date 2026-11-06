@@ -171,6 +171,34 @@
   .hb-voll { display: none; }
 }
 
+/* Gegliedertes Briefing (CP1-7): Kopfzeile, Abschnitte mit Symbol und
+   Eintragszeilen. Zahlen und Zeiten tabellarisch, damit sie untereinander
+   stehen. Einträge brechen um statt abgeschnitten zu werden — ein gekürzter
+   „Ihre Aktion"-Satz wäre wertlos. */
+.hb-inhalt { font-variant-numeric: tabular-nums; }
+.hb-kopf { margin: 0 0 var(--sp-3); font-size: var(--fs-13); color: var(--muted); line-height: 1.5; }
+.hb-abschnitt + .hb-abschnitt { margin-top: var(--sp-4); }
+.hb-titel {
+  display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-1);
+  font-size: var(--fs-13); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
+}
+.hb-titel .ic { color: var(--accent); flex: 0 0 16px; }
+.hb-liste { list-style: none; margin: 0; padding: 0; }
+.hb-zeile { align-items: center; }
+.hb-zeile .zeile-titel { font-size: var(--fs-15); font-weight: 600; }
+.hb-zeile .zeile-titel, .hb-zeile .zeile-sub { white-space: normal; overflow-wrap: anywhere; max-width: 68ch; }
+.hb-punkt-rot  { background: var(--red); }
+.hb-punkt-gelb { background: var(--on-gold-weak); }
+.hb-absatz { margin: 0; font-size: var(--fs-14); line-height: 1.55; max-width: 68ch; }
+.hb-alle { margin-top: var(--sp-2); padding-left: 0; }
+/* Mobil die ersten zwei Abschnitte, der Rest hinter „Alle Abschnitte". */
+@media (max-width: 639.98px) {
+  .hb-inhalt:not(.offen) .hb-ueber { display: none; }
+}
+@media (min-width: 640px) {
+  .hb-alle { display: none; }
+}
+
 /* ── Wetter ───────────────────────────────────────────────────────────────── */
 .tu-wetter-zeile { display: flex; align-items: center; gap: var(--sp-3); }
 .tu-wetter-symbol {

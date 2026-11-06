@@ -84,6 +84,7 @@ check, alert-triangle, refresh-cw, external-link, file-text, pencil, trash-2,
 paperclip, plus, search, x. **Ergänzt** um briefcase, camera, book-open,
 trending-up, plug — damit jeder der 14 Bereiche ein eigenes, eindeutiges Symbol
 hat (Private Equity, Instagram, Wiki, Trading, Status).
+CP1-7: **ergänzt** um mail, list-checks, info, clock für die Briefing-Abschnitte.
 
 ## Bausteine (`design.css`)
 
@@ -143,6 +144,42 @@ links neben dem Titel statt des früheren 120/180-px-Bildstreifens
 (`reiseThumbHtml` in `index.html`, gleiches Markup und gleicher Upload wie
 `entityImgHtml`). Ohne Foto ein `--surface-2`-Quadrat mit Icon `plane`.
 Fuhrpark und Immobilien folgen in CP2.
+
+## Briefing auf der Tagesübersicht (CP1-7)
+
+Das Dashboard zeigt das Morgen- und Abendbriefing **gegliedert**, nicht als
+Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
+
+- **Quelle:** `/api/briefing?tage=7` liefert nur den gespeicherten Telegram-Text
+  (`textHtml`). `heuteBriefingGliedern()` in `tagesuebersicht.js` zerlegt ihn nach
+  seinen Marken: `<b>…</b>` = Abschnitt, `•`/`-` = Eintrag, eingerückte Zeile =
+  eigener Eintrag (mit `→` = Zusatz zum vorigen), `Fr 06.11.` = Kalendertag.
+- **Kopf:** Statuschip („Zugestellt 07:00 · Telegram“ `.chip-ok`, „Noch nicht
+  zugestellt“ `.chip-neutral`), darunter eine Zeile 13 px `--muted`
+  (Datum · Ort · Sonne · Mondphase).
+- **Abschnitt:** Titel 13/700 gesperrt `--muted` mit Lucide-Icon 16 px in
+  `--accent`; Einträge als `.list-row.ohne-zeit` (Titel 15/600, Untertitel 12
+  `--muted`), die **umbrechen** statt abgeschnitten zu werden. Reiner Text: 14 px.
+  Höchstens 68ch je Zeile, Ziffern tabellarisch.
+- **Ton:** 🔴 → Punkt `--red`, ⚠️ → Punkt `--on-gold-weak`, rechts in der Zeile.
+- **Keine Emojis** in der Anzeige. „Wetter“ entfällt (Wetter-Karte), Mondauf- und
+  -untergang ebenfalls.
+- **Mobil** die ersten zwei Abschnitte, Rest hinter „Alle Abschnitte“; ab 640 px alles.
+- **Fallback:** Unbekanntes Format → Absätze wie bis CP1-6, ohne Fehler.
+
+| Abschnitt (Titel enthält) | Icon |
+|---|---|
+| Posteingang | `mail` |
+| Kalender, Termine | `calendar` |
+| cc-Aufträge, Aufgaben, Handlungsbedarf | `list-checks` |
+| Banking, Finanzen | `wallet` |
+| Trading | `trending-up` |
+| Reisen | `plane` |
+| NK-Fristen, Immobilien | `building` |
+| Fuhrpark | `car` |
+| Gesundheit | `heart-pulse` |
+| Fristen | `clock` |
+| alles andere („Sonstiges“) | `info` |
 
 ## Alpine
 

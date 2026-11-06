@@ -309,27 +309,44 @@ async function heutePruefen(browser, basis, eigenerHost) {
     await context.close();
   }
 
-  /* Mobil: Briefing Morgen/Abend, „Vollständig lesen", „Alle anzeigen" */
+  /* Mobil: Briefing „Alle Abschnitte" und Morgen/Abend (CP1-7: gegliedert),
+     danach „Alle anzeigen" */
   {
     const { context, page } = await seiteOeffnen(browser, BREITEN[0], eigenerHost);
     await page.goto(start, { waitUntil: 'domcontentloaded' });
     await bereit(page, 'heute');
-    const voll = page.locator('.tu-briefing .hb-voll');
-    if (await voll.count()) {
-      const h1 = await page.evaluate(() => document.querySelector('.tu-briefing .hb-text').getBoundingClientRect().height);
-      await voll.click();
-      const h2 = await page.evaluate(() => document.querySelector('.tu-briefing .hb-text').getBoundingClientRect().height);
-      notiz('Briefing: „Vollständig lesen" klappt auf', h2 > h1, Math.round(h1) + '→' + Math.round(h2) + ' px');
-    } else notiz('Briefing: „Vollständig lesen" klappt auf', null, 'kein Knopf (Text passt in 4 Zeilen)');
-    const text = () => page.evaluate(() => document.querySelector('.tu-briefing .hb-text, .tu-briefing .zustand')?.textContent || '');
-    const vorher = await text();
+    const sichtbareAbschnitte = () => page.evaluate(() =>
+      [...document.querySelectorAll('.tu-briefing .hb-abschnitt')].filter(x => x.offsetParent !== null).length);
+    const alle = page.locator('.tu-briefing .hb-alle');
+    if (await alle.count()) {
+      const n1 = await sichtbareAbschnitte();
+      await alle.click();
+      const n2 = await sichtbareAbschnitte();
+      const gesamt = await page.locator('.tu-briefing .hb-abschnitt').count();
+      notiz('Briefing: „Alle Abschnitte" klappt auf', n1 === 2 && n2 === gesamt && n2 > n1, n1 + '→' + n2 + ' von ' + gesamt + ' Abschnitten');
+    } else {
+      const fallback = await page.locator('.tu-briefing .hb-text').count();
+      notiz('Briefing: „Alle Abschnitte" klappt auf', null, fallback ? 'Fallback-Absätze (Format unbekannt)' : 'höchstens 2 Abschnitte, kein Knopf');
+    }
+    /* Morgen/Abend: Abschnittstitel vergleichen. Ist das andere Briefing heute
+       noch nicht da („Noch nicht zugestellt"), den Vortag wählen. */
+    const titel = () => page.evaluate(() =>
+      [...document.querySelectorAll('.tu-briefing .hb-titel')].map(x => x.textContent).join(' | ')
+      || document.querySelector('.tu-briefing .hb-status, .tu-briefing .zustand')?.textContent || '');
+    const vorher = await titel();
     const andere = await page.evaluate(() => {
       const b = [...document.querySelectorAll('.tu-briefing .segment button')].find(x => x.getAttribute('aria-pressed') !== 'true');
       return b ? b.textContent : null;
     });
     if (andere) await page.locator('.tu-briefing .segment button', { hasText: andere }).click();
-    const nachher = await text();
-    notiz('Briefing: Morgen/Abend wechselt den Text', !!andere && vorher !== nachher, (andere || '—') + ' · ' + vorher.length + '→' + nachher.length + ' Zeichen');
+    if (!(await page.locator('.tu-briefing .hb-abschnitt').count())) {
+      const zweiter = await page.evaluate(() => document.querySelectorAll('.tu-briefing .hb-tag option')[1]?.value || null);
+      if (zweiter) await page.locator('.tu-briefing .hb-tag select').selectOption(zweiter);
+    }
+    const nachher = await titel();
+    const emoji = await page.evaluate(() => /\p{Extended_Pictographic}/u.test(document.querySelector('.tu-briefing').innerText));
+    notiz('Briefing: Morgen/Abend wechselt die Abschnitte, keine Emojis', !!andere && vorher !== nachher && !emoji,
+      (andere || '—') + ' · ' + vorher.slice(0, 60) + ' → ' + nachher.slice(0, 60) + (emoji ? ' · EMOJI' : ''));
 
     await context.close();
 

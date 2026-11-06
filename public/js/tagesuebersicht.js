@@ -488,6 +488,8 @@ let _heuteBriefingWahl = null;   // { art, datum }
 let _heuteBriefingKarte = null;
 
 const HEUTE_BRIEFING_ART = { morgen: 'Morgen', abend: 'Abend' };
+/* Mobil sichtbare Abschnitte; der Rest hinter „Alle Abschnitte". */
+const HEUTE_BRIEFING_MOBIL_ABSCHNITTE = 2;
 
 /* Der gespeicherte Text ist Telegram-HTML: Inhalt maskiert, einzige
    Auszeichnung <b>. Zerlegt in Absätze (Leerzeile) aus Stücken
@@ -531,11 +533,185 @@ function heuteBriefingTextKnoten(absaetze) {
   return box;
 }
 
+/* ── Briefing gegliedert (CP1-7) ──────────────────────────────────────────
+   Der Core speichert nur den fertigen Telegram-Text (Tabelle briefings,
+   Spalte text_html); eine Struktur gibt es dort nicht. Deshalb wird der Text
+   hier nach seinen eigenen Marken zerlegt:
+     <b>…</b>            Rubrik (Abschnittstitel)
+     "• " / "- "         Eintrag
+     eingerückte Zeile   eigener Eintrag (Kalender-Folgetermin, cc-Auftrag)
+                         bzw. mit "→" Zusatz zum vorigen Eintrag (Posteingang)
+     "Fr 06.11.  …"      Kalendertag, gilt für die folgenden Einträge
+   Der erste Abschnitt (Datum, Ort, Sonne, Mond) wird zur Kopfzeile, „Wetter"
+   entfällt (die Wetter-Karte deckt ihn ab). Emojis werden entfernt; 🔴 und
+   ⚠️ werden vorher als Ton des Eintrags festgehalten.
+   Rückgabe null = Format unbekannt → Anzeige wie bisher als Absätze. */
+function heuteBriefingGliedern(textHtml) {
+  const entmaskiert = String(textHtml || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  /* Pictogramme samt Variantenwähler, Verbinder und Hauttönen. Pfeile (→),
+     Aufzählungszeichen und ≤ sind keine Pictogramme und bleiben. */
+  const ohneEmoji = (t) => t.replace(/[\p{Extended_Pictographic}\u{FE0F}\u{200D}\u{1F3FB}-\u{1F3FF}]/gu, '')
+    .replace(/\s+/g, ' ').trim();
+  const zeilen = entmaskiert.split('\n');
+  const rubrik = /^<b>(.*)<\/b>\s*$/;
+  if (!zeilen.some(z => rubrik.test(z))) return null;
+
+  const roh = [];
+  let aktuell = null;
+  for (const z of zeilen) {
+    const m = rubrik.exec(z);
+    if (m) { aktuell = { titelRoh: m[1], zeilen: [] }; roh.push(aktuell); continue; }
+    if (!aktuell) { if (z.trim()) return null; continue; }   // Text vor der ersten Rubrik: unbekannt
+    aktuell.zeilen.push(z);
+  }
+
+  const ergebnis = { kopf: null, abschnitte: [], ausgeblendet: [] };
+
+  /* Kopfabschnitt: Titel mit ausgeschriebenem Datum ("Freitag, 6. November 2026"). */
+  const datumMuster = /(\p{L}+, \d{1,2}\. \p{L}+ \d{4})/u;
+  if (roh.length && datumMuster.test(roh[0].titelRoh)) {
+    const k = roh.shift();
+    const teile = [datumMuster.exec(k.titelRoh)[1]];
+    for (const z of k.zeilen) {
+      const t = z.trim();
+      if (!t) continue;
+      if (t.startsWith('📍')) teile.push(ohneEmoji(t));
+      else if (t.startsWith('☀')) {
+        const s = /Aufgang (\d{1,2}:\d\d).*Untergang (\d{1,2}:\d\d)/.exec(t);
+        teile.push(s ? 'Sonne ' + s[1] + '–' + s[2] : ohneEmoji(t));
+      } else if (/^[\u{1F311}-\u{1F318}]/u.test(t)) teile.push(ohneEmoji(t));   // Mondphase
+      else if (t.startsWith('🌙')) continue;   // Mondauf-/-untergang: nur im Telegram-Text
+      else teile.push(ohneEmoji(t));
+    }
+    ergebnis.kopf = teile.filter(Boolean).join(' · ');
+  }
+
+  const eintrag = (text, tag) => {
+    const ton = /🔴/u.test(text) ? 'rot' : /⚠/u.test(text) ? 'gelb' : '';
+    const t = ohneEmoji(text);
+    let titel = t, sub = '';
+    const zeit = /^(ganztägig|\d{1,2}:\d\d(?:–\d{1,2}:\d\d)?) (.+?)(?: \(([^()]*)\))?$/.exec(t);
+    const frist = /^(.+): ((?:in \d+ Tag(?:en)?|heute|morgen|seit \d+ Tag(?:en)?)\b.*)$/.exec(t);
+    const aktion = t.indexOf(' — Ihre Aktion: ');
+    if (zeit) { titel = zeit[2]; sub = [tag, zeit[1], zeit[3]].filter(Boolean).join(' · '); }
+    else if (aktion > 0) { titel = t.slice(0, aktion); sub = t.slice(aktion + 3); }
+    else if (frist) { titel = frist[1]; sub = frist[2]; }
+    else {
+      /* Erster Doppelpunkt außerhalb von Klammern trennt Bezeichnung und Wert. */
+      let tiefe = 0, stelle = -1;
+      for (let i = 0; i < t.length - 1; i++) {
+        if (t[i] === '(') tiefe++;
+        else if (t[i] === ')') tiefe--;
+        else if (t[i] === ':' && t[i + 1] === ' ' && tiefe === 0) { stelle = i; break; }
+      }
+      const strich = t.indexOf(' — ');
+      if (stelle > 0) { titel = t.slice(0, stelle); sub = t.slice(stelle + 2); }
+      else if (strich > 0) { titel = t.slice(0, strich); sub = t.slice(strich + 3); }
+    }
+    return { titel, sub, ton };
+  };
+
+  const abschnittNeu = (titel) => ({ titel, icon: heuteBriefingIcon(titel), eintraege: [], text: [] });
+
+  for (const r of roh) {
+    const titel = ohneEmoji(r.titelRoh);
+    if (/^Wetter\b/.test(titel)) { ergebnis.ausgeblendet.push(titel); continue; }
+    let a = abschnittNeu(titel);
+    ergebnis.abschnitte.push(a);
+    let tag = '';
+    let nachLeerzeile = false;
+    for (const z of r.zeilen) {
+      if (!z.trim()) { nachLeerzeile = true; continue; }
+      const eingerueckt = /^\s{2,}/.test(z);
+      const t = z.trim();
+      /* Abgesetzte Schlusszeile mit eigenem Symbol (z. B. "🔑 cc-Login: ok")
+         gehört nicht zum Abschnitt davor. */
+      if (nachLeerzeile && !eingerueckt && a.eintraege.length && /^\p{Extended_Pictographic}/u.test(t) && !t.startsWith('⚠')) {
+        a = abschnittNeu('Sonstiges');
+        ergebnis.abschnitte.push(a);
+      }
+      nachLeerzeile = false;
+      const tagZeile = /^(Mo|Di|Mi|Do|Fr|Sa|So) (\d\d\.\d\d\.)\s+(.+)$/.exec(t);
+      if (/^[•-] /.test(t) && !eingerueckt) a.eintraege.push(eintrag(t.slice(2), ''));
+      else if (tagZeile && !eingerueckt) { tag = tagZeile[1] + ' ' + tagZeile[2]; a.eintraege.push(eintrag(tagZeile[3], tag)); }
+      else if (eingerueckt && t.startsWith('→') && a.eintraege.length) {
+        const vorher = a.eintraege[a.eintraege.length - 1];
+        const zusatz = ohneEmoji(t.slice(1));
+        vorher.sub = vorher.sub ? vorher.sub + ' · ' + zusatz : zusatz;
+      } else if (eingerueckt) a.eintraege.push(eintrag(t, tag));
+      else if (t.startsWith('⚠')) a.eintraege.push(eintrag(t, ''));
+      else a.text.push(ohneEmoji(t));
+    }
+  }
+  /* Ein Abschnitt mit Einträgen und einzelnen Textzeilen: die Textzeilen
+     werden ebenfalls Einträge, damit nichts zwischen den Zeilen verloren geht. */
+  for (const a of ergebnis.abschnitte) {
+    if (a.eintraege.length && a.text.length) {
+      a.eintraege.push(...a.text.map(t => eintrag(t, '')));
+      a.text = [];
+    }
+    a.art = a.eintraege.length ? 'liste' : 'text';
+  }
+  ergebnis.abschnitte = ergebnis.abschnitte.filter(a => a.eintraege.length || a.text.length);
+  return ergebnis.abschnitte.length ? ergebnis : null;
+}
+
+/* Abschnitt → Lucide-Symbol (docs/DESIGN.md, „Briefing"). */
+function heuteBriefingIcon(titel) {
+  const t = String(titel || '').toLowerCase();
+  if (/posteingang|mail/.test(t)) return 'mail';
+  if (/kalender|termine/.test(t)) return 'calendar';
+  if (/cc-auftr|aufgaben|handlungsbedarf/.test(t)) return 'list-checks';
+  if (/banking|finanzen|konten/.test(t)) return 'wallet';
+  if (/trading/.test(t)) return 'trending-up';
+  if (/reisen/.test(t)) return 'plane';
+  if (/nk-|immobilien|objekte/.test(t)) return 'building';
+  if (/fuhrpark/.test(t)) return 'car';
+  if (/gesundheit/.test(t)) return 'heart-pulse';
+  if (/fristen/.test(t)) return 'clock';
+  return 'info';
+}
+
+/* Gegliedertes Briefing als DOM, ausschließlich textContent. */
+function heuteBriefingGegliedertKnoten(g) {
+  const box = heuteEl('div', 'hb-inhalt');
+  if (g.kopf) box.appendChild(heuteEl('p', 'hb-kopf', g.kopf));
+  g.abschnitte.forEach((a, i) => {
+    const s = heuteEl('section', 'hb-abschnitt' + (i >= HEUTE_BRIEFING_MOBIL_ABSCHNITTE ? ' hb-ueber' : ''));
+    const h = heuteEl('h3', 'hb-titel');
+    h.append(iconElement(a.icon, 'ic-16'), heuteEl('span', '', a.titel));
+    s.appendChild(h);
+    if (a.art === 'liste') {
+      const ul = heuteEl('ul', 'hb-liste');
+      for (const e of a.eintraege) {
+        const li = heuteEl('li', 'list-row ohne-zeit hb-zeile');
+        const text = heuteEl('span', 'zeile-text');
+        text.appendChild(heuteEl('span', 'zeile-titel', e.titel));
+        if (e.sub) text.appendChild(heuteEl('span', 'zeile-sub', e.sub));
+        li.appendChild(text);
+        if (e.ton) {
+          const p = heuteEl('span', 'tu-punkt hb-punkt-' + e.ton);
+          p.setAttribute('role', 'img');
+          p.setAttribute('aria-label', e.ton === 'rot' ? 'Kritisch' : 'Hinweis');
+          li.appendChild(p);
+        }
+        ul.appendChild(li);
+      }
+      s.appendChild(ul);
+    } else {
+      s.appendChild(heuteEl('p', 'hb-absatz', a.text.join(' ')));
+    }
+    box.appendChild(s);
+  });
+  return box;
+}
+
 function heuteBriefingStatus(b) {
   if (b.status === 'gesendet') {
-    const zeit = b.gesendetAt ? zeitUhr(new Date(b.gesendetAt)) + ' Uhr' : '';
-    const teile = ['Zugestellt ' + zeit, 'Telegram ✓'];
-    if (b.mailOk === true) teile.push('Mail ✓');
+    const zeit = b.gesendetAt ? ' ' + zeitUhr(new Date(b.gesendetAt)) : '';
+    const teile = ['Zugestellt' + zeit, 'Telegram'];
+    if (b.mailOk === true) teile.push('Mail');
     if (b.mailOk === false) teile.push('Mail fehlgeschlagen');
     if (b.versuche > 1) teile.push('nachgeholt');
     return { klasse: 'chip-ok', text: teile.join(' · ') };
@@ -577,13 +753,36 @@ function heuteBriefingInhalt() {
 
   const teile = [];
   const b = wahl ? liste.find(x => x.art === wahl.art && x.datum === wahl.datum) : null;
-  if (!b) {
+  const istHeute = !!wahl && wahl.datum === zeitTagInZone(new Date(), ZEIT_ZONE);
+  if (!b && istHeute) {
+    /* Heute noch nicht dran (z. B. Abendbriefing am Vormittag): kein Fehler. */
+    teile.push(heuteEl('div', 'chip chip-neutral hb-status', 'Noch nicht zugestellt'));
+    teile.push(heuteEl('p', 'hb-kopf', wahl.art === 'abend'
+      ? 'Das Abendbriefing kommt um 21:00 Uhr.' : 'Das Morgenbriefing kommt um 07:00 Uhr.'));
+  } else if (!b) {
     teile.push(heuteHtmlKnoten(zustandBlock('keine_daten', 'Kein Briefing für diesen Tag.',
       { titel: 'Kein ' + (wahl && wahl.art === 'abend' ? 'Abendbriefing' : 'Morgenbriefing') })));
   } else {
     const st = heuteBriefingStatus(b);
     teile.push(heuteEl('div', 'chip ' + st.klasse + ' hb-status', st.text));
-    if (b.textHtml) {
+    let gegliedert = null;
+    try { gegliedert = b.textHtml ? heuteBriefingGliedern(b.textHtml) : null; } catch { gegliedert = null; }
+    if (gegliedert) {
+      const inhalt = heuteBriefingGegliedertKnoten(gegliedert);
+      teile.push(inhalt);
+      if (gegliedert.abschnitte.length > HEUTE_BRIEFING_MOBIL_ABSCHNITTE) {
+        const alle = heuteEl('button', 'btn btn-ghost hb-alle', 'Alle Abschnitte');
+        alle.type = 'button';
+        alle.setAttribute('aria-expanded', 'false');
+        alle.addEventListener('click', () => {
+          const offen = inhalt.classList.toggle('offen');
+          alle.setAttribute('aria-expanded', String(offen));
+          alle.textContent = offen ? 'Weniger anzeigen' : 'Alle Abschnitte';
+        });
+        teile.push(alle);
+      }
+    } else if (b.textHtml) {
+      /* Fallback: unbekanntes Format → Absätze wie bis CP1-6. */
       const text = heuteBriefingTextKnoten(heuteBriefingAbsaetze(b.textHtml));
       teile.push(text);
       const voll = heuteEl('button', 'btn btn-ghost hb-voll', 'Vollständig lesen');

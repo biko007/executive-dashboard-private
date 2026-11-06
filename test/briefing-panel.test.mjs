@@ -55,3 +55,86 @@ test('Tagesübersicht ruft die Briefings ab und zeigt das Panel', () => {
   assert.match(js, /heuteKarte\('tu-briefing', 'Briefing'/);
   assert.match(js, /heuteBriefingBlock\(/);
 });
+
+// ── CP1-7 (06.11.2026): Briefing gegliedert statt Telegram-Text ────────────
+// Fixture: die 13 echten Briefings vom 31.10.–06.11.2026 (7 Morgen, 6 Abend),
+// Mailadressen, Kontensumme und Gewicht maskiert.
+const gliedern = new Function(
+  `${funktion('heuteBriefingGliedern')}\n${funktion('heuteBriefingIcon')}\nreturn heuteBriefingGliedern;`)();
+const echte = JSON.parse(readFileSync(new URL('./fixtures/briefings-20261106.json', import.meta.url), 'utf8'));
+
+const MORGEN = ['Posteingang', 'Kalender', 'Reisen (7 Tage)', 'Offene cc-Aufträge (24 h)', 'Gesundheit',
+  'Fuhrpark — Fristen', 'NK-Fristen (30 Tage)', 'Banking', 'Trading (Paper)'];
+const OHNE_POST = MORGEN.slice(1);
+const ABEND = ['cc-Aufträge heute', 'Termine morgen', 'Fristen (14 Tage)'];
+const ERWARTET = {
+  '2026-11-06 morgen': MORGEN, '2026-11-05 morgen': MORGEN, '2026-11-04 morgen': OHNE_POST,
+  '2026-11-03 morgen': MORGEN, '2026-11-02 morgen': MORGEN, '2026-11-01 morgen': OHNE_POST,
+  '2026-10-31 morgen': MORGEN,
+  '2026-11-05 abend': [...ABEND, 'Sonstiges'], '2026-11-04 abend': [...ABEND, 'Sonstiges'],
+  '2026-11-03 abend': [...ABEND, 'Sonstiges'], '2026-11-02 abend': [...ABEND, 'Sonstiges'],
+  '2026-11-01 abend': ABEND, '2026-10-31 abend': ABEND,
+};
+
+test('die 13 echten Briefings werden in die erwarteten Abschnitte zerlegt', () => {
+  assert.equal(echte.length, 13);
+  for (const b of echte) {
+    const g = gliedern(b.textHtml);
+    const schluessel = b.datum + ' ' + b.art;
+    assert.ok(g, schluessel + ': nicht zerlegt');
+    assert.deepEqual(g.abschnitte.map(a => a.titel), ERWARTET[schluessel], schluessel);
+    // Kein Emoji mehr in irgendeinem angezeigten Text.
+    assert.doesNotMatch(JSON.stringify(g), /\p{Extended_Pictographic}/u, schluessel);
+    // Jeder Abschnitt hat Inhalt und ein Symbol aus dem Sprite.
+    for (const a of g.abschnitte) {
+      assert.ok(a.eintraege.length || a.text.length, schluessel + ' / ' + a.titel + ' leer');
+      assert.match(a.icon, /^(mail|calendar|list-checks|wallet|trending-up|plane|building|car|heart-pulse|clock|info)$/);
+    }
+  }
+});
+
+test('Wetter wird ausgeblendet, Kopfzeile ohne Emojis', () => {
+  const g = gliedern(echte.find(b => b.datum === '2026-11-06' && b.art === 'morgen').textHtml);
+  assert.deepEqual(g.ausgeblendet, ['Wetter — Tuttlingen']);
+  assert.ok(!g.abschnitte.some(a => /Wetter/.test(a.titel)));
+  assert.equal(g.kopf, 'Freitag, 6. November 2026 · Tuttlingen · Sonne 07:17–17:01 · Abnehmende Sichel (9%)');
+  const abend = gliedern(echte.find(b => b.datum === '2026-11-05' && b.art === 'abend').textHtml);
+  assert.equal(abend.kopf, 'Donnerstag, 5. November 2026');
+});
+
+test('Einträge: Kalendertag, Ihre Aktion, Frist und Ton werden erkannt', () => {
+  const g = gliedern(echte.find(b => b.datum === '2026-11-06' && b.art === 'morgen').textHtml);
+  const ab = (t) => g.abschnitte.find(a => a.titel === t);
+  assert.deepEqual(ab('Kalender').eintraege[1], { titel: 'FoTA Mitgliederversammlung', sub: 'Fr 06.11. · 18:00–23:55 · 5,9 Std.', ton: '' });
+  assert.deepEqual(ab('Kalender').eintraege[2], { titel: 'Tausch Soleflüssigkeit', sub: 'Mo 09.11. · ganztägig · 1 Tag', ton: '' });
+  const cc = ab('Offene cc-Aufträge (24 h)').eintraege[0];
+  assert.equal(cc.titel, 'SWT 18213 abgelegt: N24 Reststrom Oktober 2026, Faktor 1 bestätigt');
+  assert.match(cc.sub, /^Ihre Aktion: Wenn die sieben/);
+  assert.deepEqual(ab('NK-Fristen (30 Tage)').eintraege[0],
+    { titel: 'N24 — Doris: Rückmeldung v5 + Rückstandsfragen (wartet auf Antwort)', sub: 'in 1 Tag (07.11.)', ton: '' });
+  assert.deepEqual(ab('Fuhrpark — Fristen').eintraege[0], { titel: 'Tesla Model 3', sub: 'TÜV überfällig seit 9 Tagen', ton: 'rot' });
+  assert.equal(ab('Fuhrpark — Fristen').eintraege[1].ton, 'gelb');
+  // Zusatz "→ Neueste: …" gehört zum Posteingangseintrag davor.
+  assert.match(ab('Posteingang').eintraege[1].sub, /^Neueste: "/);
+  // Maskierte Zeichen aus Telegram-HTML sind wieder Klartext.
+  assert.match(cc.sub + ab('Offene cc-Aufträge (24 h)').eintraege[1].sub, /Performance & Reports > Statements/);
+});
+
+test('unbekanntes Format: null, damit die Absatz-Anzeige greift', () => {
+  assert.equal(gliedern(''), null);
+  assert.equal(gliedern('Nur ein Satz ohne Rubrik.'), null);
+  assert.equal(gliedern('Vorspann vor der Rubrik\n<b>Kalender</b>\n• A'), null);
+  assert.equal(gliedern('<b>🌤 Wetter — X</b>\nJetzt: 2°C'), null);   // nur Wetter → nichts zu zeigen
+  // Die Karte fällt dann auf heuteBriefingAbsaetze zurück, ohne Fehler.
+  const inhalt = funktion('heuteBriefingInhalt');
+  assert.match(inhalt, /try \{ gegliedert = b\.textHtml \? heuteBriefingGliedern\(b\.textHtml\) : null; \} catch/);
+  assert.match(inhalt, /heuteBriefingTextKnoten\(heuteBriefingAbsaetze\(b\.textHtml\)\)/);
+});
+
+test('gegliederte Darstellung setzt Fremdtexte nur per textContent', () => {
+  const knoten = funktion('heuteBriefingGegliedertKnoten');
+  assert.doesNotMatch(knoten, /innerHTML|insertAdjacentHTML|outerHTML/);
+  // Ein Titel mit Markup bleibt Text.
+  const g = gliedern('<b>📆 Kalender</b>\n• &lt;img src=x onerror=alert(1)&gt;');
+  assert.equal(g.abschnitte[0].eintraege[0].titel, '<img src=x onerror=alert(1)>');
+});
