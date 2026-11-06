@@ -84,7 +84,7 @@ check, alert-triangle, refresh-cw, external-link, file-text, pencil, trash-2,
 paperclip, plus, search, x. **Ergänzt** um briefcase, camera, book-open,
 trending-up, plug — damit jeder der 14 Bereiche ein eigenes, eindeutiges Symbol
 hat (Private Equity, Instagram, Wiki, Trading, Status).
-CP1-7: **ergänzt** um mail, list-checks, info, clock für die Briefing-Abschnitte.
+CP1-7: **ergänzt** um mail, list-checks, info, clock für die Briefing-Abschnitte; CP1-8 um cloud (Wetter).
 
 ## Bausteine (`design.css`)
 
@@ -126,10 +126,20 @@ erst in CP2 auf die Bausteine umgestellt.
 In allen Rastern stehen die Karten einer Zeile gleich hoch, Inhalt oben,
 Kartenkopf-Aktion oben rechts: `.tiles-2`, `.tiles-3`, `.entity-grid`,
 `.summary-grid` (`align-items: stretch`, Kinder `height: 100%`) und das
-Heute-Raster. Auf Heute ab 1024 px sind Wetter und Gesundheit **zwei eigene
-Rasterzellen** der rechten Spalte; die Zeilen sind `auto 1fr`. Reicht die
-Höhe von Handlungsbedarf/Termine über beide, wächst nur die Gesundheitskarte
-(Inhalt oben), Wetter behält seine Höhe — alle drei Spalten enden bündig.
+Heute-Raster.
+
+**Heute-Raster seit CP1-8** (keine Wetter-Karte und keine Wetter-Kachel mehr, das
+Wetter steht im Briefing):
+
+| Breite | Zeile 1 | Zeile 2 | Zeile 3 |
+|---|---|---|---|
+| ≥ 1024 px | Handlungsbedarf · Termine · Gesundheit (gleich hoch) | Briefing über alle drei Spalten | Datenquellen (2 Spalten) · Offene Punkte |
+| 640–1023 px | Handlungsbedarf · Termine | Gesundheit (volle Breite), dann Briefing | Datenquellen · Offene Punkte |
+| < 640 px | eine Spalte; Kachel „Nächster Termin“ über die volle Breite | | |
+
+Datenquellen und Offene Punkte stehen mit `align-self: start` in ihrer
+natürlichen Höhe: Gestreckt hätte die kürzere Karte eine leere Fläche.
+`/api/heute/umfeld` wird weiter abgerufen, für den Datenquellen-Chip „Wetter“.
 
 Gesundheit-Tab (Minimalfassung bis CP2, `gesundheitKachelnOrdnen` in
 `index.html`): Kacheln ohne Wert entfallen; Wert 22/800 ohne Umbruch;
@@ -145,27 +155,35 @@ links neben dem Titel statt des früheren 120/180-px-Bildstreifens
 `entityImgHtml`). Ohne Foto ein `--surface-2`-Quadrat mit Icon `plane`.
 Fuhrpark und Immobilien folgen in CP2.
 
-## Briefing auf der Tagesübersicht (CP1-7)
+## Briefing auf der Tagesübersicht (CP1-7, vollständig seit CP1-8)
 
-Das Dashboard zeigt das Morgen- und Abendbriefing **gegliedert**, nicht als
-Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
+Das Dashboard zeigt das Morgen- und Abendbriefing **gegliedert und vollständig**,
+nicht als Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
 
 - **Quelle:** `/api/briefing?tage=7` liefert nur den gespeicherten Telegram-Text
   (`textHtml`). `heuteBriefingGliedern()` in `tagesuebersicht.js` zerlegt ihn nach
   seinen Marken: `<b>…</b>` = Abschnitt, `•`/`-` = Eintrag, eingerückte Zeile =
-  eigener Eintrag (mit `→` = Zusatz zum vorigen), `Fr 06.11.` = Kalendertag.
+  eigener Eintrag (mit `→` = Zusatz zum vorigen), `Fr 06.11.` = Tageskopf.
+- **Vollständigkeit ist Regel:** Jede Zeile des Originals steht in der Karte, in
+  ihrer Reihenfolge. Es entfallen nur Emojis und Trennzeichen, die das Layout
+  ersetzt (Doppelpunkt, Gedankenstrich, Komma nach „Jetzt“, Klammern um die
+  Dauer). Kein Aufklappen, kein `line-clamp`, keine Auslassungspunkte, auf allen
+  Breiten. `briefing-panel.test.mjs` prüft das gegen 13 echte Briefings.
 - **Kopf:** Statuschip („Zugestellt 07:00 · Telegram“ `.chip-ok`, „Noch nicht
-  zugestellt“ `.chip-neutral`), darunter eine Zeile 13 px `--muted`
-  (Datum · Ort · Sonne · Mondphase).
+  zugestellt“ `.chip-neutral`), darunter eine Zeile 13 px `--muted` mit allen
+  Angaben: Datum mit Uhrzeit · Ort · Sonne Aufgang/Untergang · Mondphase · Mond
+  Aufgang/Untergang.
+- **Wetter** (erster Abschnitt): Icon `sun` (sonnig, klar, heiter) oder `cloud`;
+  „Jetzt“ mit Wert 22/800 und Zustand 14 px; je eine Zeile Heute / Morgen /
+  Überm. (Bezeichnung links, Temperaturspanne fett, Wind · Regen · UV als
+  Untertitel); Hinweise wie „Regen ab 19:00“ und die Druckzeile 13 px `--muted`
+  an ihrer Stelle. Werte unverändert aus dem Text.
 - **Abschnitt:** Titel 13/700 gesperrt `--muted` mit Lucide-Icon 16 px in
-  `--accent`; Einträge als `.list-row.ohne-zeit` (Titel 15/600, Untertitel 12
-  `--muted`), die **umbrechen** statt abgeschnitten zu werden. Reiner Text: 14 px.
-  Höchstens 68ch je Zeile, Ziffern tabellarisch.
+  `--accent`; Einträge als `.list-row` (Titel 15/600, Untertitel 12 `--muted`),
+  die umbrechen. Termine mit Zeitspalte (96 px) unter ihrem Tageskopf. Reiner
+  Text: 14 px. Höchstens 68ch je Zeile, Ziffern tabellarisch.
 - **Ton:** 🔴 → Punkt `--red`, ⚠️ → Punkt `--on-gold-weak`, rechts in der Zeile.
-- **Keine Emojis** in der Anzeige. „Wetter“ entfällt (Wetter-Karte), Mondauf- und
-  -untergang ebenfalls.
-- **Mobil** die ersten zwei Abschnitte, Rest hinter „Alle Abschnitte“; ab 640 px alles.
-- **Fallback:** Unbekanntes Format → Absätze wie bis CP1-6, ohne Fehler.
+- **Fallback:** Unbekanntes Format → vollständiger Text als Absätze, ungekürzt.
 
 | Abschnitt (Titel enthält) | Icon |
 |---|---|
@@ -179,6 +197,7 @@ Telegram-Text. Der Telegram-Text selbst bleibt unverändert.
 | Fuhrpark | `car` |
 | Gesundheit | `heart-pulse` |
 | Fristen | `clock` |
+| Wetter | `sun` / `cloud` (nach Zustand) |
 | alles andere („Sonstiges“) | `info` |
 
 ## Alpine

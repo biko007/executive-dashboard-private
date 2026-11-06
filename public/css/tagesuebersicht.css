@@ -57,29 +57,28 @@
 .tu-raster > * { min-width: 0; }
 /* .card trägt im Altbestand padding: 0 (index.html); hier gilt der Baustein. */
 .tu-raster > .card { padding: var(--sp-4); margin: 0; overflow: visible; }
-.tu-wetter { display: none; }
-
 @media (min-width: 640px) {
   .tu-raster > .card { padding: var(--sp-5); }
   .tu-raster {
     grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-5);
-    grid-template-areas: "handlung termine" "wetter gesundheit" "briefing briefing" "quellen quellen" "offen offen";
+    grid-template-areas: "handlung termine" "gesundheit gesundheit" "briefing briefing" "quellen offen";
   }
   .tu-kacheln { display: none; }
-  .tu-wetter { display: block; }
   .tu-handlung { grid-area: handlung; } .tu-termine { grid-area: termine; }
-  .tu-wetter { grid-area: wetter; } .tu-gesundheit { grid-area: gesundheit; }
+  .tu-gesundheit { grid-area: gesundheit; }
+  /* CP1-8: Datenquellen und Offene Punkte haben sehr verschieden viel Inhalt;
+     gestreckt entstünde eine Karte mit leerer Fläche. Sie behalten ihre Höhe. */
+  .tu-quellen, .tu-offen { align-self: start; }
   .tu-briefing { grid-area: briefing; } .tu-quellen { grid-area: quellen; } .tu-offen { grid-area: offen; }
 }
 @media (min-width: 1024px) {
   .tu-raster {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    grid-template-areas: "handlung termine wetter" "handlung termine gesundheit" "briefing briefing quellen" "offen offen offen";
-    /* CP1-5: Wetter und Gesundheit bleiben eigene Rasterzellen. Die zweite
-       Zeile ist 1fr: Sind Handlungsbedarf/Termine höher als beide zusammen,
-       wächst nur Gesundheit (Inhalt oben), Wetter bleibt in seiner Höhe.
-       So enden alle drei Spalten unten bündig. */
-    grid-template-rows: auto 1fr auto auto;
+    /* CP1-8: Die Wetter-Karte ist entfallen (Wetter steht im Briefing).
+       Zeile 1: drei gleich hohe Karten (CP1-5, stretch). Zeile 2: das lange
+       Briefing über die volle Breite, damit daneben keine gestreckte leere
+       Karte steht. Zeile 3: Datenquellen (2 Spalten) und Offene Punkte. */
+    grid-template-areas: "handlung termine gesundheit" "briefing briefing briefing" "quellen quellen offen";
   }
 }
 
@@ -156,20 +155,10 @@
 /* ── Briefing ─────────────────────────────────────────────────────────────── */
 .tu-briefing .card-head { flex-wrap: wrap; }
 .hb-status { margin-bottom: var(--sp-3); white-space: normal; }
-.hb-text {
-  font-size: var(--fs-15); line-height: 1.55; color: var(--text); overflow-wrap: anywhere;
-  /* Mobil 4 Zeilen; „Vollständig lesen" klappt auf. */
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
-}
+.hb-text { font-size: var(--fs-15); line-height: 1.55; color: var(--text); overflow-wrap: anywhere; max-width: 68ch; }
 .hb-text p { margin: 0 0 var(--sp-2); }
 .hb-text p:last-child { margin-bottom: 0; }
-.hb-text.offen { display: block; -webkit-line-clamp: unset; overflow: visible; }
-.hb-voll { margin-top: var(--sp-1); padding-left: 0; }
 .hb-tag { margin: var(--sp-3) 0 0; max-width: 220px; }
-@media (min-width: 640px) {
-  .hb-text { display: block; -webkit-line-clamp: unset; overflow: visible; max-width: 68ch; }
-  .hb-voll { display: none; }
-}
 
 /* Gegliedertes Briefing (CP1-7): Kopfzeile, Abschnitte mit Symbol und
    Eintragszeilen. Zahlen und Zeiten tabellarisch, damit sie untereinander
@@ -186,29 +175,24 @@
 .hb-liste { list-style: none; margin: 0; padding: 0; }
 .hb-zeile { align-items: center; }
 .hb-zeile .zeile-titel { font-size: var(--fs-15); font-weight: 600; }
-.hb-zeile .zeile-titel, .hb-zeile .zeile-sub { white-space: normal; overflow-wrap: anywhere; max-width: 68ch; }
+/* Der Baustein .list-row kürzt mit ellipsis; im Briefing wird nie gekürzt (CP1-8). */
+.hb-zeile .zeile-titel, .hb-zeile .zeile-sub {
+  white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; max-width: 68ch;
+}
 .hb-punkt-rot  { background: var(--red); }
 .hb-punkt-gelb { background: var(--on-gold-weak); }
 .hb-absatz { margin: 0; font-size: var(--fs-14); line-height: 1.55; max-width: 68ch; }
-.hb-alle { margin-top: var(--sp-2); padding-left: 0; }
-/* Mobil die ersten zwei Abschnitte, der Rest hinter „Alle Abschnitte". */
-@media (max-width: 639.98px) {
-  .hb-inhalt:not(.offen) .hb-ueber { display: none; }
+.hb-tagkopf {
+  list-style: none; padding: var(--sp-2) 0 0; font-size: var(--fs-12); font-weight: 700; color: var(--text-soft);
 }
-@media (min-width: 640px) {
-  .hb-alle { display: none; }
-}
-
-/* ── Wetter ───────────────────────────────────────────────────────────────── */
-.tu-wetter-zeile { display: flex; align-items: center; gap: var(--sp-3); }
-.tu-wetter-symbol {
-  width: 48px; height: 48px; flex: 0 0 48px; border-radius: var(--r-inner);
-  background: var(--gold-weak); color: var(--on-gold-weak); display: inline-flex; align-items: center; justify-content: center;
-}
-.tu-wetter-werte { min-width: 0; }
-.tu-wetter-grad { font-size: var(--fs-26); font-weight: 800; line-height: 1.1; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.tu-wetter-ort { font-size: var(--fs-14); color: var(--text-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tu-wetter-tage { margin-top: var(--sp-3); font-size: var(--fs-13); color: var(--text-soft); }
+.hb-zeile.mit-zeit { grid-template-columns: 96px minmax(0, 1fr) auto; }
+.hb-zeit { font-size: var(--fs-14); font-weight: 700; color: var(--text); white-space: nowrap; }
+/* Wetter im Briefing (CP1-8): Kennzahl, Tageszeilen, Hinweise. */
+.hb-jetzt { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--sp-2); margin: 0 0 var(--sp-1); }
+.hb-jetzt-label { font-size: var(--fs-13); color: var(--muted); }
+.hb-jetzt-wert { font-size: var(--fs-22); font-weight: 800; color: var(--text); }
+.hb-jetzt-zustand { font-size: var(--fs-14); color: var(--text-soft); }
+.hb-notiz { margin: var(--sp-1) 0 0; font-size: var(--fs-13); color: var(--muted); }
 
 /* ── Datenquellen ─────────────────────────────────────────────────────────── */
 .tu-quelle-ok::before { background: var(--green); }

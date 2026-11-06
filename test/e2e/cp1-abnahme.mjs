@@ -148,7 +148,14 @@ async function zusatzPruefen(page, tab, breite) {
     return page.evaluate(() => {
       const unten = ['.tu-handlung', '.tu-termine', '.tu-gesundheit']
         .map(sel => Math.round(document.querySelector(sel).getBoundingClientRect().bottom));
-      return { name: 'Heute: erste Rasterzeile unten bündig', ok: Math.max(...unten) - Math.min(...unten) <= 2, detail: unten.join('/') };
+      /* CP1-8: Briefing über die volle Breite, Datenquellen und Offene
+         Punkte gemeinsam darunter, keine Wetter-Karte mehr. */
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      const b = r('.tu-briefing'), raster = r('.tu-raster'), q = r('.tu-quellen'), o = r('.tu-offen');
+      const raster_ok = Math.abs(b.width - raster.width) <= 2 && Math.abs(q.top - o.top) <= 2 && q.top > b.bottom
+        && !document.querySelector('.tu-wetter');
+      return { name: 'Heute: erste Rasterzeile unten bündig, Briefing volle Breite', ok: Math.max(...unten) - Math.min(...unten) <= 2 && raster_ok,
+        detail: unten.join('/') + ' · Briefing ' + Math.round(b.width) + '/' + Math.round(raster.width) + ' px · Quellen/Offen oben ' + Math.round(q.top) + '/' + Math.round(o.top) };
     });
   }
   if (tab === 'health') {
@@ -309,25 +316,25 @@ async function heutePruefen(browser, basis, eigenerHost) {
     await context.close();
   }
 
-  /* Mobil: Briefing „Alle Abschnitte" und Morgen/Abend (CP1-7: gegliedert),
-     danach „Alle anzeigen" */
+  /* Mobil: Briefing vollständig und Morgen/Abend (CP1-8), danach „Alle anzeigen" */
   {
     const { context, page } = await seiteOeffnen(browser, BREITEN[0], eigenerHost);
     await page.goto(start, { waitUntil: 'domcontentloaded' });
     await bereit(page, 'heute');
-    const sichtbareAbschnitte = () => page.evaluate(() =>
-      [...document.querySelectorAll('.tu-briefing .hb-abschnitt')].filter(x => x.offsetParent !== null).length);
-    const alle = page.locator('.tu-briefing .hb-alle');
-    if (await alle.count()) {
-      const n1 = await sichtbareAbschnitte();
-      await alle.click();
-      const n2 = await sichtbareAbschnitte();
-      const gesamt = await page.locator('.tu-briefing .hb-abschnitt').count();
-      notiz('Briefing: „Alle Abschnitte" klappt auf', n1 === 2 && n2 === gesamt && n2 > n1, n1 + '→' + n2 + ' von ' + gesamt + ' Abschnitten');
-    } else {
-      const fallback = await page.locator('.tu-briefing .hb-text').count();
-      notiz('Briefing: „Alle Abschnitte" klappt auf', null, fallback ? 'Fallback-Absätze (Format unbekannt)' : 'höchstens 2 Abschnitte, kein Knopf');
-    }
+    /* CP1-8: nichts gekürzt — jeder Abschnitt sichtbar, keine Zeile
+       abgeschnitten, kein Aufklappknopf, keine Wetter-Kachel. */
+    const voll = await page.evaluate(() => {
+      const karte = document.querySelector('.tu-briefing');
+      const abschnitte = [...karte.querySelectorAll('.hb-abschnitt')];
+      const versteckt = abschnitte.filter(x => x.offsetParent === null).length;
+      const abgeschnitten = [...karte.querySelectorAll('.zeile-titel, .zeile-sub, .hb-absatz, .hb-kopf, .hb-text p')]
+        .filter(x => x.scrollWidth > x.clientWidth + 1 || x.scrollHeight > x.clientHeight + 1 || getComputedStyle(x).textOverflow === 'ellipsis').length;
+      const knopf = karte.querySelectorAll('.hb-alle, .hb-voll').length;
+      return { n: abschnitte.length, versteckt, abgeschnitten, knopf, wetter: !!karte.querySelector('.hb-wetter'),
+        kachel: !!document.querySelector('.tu-kachel-ort') };
+    });
+    notiz('Briefing: alle Abschnitte sichtbar, nichts abgeschnitten', voll.n > 0 && !voll.versteckt && !voll.abgeschnitten && !voll.knopf && !voll.kachel,
+      JSON.stringify(voll));
     /* Morgen/Abend: Abschnittstitel vergleichen. Ist das andere Briefing heute
        noch nicht da („Noch nicht zugestellt"), den Vortag wählen. */
     const titel = () => page.evaluate(() =>

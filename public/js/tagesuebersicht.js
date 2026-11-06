@@ -371,8 +371,7 @@ function heuteTileSetzen(t, wert, sub, opt) {
   if (o.titel) t.title = o.titel; else t.removeAttribute('title');
 }
 
-function heuteKachelnFuellen(kacheln, kalender, umfeld) {
-  const [tTermin, tOrt] = kacheln;
+function heuteKachelnFuellen(tTermin, kalender) {
   if (!Array.isArray(kalender)) {
     heuteTileSetzen(tTermin, '—', 'Kalender', { titel: 'Quelle nicht erreichbar' });
   } else {
@@ -387,15 +386,6 @@ function heuteKachelnFuellen(kacheln, kalender, umfeld) {
       heuteTileSetzen(tTermin, zeitUhr(n.start),
         [tag === heute ? '' : heuteWochentag(tag), bis, n.ev.subject || '(kein Titel)'].filter(Boolean).join(' · '));
     }
-  }
-  const ort = umfeld && umfeld.ort && umfeld.ort.label ? umfeld.ort.label : 'Wetter';
-  tOrt.querySelector('.tile-label span').textContent = ort;
-  const w = umfeld && umfeld.wetter;
-  if (!w || w.jetzt_grad == null) {
-    heuteTileSetzen(tOrt, '—', '', { titel: 'Quelle nicht erreichbar' });
-  } else {
-    const sonne = umfeld.astro && umfeld.astro.sonnenuntergang ? ' · Sonne bis ' + umfeld.astro.sonnenuntergang : '';
-    heuteTileSetzen(tOrt, w.jetzt_grad + ' °C', (w.jetzt_text || '') + sonne);
   }
 }
 
@@ -488,8 +478,6 @@ let _heuteBriefingWahl = null;   // { art, datum }
 let _heuteBriefingKarte = null;
 
 const HEUTE_BRIEFING_ART = { morgen: 'Morgen', abend: 'Abend' };
-/* Mobil sichtbare Abschnitte; der Rest hinter „Alle Abschnitte". */
-const HEUTE_BRIEFING_MOBIL_ABSCHNITTE = 2;
 
 /* Der gespeicherte Text ist Telegram-HTML: Inhalt maskiert, einzige
    Auszeichnung <b>. Zerlegt in Absätze (Leerzeile) aus Stücken
@@ -533,7 +521,7 @@ function heuteBriefingTextKnoten(absaetze) {
   return box;
 }
 
-/* ── Briefing gegliedert (CP1-7) ──────────────────────────────────────────
+/* ── Briefing gegliedert (CP1-7, vollständig seit CP1-8) ───────────────────
    Der Core speichert nur den fertigen Telegram-Text (Tabelle briefings,
    Spalte text_html); eine Struktur gibt es dort nicht. Deshalb wird der Text
    hier nach seinen eigenen Marken zerlegt:
@@ -541,11 +529,15 @@ function heuteBriefingTextKnoten(absaetze) {
      "• " / "- "         Eintrag
      eingerückte Zeile   eigener Eintrag (Kalender-Folgetermin, cc-Auftrag)
                          bzw. mit "→" Zusatz zum vorigen Eintrag (Posteingang)
-     "Fr 06.11.  …"      Kalendertag, gilt für die folgenden Einträge
+     "Fr 06.11.  …"      Kalendertag, steht als Tageskopf über seinen Terminen
    Der erste Abschnitt (Datum, Ort, Sonne, Mond) wird zur Kopfzeile, „Wetter"
-   entfällt (die Wetter-Karte deckt ihn ab). Emojis werden entfernt; 🔴 und
-   ⚠️ werden vorher als Ton des Eintrags festgehalten.
-   Rückgabe null = Format unbekannt → Anzeige wie bisher als Absätze. */
+   bekommt eine eigene Form (Kennzahl, drei Tageszeilen, Druck).
+   VOLLSTÄNDIGKEIT (CP1-8): Jede Zeile des Originals erscheint in der Karte,
+   in ihrer Reihenfolge; es entfallen nur Emojis und Trennzeichen, die das
+   Layout ersetzt (Doppelpunkt, Gedankenstrich, Klammern um die Dauer).
+   briefing-panel.test.mjs prüft das gegen 13 echte Briefings.
+   Emojis werden entfernt; 🔴 und ⚠️ werden vorher als Ton festgehalten.
+   Rückgabe null = Format unbekannt → vollständiger Text als Absätze. */
 function heuteBriefingGliedern(textHtml) {
   const entmaskiert = String(textHtml || '').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"').replace(/&amp;/g, '&');
@@ -566,37 +558,33 @@ function heuteBriefingGliedern(textHtml) {
     aktuell.zeilen.push(z);
   }
 
-  const ergebnis = { kopf: null, abschnitte: [], ausgeblendet: [] };
+  const ergebnis = { kopf: null, abschnitte: [] };
 
-  /* Kopfabschnitt: Titel mit ausgeschriebenem Datum ("Freitag, 6. November 2026"). */
-  const datumMuster = /(\p{L}+, \d{1,2}\. \p{L}+ \d{4})/u;
-  if (roh.length && datumMuster.test(roh[0].titelRoh)) {
+  /* Kopfabschnitt: Titel mit ausgeschriebenem Datum ("Freitag, 6. November 2026"),
+     vollständig: Titelzeile, Ort, Sonne, Mondphase, Mond. */
+  if (roh.length && /\p{L}+, \d{1,2}\. \p{L}+ \d{4}/u.test(roh[0].titelRoh)) {
     const k = roh.shift();
-    const teile = [datumMuster.exec(k.titelRoh)[1]];
+    const teile = [ohneEmoji(k.titelRoh)];
     for (const z of k.zeilen) {
       const t = z.trim();
       if (!t) continue;
-      if (t.startsWith('📍')) teile.push(ohneEmoji(t));
-      else if (t.startsWith('☀')) {
-        const s = /Aufgang (\d{1,2}:\d\d).*Untergang (\d{1,2}:\d\d)/.exec(t);
-        teile.push(s ? 'Sonne ' + s[1] + '–' + s[2] : ohneEmoji(t));
-      } else if (/^[\u{1F311}-\u{1F318}]/u.test(t)) teile.push(ohneEmoji(t));   // Mondphase
-      else if (t.startsWith('🌙')) continue;   // Mondauf-/-untergang: nur im Telegram-Text
+      if (t.startsWith('☀')) teile.push('Sonne ' + ohneEmoji(t).replace(/ • /g, ' · '));
+      else if (t.startsWith('🌙')) teile.push('Mond ' + ohneEmoji(t));
       else teile.push(ohneEmoji(t));
     }
-    ergebnis.kopf = teile.filter(Boolean).join(' · ');
+    ergebnis.kopf = teile.filter(Boolean);
   }
 
   const eintrag = (text, tag) => {
     const ton = /🔴/u.test(text) ? 'rot' : /⚠/u.test(text) ? 'gelb' : '';
     const t = ohneEmoji(text);
-    let titel = t, sub = '';
+    const e = { tag: tag || '', zeit: '', titel: t, sub: '', ton };
     const zeit = /^(ganztägig|\d{1,2}:\d\d(?:–\d{1,2}:\d\d)?) (.+?)(?: \(([^()]*)\))?$/.exec(t);
     const frist = /^(.+): ((?:in \d+ Tag(?:en)?|heute|morgen|seit \d+ Tag(?:en)?)\b.*)$/.exec(t);
     const aktion = t.indexOf(' — Ihre Aktion: ');
-    if (zeit) { titel = zeit[2]; sub = [tag, zeit[1], zeit[3]].filter(Boolean).join(' · '); }
-    else if (aktion > 0) { titel = t.slice(0, aktion); sub = t.slice(aktion + 3); }
-    else if (frist) { titel = frist[1]; sub = frist[2]; }
+    if (zeit) { e.zeit = zeit[1]; e.titel = zeit[2]; e.sub = zeit[3] || ''; }
+    else if (aktion > 0) { e.titel = t.slice(0, aktion); e.sub = t.slice(aktion + 3); }
+    else if (frist) { e.titel = frist[1]; e.sub = frist[2]; }
     else {
       /* Erster Doppelpunkt außerhalb von Klammern trennt Bezeichnung und Wert. */
       let tiefe = 0, stelle = -1;
@@ -606,17 +594,20 @@ function heuteBriefingGliedern(textHtml) {
         else if (t[i] === ':' && t[i + 1] === ' ' && tiefe === 0) { stelle = i; break; }
       }
       const strich = t.indexOf(' — ');
-      if (stelle > 0) { titel = t.slice(0, stelle); sub = t.slice(stelle + 2); }
-      else if (strich > 0) { titel = t.slice(0, strich); sub = t.slice(strich + 3); }
+      if (stelle > 0) { e.titel = t.slice(0, stelle); e.sub = t.slice(stelle + 2); }
+      else if (strich > 0) { e.titel = t.slice(0, strich); e.sub = t.slice(strich + 3); }
     }
-    return { titel, sub, ton };
+    return e;
   };
 
-  const abschnittNeu = (titel) => ({ titel, icon: heuteBriefingIcon(titel), eintraege: [], text: [] });
+  const abschnittNeu = (titel) => ({ titel, icon: heuteBriefingIcon(titel), art: 'liste', eintraege: [], text: [] });
 
   for (const r of roh) {
     const titel = ohneEmoji(r.titelRoh);
-    if (/^Wetter\b/.test(titel)) { ergebnis.ausgeblendet.push(titel); continue; }
+    if (/^Wetter\b/.test(titel)) {
+      const w = heuteBriefingWetter(titel, r.zeilen, ohneEmoji);
+      if (w) { ergebnis.abschnitte.push(w); continue; }
+    }
     let a = abschnittNeu(titel);
     ergebnis.abschnitte.push(a);
     let tag = '';
@@ -637,9 +628,9 @@ function heuteBriefingGliedern(textHtml) {
       else if (tagZeile && !eingerueckt) { tag = tagZeile[1] + ' ' + tagZeile[2]; a.eintraege.push(eintrag(tagZeile[3], tag)); }
       else if (eingerueckt && t.startsWith('→') && a.eintraege.length) {
         const vorher = a.eintraege[a.eintraege.length - 1];
-        const zusatz = ohneEmoji(t.slice(1));
+        const zusatz = ohneEmoji(t);
         vorher.sub = vorher.sub ? vorher.sub + ' · ' + zusatz : zusatz;
-      } else if (eingerueckt) a.eintraege.push(eintrag(t, tag));
+      } else if (eingerueckt) a.eintraege.push(eintrag(t, ''));
       else if (t.startsWith('⚠')) a.eintraege.push(eintrag(t, ''));
       else a.text.push(ohneEmoji(t));
     }
@@ -647,14 +638,36 @@ function heuteBriefingGliedern(textHtml) {
   /* Ein Abschnitt mit Einträgen und einzelnen Textzeilen: die Textzeilen
      werden ebenfalls Einträge, damit nichts zwischen den Zeilen verloren geht. */
   for (const a of ergebnis.abschnitte) {
+    if (a.art === 'wetter') continue;
     if (a.eintraege.length && a.text.length) {
       a.eintraege.push(...a.text.map(t => eintrag(t, '')));
       a.text = [];
     }
     a.art = a.eintraege.length ? 'liste' : 'text';
   }
-  ergebnis.abschnitte = ergebnis.abschnitte.filter(a => a.eintraege.length || a.text.length);
+  ergebnis.abschnitte = ergebnis.abschnitte.filter(a => a.art === 'wetter' || a.eintraege.length || a.text.length);
   return ergebnis.abschnitte.length ? ergebnis : null;
+}
+
+/* Wetter-Abschnitt: "Jetzt: 2°C, Nebel" als Kennzahl, "Heute/Morgen/Überm.: …"
+   als Tageszeilen, alles Übrige (Regenhinweis, Druck) als Textzeile an seiner
+   Stelle. Werte unverändert aus dem Text, nur Leerzeichen vor Einheiten.
+   null, wenn weder Kennzahl noch Tageszeile erkannt wird. */
+function heuteBriefingWetter(titel, zeilen, ohneEmoji) {
+  const einheit = (t) => t.replace(/(\d)(°C|mm|hPa)/g, '$1 $2');
+  const w = { titel, icon: 'cloud', art: 'wetter', jetzt: null, vor: [], tage: [], nach: [] };
+  for (const z of zeilen) {
+    const t = ohneEmoji(z);
+    if (!t) continue;
+    const jetzt = /^Jetzt: ([^,]+?)(?:, (.+))?$/.exec(t);
+    const tagZ = /^(Heute|Morgen|Überm\.|Übermorgen): (.+?) · (.+)$/.exec(t);
+    if (jetzt && !w.jetzt) {
+      w.jetzt = { wert: einheit(jetzt[1]), zustand: jetzt[2] || '' };
+      if (/sonnig|klar|heiter/i.test(jetzt[2] || '')) w.icon = 'sun';
+    } else if (tagZ) w.tage.push({ label: tagZ[1], wert: einheit(tagZ[2]), sub: einheit(tagZ[3]) });
+    else (w.tage.length ? w.nach : w.vor).push(einheit(t));
+  }
+  return w.jetzt || w.tage.length ? w : null;
 }
 
 /* Abschnitt → Lucide-Symbol (docs/DESIGN.md, „Briefing"). */
@@ -673,19 +686,43 @@ function heuteBriefingIcon(titel) {
   return 'info';
 }
 
-/* Gegliedertes Briefing als DOM, ausschließlich textContent. */
+/* Gegliedertes Briefing als DOM, ausschließlich textContent. Nichts wird
+   gekürzt oder ausgeblendet (CP1-8). */
 function heuteBriefingGegliedertKnoten(g) {
   const box = heuteEl('div', 'hb-inhalt');
-  if (g.kopf) box.appendChild(heuteEl('p', 'hb-kopf', g.kopf));
-  g.abschnitte.forEach((a, i) => {
-    const s = heuteEl('section', 'hb-abschnitt' + (i >= HEUTE_BRIEFING_MOBIL_ABSCHNITTE ? ' hb-ueber' : ''));
+  if (g.kopf) box.appendChild(heuteEl('p', 'hb-kopf', g.kopf.join(' · ')));
+  for (const a of g.abschnitte) {
+    const s = heuteEl('section', 'hb-abschnitt' + (a.art === 'wetter' ? ' hb-wetter' : ''));
     const h = heuteEl('h3', 'hb-titel');
     h.append(iconElement(a.icon, 'ic-16'), heuteEl('span', '', a.titel));
     s.appendChild(h);
-    if (a.art === 'liste') {
+    if (a.art === 'wetter') {
+      if (a.jetzt) {
+        const j = heuteEl('p', 'hb-jetzt');
+        j.append(heuteEl('span', 'hb-jetzt-label', 'Jetzt'), heuteEl('span', 'hb-jetzt-wert', a.jetzt.wert));
+        if (a.jetzt.zustand) j.appendChild(heuteEl('span', 'hb-jetzt-zustand', a.jetzt.zustand));
+        s.appendChild(j);
+      }
+      for (const t of a.vor) s.appendChild(heuteEl('p', 'hb-notiz', t));
+      if (a.tage.length) {
+        const ul = heuteEl('ul', 'hb-liste');
+        for (const d of a.tage) {
+          const li = heuteEl('li', 'list-row hb-zeile mit-zeit');
+          li.appendChild(heuteEl('span', 'hb-zeit', d.label));
+          const text = heuteEl('span', 'zeile-text');
+          text.append(heuteEl('span', 'zeile-titel', d.wert), heuteEl('span', 'zeile-sub', d.sub));
+          li.appendChild(text);
+          ul.appendChild(li);
+        }
+        s.appendChild(ul);
+      }
+      for (const t of a.nach) s.appendChild(heuteEl('p', 'hb-notiz', t));
+    } else if (a.art === 'liste') {
       const ul = heuteEl('ul', 'hb-liste');
       for (const e of a.eintraege) {
-        const li = heuteEl('li', 'list-row ohne-zeit hb-zeile');
+        if (e.tag) ul.appendChild(heuteEl('li', 'hb-tagkopf', e.tag));
+        const li = heuteEl('li', 'list-row hb-zeile' + (e.zeit ? ' mit-zeit' : ' ohne-zeit'));
+        if (e.zeit) li.appendChild(heuteEl('span', 'hb-zeit', e.zeit));
         const text = heuteEl('span', 'zeile-text');
         text.appendChild(heuteEl('span', 'zeile-titel', e.titel));
         if (e.sub) text.appendChild(heuteEl('span', 'zeile-sub', e.sub));
@@ -703,7 +740,7 @@ function heuteBriefingGegliedertKnoten(g) {
       s.appendChild(heuteEl('p', 'hb-absatz', a.text.join(' ')));
     }
     box.appendChild(s);
-  });
+  }
   return box;
 }
 
@@ -767,34 +804,9 @@ function heuteBriefingInhalt() {
     teile.push(heuteEl('div', 'chip ' + st.klasse + ' hb-status', st.text));
     let gegliedert = null;
     try { gegliedert = b.textHtml ? heuteBriefingGliedern(b.textHtml) : null; } catch { gegliedert = null; }
-    if (gegliedert) {
-      const inhalt = heuteBriefingGegliedertKnoten(gegliedert);
-      teile.push(inhalt);
-      if (gegliedert.abschnitte.length > HEUTE_BRIEFING_MOBIL_ABSCHNITTE) {
-        const alle = heuteEl('button', 'btn btn-ghost hb-alle', 'Alle Abschnitte');
-        alle.type = 'button';
-        alle.setAttribute('aria-expanded', 'false');
-        alle.addEventListener('click', () => {
-          const offen = inhalt.classList.toggle('offen');
-          alle.setAttribute('aria-expanded', String(offen));
-          alle.textContent = offen ? 'Weniger anzeigen' : 'Alle Abschnitte';
-        });
-        teile.push(alle);
-      }
-    } else if (b.textHtml) {
-      /* Fallback: unbekanntes Format → Absätze wie bis CP1-6. */
-      const text = heuteBriefingTextKnoten(heuteBriefingAbsaetze(b.textHtml));
-      teile.push(text);
-      const voll = heuteEl('button', 'btn btn-ghost hb-voll', 'Vollständig lesen');
-      voll.type = 'button';
-      voll.setAttribute('aria-expanded', 'false');
-      voll.addEventListener('click', () => {
-        const offen = text.classList.toggle('offen');
-        voll.setAttribute('aria-expanded', String(offen));
-        voll.textContent = offen ? 'Weniger anzeigen' : 'Vollständig lesen';
-      });
-      teile.push(voll);
-    }
+    /* CP1-8: vollständig, ohne Aufklappen — gegliedert oder als Absätze. */
+    if (gegliedert) teile.push(heuteBriefingGegliedertKnoten(gegliedert));
+    else if (b.textHtml) teile.push(heuteBriefingTextKnoten(heuteBriefingAbsaetze(b.textHtml)));
   }
 
   /* Tagesauswahl unter dem Text */
@@ -814,10 +826,6 @@ function heuteBriefingInhalt() {
   teile.push(feld);
 
   heuteFuellen(k.koerper, ...teile);
-  /* „Vollständig lesen" nur zeigen, wenn die Kürzung greift (mobil 4 Zeilen). */
-  const text = k.koerper.querySelector('.hb-text');
-  const voll = k.koerper.querySelector('.hb-voll');
-  if (text && voll) voll.hidden = text.scrollHeight <= text.clientHeight + 2;
 }
 
 function heuteBriefingBlock(k, liste) {
@@ -840,39 +848,6 @@ function heuteBriefingWaehle(art, datum) {
   if (!_heuteBriefingWahl) return;
   _heuteBriefingWahl = { art: art || _heuteBriefingWahl.art, datum: datum || _heuteBriefingWahl.datum };
   heuteBriefingInhalt();
-}
-
-/* ── Wetter (ab 640 px) ───────────────────────────────────────────────────── */
-
-function heuteWetterFuellen(k, u) {
-  const w = u && u.wetter;
-  const a = u && u.astro;
-  const ort = u && u.ort && u.ort.label ? u.ort.label : 'Standort unbekannt';
-  const zeile = heuteEl('div', 'tu-wetter-zeile');
-  const tag = a && a.sonnenaufgang && a.sonnenuntergang
-    ? (() => { const jetzt = zeitUhr(new Date()); return jetzt >= a.sonnenaufgang && jetzt < a.sonnenuntergang; })()
-    : heuteStunde() >= 7 && heuteStunde() < 18;
-  const symbol = heuteEl('span', 'tu-wetter-symbol');
-  symbol.appendChild(iconElement(tag ? 'sun' : 'moon'));
-  const werte = heuteEl('div', 'tu-wetter-werte');
-  if (!w || w.jetzt_grad == null) {
-    const grad = heuteEl('div', 'tu-wetter-grad wert-fehlt', '—');
-    grad.title = 'Quelle nicht erreichbar';
-    werte.append(grad, heuteEl('div', 'tu-wetter-ort', ort));
-  } else {
-    werte.append(heuteEl('div', 'tu-wetter-grad', w.jetzt_grad + ' °C'),
-      heuteEl('div', 'tu-wetter-ort', ort + ' · ' + (w.jetzt_text || '')));
-  }
-  zeile.append(symbol, werte);
-  const teile = [zeile];
-  if (w && Array.isArray(w.tage) && w.tage.length) {
-    const namen = ['Heute', 'Morgen'];
-    const tageText = w.tage.slice(0, 3).map((t, i) => (namen[i] || heuteWochentag(t.datum))
-      + ' ' + (t.min != null && t.max != null ? t.min + '–' + t.max + '°' : '—')).join(' · ');
-    const sonne = a && a.sonnenaufgang ? 'Sonne ' + a.sonnenaufgang + '–' + (a.sonnenuntergang || '–') + ' · ' : '';
-    teile.push(heuteEl('div', 'tu-wetter-tage', sonne + tageText));
-  }
-  heuteFuellen(k.koerper, ...teile);
 }
 
 /* ── Datenquellen ─────────────────────────────────────────────────────────── */
@@ -970,12 +945,10 @@ async function loadHeute() {
   const raster = heuteEl('div', 'tu-raster');
   const kH = heuteKarte('tu-handlung', 'Handlungsbedarf', { navy: true, gesperrt: true });
   kH.koerper.appendChild(heuteSkelett('skeleton-zeile', 3));
-  const kacheln = heuteEl('div', 'tiles-2 tu-kacheln');
+  /* CP1-8: nur noch „Nächster Termin" (volle Breite); das Wetter steht im Briefing. */
+  const kacheln = heuteEl('div', 'tu-kacheln');
   const tTermin = heuteTile('tu-kachel-termin', 'Nächster Termin', 'calendar');
-  const tOrt = heuteTile('tu-kachel-ort', 'Wetter', 'sun');
-  kacheln.append(tTermin, tOrt);
-  const kW = heuteKarte('tu-wetter', 'Wetter');
-  kW.koerper.appendChild(heuteSkelett('skeleton-wert'));
+  kacheln.append(tTermin);
   const kG = heuteKarte('tu-gesundheit', 'Gesundheit', { ziel: 'health', zielText: 'Details' });
   const skG = heuteEl('div', 'tiles-3');
   for (let i = 0; i < 3; i++) skG.appendChild(heuteSkelett('skeleton-kachel'));
@@ -988,7 +961,7 @@ async function loadHeute() {
   kQ.koerper.appendChild(heuteSkelett('skeleton-chip', 4));
   const kO = heuteKarte('tu-offen', 'Offene Punkte');
   kO.koerper.appendChild(heuteSkelett('skeleton-zeile', 2));
-  raster.append(kH.karte, kacheln, kW.karte, kG.karte, kT.karte, kB.karte, kQ.karte, kO.karte);
+  raster.append(kH.karte, kacheln, kG.karte, kT.karte, kB.karte, kQ.karte, kO.karte);
   c.replaceChildren(raster);
 
   /* 2. Abrufe — unverändert seit P2-5. */
@@ -1026,8 +999,7 @@ async function loadHeute() {
   if (!Array.isArray(alerts)) fehlend.push('Gesundheitswarnungen');
   if (!Array.isArray(fahrzeuge)) fehlend.push('TÜV-Fristen');
   const n = heuteHandlungFuellen(kH, [...heutePostenGesundheit(alerts), ...heutePostenFahrzeuge(fahrzeuge)], fehlend);
-  heuteKachelnFuellen([tTermin, tOrt], kalender, umfeld);
-  heuteWetterFuellen(kW, umfeld);
+  heuteKachelnFuellen(tTermin, kalender);
   heuteGesundheitFuellen(kG, health);
   heuteTermineFuellen(kT, kalender);
   heuteBriefingBlock(kB, briefing && briefing.briefings);
