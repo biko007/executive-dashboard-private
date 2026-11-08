@@ -406,6 +406,49 @@ async function heutePruefen(browser, basis, eigenerHost) {
    Prüft Bereitschaft, Sichtbarkeit, Sonne nur tags, Sterne nur nachts,
    Konsole, Überbreite und den Kontrast der Legende gegen den tatsächlichen
    Verlaufston an ihrer Stelle (gleiche Formel wie kontrast-pruefen.mjs). */
+/* Messung des Tagesbogens im Browser (CP1-9, erweitert CP1-10). */
+async function tbMessen(page) {
+  return page.evaluate(() => {
+      const tb = document.querySelector('.tu-briefing .tb');
+      const sichtbar = (el) => !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
+      const wurzel = getComputedStyle(document.documentElement);
+      const hex = (n) => wurzel.getPropertyValue(n).trim();
+      const rgb = (t) => {
+        if (t.startsWith('#')) return [1, 3, 5].map(i => parseInt(t.slice(i, i + 2), 16));
+        return t.match(/[\d.]+/g).slice(0, 3).map(Number);
+      };
+      const lum = (c) => { const l = c.map(v => v / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+      const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+      const nacht = tb.classList.contains('nacht');
+      const stops = nacht ? [[0, hex('--night-top')], [1, hex('--night-bottom')]]
+        : [[0, hex('--sky-top')], [0.58, hex('--surface')], [1, hex('--sky-bottom')]];
+      const r = tb.getBoundingClientRect();
+      const grund = (el) => {
+        const b = el.getBoundingClientRect();
+        const t = Math.min(1, Math.max(0, (b.top + b.height / 2 - r.top) / r.height));
+        let i = 0; while (i < stops.length - 2 && t > stops[i + 1][0]) i++;
+        const [t0, c0] = stops[i], [t1, c1] = stops[i + 1];
+        const f = (t - t0) / (t1 - t0), a = rgb(c0), z = rgb(c1);
+        return a.map((v, k) => Math.round(v + (z[k] - v) * Math.max(0, Math.min(1, f))));
+      };
+      const messen = (sel) => [...tb.querySelectorAll(sel)].map(el => ({ sel, text: el.textContent.trim().slice(0, 30),
+        r: Math.round(ratio(rgb(getComputedStyle(el).color), grund(el)) * 100) / 100 }));
+      const legende = [...messen('.legende span'), ...messen('.legende strong'), ...messen('.legende b')];
+      const datum = [...messen('.tag'), ...messen('.datum'), ...messen('.ort')];
+      return {
+        sichtbar: sichtbar(tb), nacht, hoehe: Math.round(r.height),
+        sonne: sichtbar(tb.querySelector('.tb-sonne')), sterne: sichtbar(tb.querySelector('.tb-sterne')),
+        chip: tb.querySelector('.jetzt-text')?.textContent || '',
+        legendeMin: Math.min(...legende.map(x => x.r)), datumMin: Math.min(...datum.map(x => x.r)), legende, datum,
+        mond: !!tb.querySelector('.tb-mond') && getComputedStyle(tb.querySelector('.tb-mond')).display !== 'none',
+        beschnitten: tb.querySelectorAll('[clip-path="url(#tbMondFenster)"]').length,
+        tagZeile: tb.querySelector('.tag')?.textContent || '',
+        legendeText: tb.querySelector('.legende')?.textContent.replace(/\s+/g, ' ') || '',
+        spalten: getComputedStyle(tb).gridTemplateColumns.split(' ').length,
+      };
+  });
+}
+
 const TB_BREITEN = [
   { name: 'mobil', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   { name: 'desktop', viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 },
@@ -418,50 +461,22 @@ async function tagesbogenPruefen(browser, basis, eigenerHost) {
       const { context, page, sammel } = await seiteOeffnen(browser, breite, eigenerHost);
       const e = { breite: breite.name, zeit: zeit.name };
       try {
+        /* CP1-10: den 06.11. ausdrücklich wählen — das jüngste echte Briefing
+           kann andere Sonnenzeiten haben (08.11.: Winnipeg, 14:29–23:57 Berlin). */
+        await page.route(u => u.pathname.endsWith('/api/briefing') && u.searchParams.get('tage') === '7',
+          r => r.continue({ url: r.request().url().replace('tage=7', 'tage=14') }));
         await page.clock.setFixedTime(new Date(zeit.iso));
         await page.goto(basis + '/dashboard/?tab=heute&token=' + encodeURIComponent(TOKEN), { waitUntil: 'domcontentloaded' });
         await bereit(page, 'heute');
         e.geladen = await page.evaluate(() => document.getElementById('content').dataset.geladen === '1');
+        await page.selectOption('.tu-briefing .hb-tag select', '2026-11-06');
+        await page.waitForTimeout(300);
         /* Kopfzeile mit Sonne und Mond hat nur das Morgenbriefing. */
         const morgen = page.locator('.tu-briefing .segment button[data-art="morgen"]');
         if (await morgen.getAttribute('aria-pressed') !== 'true') { await morgen.click(); await page.waitForTimeout(300); }
         await page.waitForSelector('.tu-briefing .tb', { timeout: 10000 });
         await page.waitForTimeout(2600);   // Bahn 1,6 s, Jetzt-Chip ab 1,5 s + 0,6 s
-        Object.assign(e, await page.evaluate(() => {
-          const tb = document.querySelector('.tu-briefing .tb');
-          const sichtbar = (el) => !!el && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0;
-          const wurzel = getComputedStyle(document.documentElement);
-          const hex = (n) => wurzel.getPropertyValue(n).trim();
-          const rgb = (t) => {
-            if (t.startsWith('#')) return [1, 3, 5].map(i => parseInt(t.slice(i, i + 2), 16));
-            return t.match(/[\d.]+/g).slice(0, 3).map(Number);
-          };
-          const lum = (c) => { const l = c.map(v => v / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
-          const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-          const nacht = tb.classList.contains('nacht');
-          const stops = nacht ? [[0, hex('--night-top')], [1, hex('--night-bottom')]]
-            : [[0, hex('--sky-top')], [0.58, hex('--surface')], [1, hex('--sky-bottom')]];
-          const r = tb.getBoundingClientRect();
-          const grund = (el) => {
-            const b = el.getBoundingClientRect();
-            const t = Math.min(1, Math.max(0, (b.top + b.height / 2 - r.top) / r.height));
-            let i = 0; while (i < stops.length - 2 && t > stops[i + 1][0]) i++;
-            const [t0, c0] = stops[i], [t1, c1] = stops[i + 1];
-            const f = (t - t0) / (t1 - t0), a = rgb(c0), z = rgb(c1);
-            return a.map((v, k) => Math.round(v + (z[k] - v) * Math.max(0, Math.min(1, f))));
-          };
-          const messen = (sel) => [...tb.querySelectorAll(sel)].map(el => ({ sel, text: el.textContent.trim().slice(0, 30),
-            r: Math.round(ratio(rgb(getComputedStyle(el).color), grund(el)) * 100) / 100 }));
-          const legende = [...messen('.legende span'), ...messen('.legende strong'), ...messen('.legende b')];
-          const datum = [...messen('.tag'), ...messen('.datum'), ...messen('.ort')];
-          return {
-            sichtbar: sichtbar(tb), nacht, hoehe: Math.round(r.height),
-            sonne: sichtbar(tb.querySelector('.tb-sonne')), sterne: sichtbar(tb.querySelector('.tb-sterne')),
-            chip: tb.querySelector('.jetzt-text')?.textContent || '',
-            legendeMin: Math.min(...legende.map(x => x.r)), datumMin: Math.min(...datum.map(x => x.r)), legende, datum,
-            spalten: getComputedStyle(tb).gridTemplateColumns.split(' ').length,
-          };
-        }));
+        Object.assign(e, await tbMessen(page));
         e.ueber = await ueberbreite(page);
         const datei = 'heute-' + breite.name + '-' + zeit.name + '.png';
         await page.screenshot({ path: path.join(AUS, datei), fullPage: true });
@@ -473,6 +488,53 @@ async function tagesbogenPruefen(browser, basis, eigenerHost) {
         && (breite.name === 'mobil' ? e.spalten === 1 : e.spalten === 2);
       ergebnis.tagesbogen.push(e);
       console.error('tagesbogen', breite.name, zeit.name, e.ok, JSON.stringify({ chip: e.chip, legendeMin: e.legendeMin, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole.length, ausnahme: e.ausnahme }));
+      await context.close();
+    }
+  }
+}
+
+/* CP1-10: 31.10.2026 (Mond über Mitternacht: Aufgang 21:34, Untergang 13:12)
+   um 12:00 (Morgenbriefing, Tag) und 23:00 (Abendbriefing, Nacht) sowie das
+   Abendbriefing 05.11. um 19:30 (Bogen aus dem Morgenbriefing). Der 31.10.
+   liegt außerhalb von ?tage=7; die Abfrage wird deshalb im Browser auf
+   ?tage=14 umgeschrieben — echte Daten, nur ein längerer Zeitraum (GET). */
+const AB_FAELLE = [
+  { name: '3110-tag', iso: '2026-10-31T12:00:00+01:00', datum: '2026-10-31', art: 'morgen', nacht: false, mond: true, beschnitten: true },
+  { name: '3110-nacht', iso: '2026-10-31T23:00:00+01:00', datum: '2026-10-31', art: 'abend', nacht: true, mond: true, beschnitten: true },
+  { name: '0511-abend', iso: '2026-11-05T19:30:00+01:00', datum: '2026-11-05', art: 'abend', nacht: true, mond: false, beschnitten: false },
+];
+ergebnis.abendbogen = [];
+async function abendbogenPruefen(browser, basis, eigenerHost) {
+  for (const breite of TB_BREITEN) {
+    for (const fall of AB_FAELLE) {
+      const { context, page, sammel } = await seiteOeffnen(browser, breite, eigenerHost);
+      const e = { breite: breite.name, fall: fall.name };
+      try {
+        await page.route(u => u.pathname.endsWith('/api/briefing') && u.searchParams.get('tage') === '7',
+          r => r.continue({ url: r.request().url().replace('tage=7', 'tage=14') }));
+        await page.clock.setFixedTime(new Date(fall.iso));
+        await page.goto(basis + '/dashboard/?tab=heute&token=' + encodeURIComponent(TOKEN), { waitUntil: 'domcontentloaded' });
+        await bereit(page, 'heute');
+        e.geladen = await page.evaluate(() => document.getElementById('content').dataset.geladen === '1');
+        await page.selectOption('.tu-briefing .hb-tag select', fall.datum);
+        await page.waitForTimeout(300);
+        const knopf = page.locator('.tu-briefing .segment button[data-art="' + fall.art + '"]');
+        if (await knopf.getAttribute('aria-pressed') !== 'true') { await knopf.click(); await page.waitForTimeout(300); }
+        await page.waitForSelector('.tu-briefing .tb', { timeout: 10000 });
+        await page.waitForTimeout(2600);
+        Object.assign(e, await tbMessen(page));
+        e.ueber = await ueberbreite(page);
+        const datei = 'heute-' + breite.name + '-' + fall.name + '.png';
+        await page.screenshot({ path: path.join(AUS, datei), fullPage: true });
+        e.screenshot = datei;
+      } catch (err) { e.ausnahme = String(err.message).slice(0, 200); }
+      e.konsole = [...sammel.konsole];
+      const zustand = e.nacht === fall.nacht && e.sonne === !fall.nacht && e.sterne === fall.nacht && e.mond === fall.mond
+        && (fall.beschnitten ? e.beschnitten === 4 : e.beschnitten === 0);
+      e.ok = !e.ausnahme && e.geladen && e.sichtbar && zustand && !e.konsole.length && e.ueber && !e.ueber.anzahl
+        && e.legendeMin >= 4.5 && e.datumMin >= 4.5 && (breite.name === 'mobil' ? e.spalten === 1 : e.spalten === 2);
+      ergebnis.abendbogen.push(e);
+      console.error('abendbogen', breite.name, fall.name, e.ok, JSON.stringify({ tag: e.tagZeile, chip: e.chip, legende: e.legendeText, legendeMin: e.legendeMin, datumMin: e.datumMin, mond: e.mond, beschnitten: e.beschnitten, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole, ausnahme: e.ausnahme }));
       await context.close();
     }
   }
@@ -509,12 +571,13 @@ try {
   } else {
     proxy = await proxyStarten();
     const host = new URL(proxy.basis).host;
-    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen'];
+    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen', 'abendbogen'];
     if (teile.includes('tabs')) await tabsPruefen(browser, proxy.basis, host, TABS);
     if (teile.includes('nurheute')) await tabsPruefen(browser, proxy.basis, host, ['heute']);
     if (teile.includes('deeplinks')) await deeplinksPruefen(browser, proxy.basis, host);
     if (teile.includes('heute')) await heutePruefen(browser, proxy.basis, host);
     if (teile.includes('tagesbogen')) await tagesbogenPruefen(browser, proxy.basis, host);
+    if (teile.includes('abendbogen')) await abendbogenPruefen(browser, proxy.basis, host);
   }
 } catch (e) {
   ergebnis.fehler.push(String(e.stack || e).slice(0, 500));
@@ -531,4 +594,5 @@ console.log(JSON.stringify({ tabs: ergebnis.tabs.length, tabsMitBefund: tabsFehl
   fremdeHosts: ergebnis.fremdeHosts.length,
   zusatz: ergebnis.tabs.filter(t => t.zusatz).map(t => [t.zusatz.name, t.breite, t.zusatz.ok, t.zusatz.detail]), deeplinks: ergebnis.deeplinks.map(d => d.schritte),
   heute: ergebnis.heute.map(h => [h.name, h.ok]),
-  tagesbogen: ergebnis.tagesbogen.map(t => [t.breite, t.zeit, t.ok, t.chip, t.legendeMin, t.datumMin]), fehler: ergebnis.fehler }, null, 1));
+  tagesbogen: ergebnis.tagesbogen.map(t => [t.breite, t.zeit, t.ok, t.chip, t.legendeMin, t.datumMin]),
+  abendbogen: ergebnis.abendbogen.map(t => [t.breite, t.fall, t.ok, t.tagZeile, t.chip, t.legendeMin, t.datumMin]), fehler: ergebnis.fehler }, null, 1));

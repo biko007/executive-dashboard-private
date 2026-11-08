@@ -10,6 +10,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const js = readFileSync(new URL('../public/js/tagesuebersicht.js', import.meta.url), 'utf8');
 const funktion = (name) => {
@@ -77,7 +78,7 @@ function attrappe() {
   });
   return { createElement: knoten, createElementNS: (_ns, tag) => knoten(tag), createTextNode: (t) => ({ textContent: String(t) }) };
 }
-const TB_FUNKTIONEN = ['heuteTagesbogenLesen', 'heuteTagesbogenPunkt', 'heuteTagesbogenMondPfad',
+const TB_FUNKTIONEN = ['heuteTagesbogenAbend', 'heuteTagesbogenLesen', 'heuteTagesbogenPunkt', 'heuteTagesbogenMondPfad',
   'heuteTagesbogenGeometrie', 'heuteJetztMinuten', 'heuteSvg', 'heuteTagesbogenKnoten', 'heuteBriefingKopfKnoten'];
 const baukasten = (doc) => new Function('document',
   `${funktion('heuteEl')}\nfunction iconElement(name) { return document.createElement('svg'); }\n` +
@@ -141,7 +142,7 @@ const originalZeilen = (textHtml) => textHtml
 const kopfWoerter = (textHtml, zNormal) => {
   const roh = textHtml.replace(/<\/?b>/g, '').split('\n').find(r => normal(r) === zNormal) || '';
   return roh.replace(/[\p{Extended_Pictographic}\u{FE0F}]/gu, ' ').split(/[\s•·,—()]+/u)
-    .filter(w => w && !/^(Aufgang|Untergang)$/.test(w)).map(normal).filter(Boolean);
+    .filter(w => w && !/^(Aufgang|Untergang|Abendbriefing)$/.test(w)).map(normal).filter(Boolean);
 };
 
 test('Vollständigkeit: jede Zeile der 13 Briefings steht in der Karte', () => {
@@ -229,6 +230,7 @@ test('gegliederte Darstellung setzt Fremdtexte nur per textContent', () => {
 // ── CP1-9 (06.11.2026): Tagesbogen mit Sonnen- und Mondbahn ──
 const lesen = bau.heuteTagesbogenLesen;
 const kopfVon = (datum, art) => gliedern(echte.find(b => b.datum === datum && b.art === art).textHtml).kopf;
+const abendDaten = (datum, zeit = '21:00') => bau.heuteTagesbogenAbend(kopfVon(datum, 'abend'), kopfVon(datum, 'morgen'), zeit);
 
 /* Erwartung je Fixture-Briefing: Sonne, Mond, Prozent, Richtung, Bahn.
    Abendbriefings tragen in der Kopfzeile nur das Datum → Textzeile (null). */
@@ -326,7 +328,8 @@ test('Tagesbogen: Tag/Nacht, Jetzt-Chip, Sonne nur tags, Sterne nur nachts', () 
   assert.equal(mitKlasse(k3, 'tb-mond').length, 0);
   assert.match(k3.textContent, /Mond Untergang 14:29 · Abnehmende Sichel · 35 %/);
   const k31 = mitKlasse(rendern(gliedern(echte.find(b => b.datum === '2026-10-31' && b.art === 'morgen').textHtml)), 'tb')[0];
-  assert.match(k31.textContent, /Mond Aufgang 21:34 · Untergang 13:12 · Abnehmender Mond · 69 %/);
+  // CP1-10: über Mitternacht mit Bahn, Legende Aufgang – Untergang
+  assert.match(k31.textContent, /Mond 21:34 – 13:12 · Abnehmender Mond · 69 %/);
 });
 
 test('Tagesbogen: Fallback auf die Textzeile, ohne Mond nur Sonne', () => {
@@ -362,4 +365,117 @@ test('Tagesbogen: nur textContent und createElementNS, jetzt in Europe/Berlin', 
   assert.equal(bau.heuteJetztMinuten(new Date('2026-11-06T11:20:00Z')), MITTAG);
   assert.equal(bau.heuteJetztMinuten(new Date('2026-11-06T18:30:00Z')), ABENDS);
   assert.equal(bau.heuteJetztMinuten(new Date('2026-11-06T23:05:00Z')), 5);   // 00:05 Berlin
+});
+
+// ── CP1-10 (08.11.2026): Bogen im Abendbriefing, Mondbahn über Mitternacht ──
+const ABEND_TAGE = ['2026-11-05', '2026-11-04', '2026-11-03', '2026-11-02', '2026-11-01', '2026-10-31'];
+
+test('Abendbriefing: Bogen mit den Werten des Morgenbriefings, Zustellzeit aus den Metadaten', () => {
+  for (const tag of ABEND_TAGE) {
+    const d = abendDaten(tag, '21:00');
+    const m = lesen(kopfVon(tag, 'morgen'));
+    assert.ok(d, tag + ': kein Abendbogen');
+    assert.equal(d.zeit, '21:00', tag);
+    assert.notEqual(m.zeit, d.zeit);
+    for (const k of ['wochentag', 'tagMonat', 'jahr', 'ort', 'sonneAuf', 'sonneUnter']) assert.equal(d[k], m[k], tag + ' ' + k);
+    assert.deepEqual(d.mond, m.mond, tag + ' Mond');
+    // gerendert: Bogen statt Textzeile, jede Zeile vollständig
+    const b = echte.find(x => x.datum === tag && x.art === 'abend');
+    const karte = bau.heuteBriefingGegliedertKnoten(gliedern(b.textHtml), ABENDS, d);
+    const [tb] = mitKlasse(karte, 'tb');
+    assert.ok(tb, tag + ': Bogen fehlt');
+    assert.equal(mitKlasse(karte, 'hb-kopf').length, 0);
+    assert.match(tb.textContent, new RegExp('^' + d.wochentag + ' · 21:00 Uhr'));
+    const kartenText = normal(karte.textContent);
+    const kopfZeilen = new Set(originalZeilen(b.textHtml.split('\n')[0]));
+    for (const z of originalZeilen(b.textHtml)) {
+      assert.ok(kartenText.includes(z) || (kopfZeilen.has(z) && kopfWoerter(b.textHtml, z).every(w => kartenText.includes(w))), `${tag} abend: fehlt „${z}“`);
+    }
+  }
+  assert.equal(abendDaten('2026-11-05', '21:07').zeit, '21:07');
+});
+
+test('Abendbriefing ohne passendes Morgenbriefing: Textzeile', () => {
+  const abend = kopfVon('2026-11-05', 'abend');
+  assert.equal(bau.heuteTagesbogenAbend(abend, null, '21:00'), null);
+  assert.equal(bau.heuteTagesbogenAbend(abend, kopfVon('2026-11-04', 'morgen'), '21:00'), null);   // anderes Datum
+  assert.equal(bau.heuteTagesbogenAbend(abend, kopfVon('2026-11-05', 'morgen'), ''), null);       // keine Zustellzeit
+  assert.equal(bau.heuteTagesbogenAbend(kopfVon('2026-11-05', 'morgen'), kopfVon('2026-11-05', 'morgen'), '21:00'), null);
+  const k = bau.heuteBriefingKopfKnoten(abend, ABENDS, null);
+  assert.equal(klasse(k), 'hb-kopf');
+  assert.equal(k.textContent, 'Abendbriefing — Donnerstag, 5. November 2026');
+  // Die Seite sucht das Morgenbriefing mit gleichem Datum und nimmt die eigene Zustellzeit.
+  const inhalt = funktion('heuteBriefingInhalt');
+  assert.match(inhalt, /x\.art === 'morgen' && x\.datum === b\.datum/);
+  assert.match(inhalt, /zeitUhr\(new Date\(zeitpunkt\)\)/);
+  assert.match(inhalt, /const zeitpunkt = b\.gesendetAt \|\| b\.erzeugtAt/);
+});
+
+test('Mondbahn über Mitternacht: Fenster bis Mondaufgang + 30, zwei Bögen, Sonne schmaler', () => {
+  const nah = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' ≠ ' + b);
+  for (const [tag, auf, unter, sAuf, sUnter] of [['2026-10-31', 1294, 792, 426, 1033], ['2026-11-01', 1364, 784, 390, 1014]]) {
+    const d = lesen(kopfVon(tag, 'morgen'));
+    assert.deepEqual([d.mond.auf, d.mond.unter, d.sonneAuf, d.sonneUnter, d.mond.ueberNacht, d.mond.bahn], [auf, unter, sAuf, sUnter, true, false], tag);
+    const g = bau.heuteTagesbogenGeometrie(d, MITTAG);
+    assert.deepEqual([g.winA, g.winE], [0, auf + 30], tag + ' Fenster');
+    const X = (t) => 20 + t / (auf + 30) * 560;
+    nah(g.S.x1, X(sAuf)); nah(g.S.x2, X(sUnter));
+    const dauer = unter - auf + 1440;
+    const [gestern, heute] = g.mondBoegen;
+    nah(gestern.x1, X(auf - 1440)); nah(gestern.x2, X(unter));
+    nah(heute.x1, X(auf)); nah(heute.x2, X(auf + dauer));
+    nah(gestern.x2 - gestern.x1, heute.x2 - heute.x1);   // gleiche Dauer
+    assert.ok(gestern.x1 < 20 && heute.x2 > 580, tag + ': Bögen ragen über das Fenster');
+    assert.deepEqual(g.mondMarken.map(x => x.toFixed(1)), [X(unter).toFixed(1), X(auf).toFixed(1)]);
+    // CP1-9 hätte hier nur die Sonne ins Fenster genommen: der Sonnenbogen ist jetzt schmaler.
+    const cp19 = bau.heuteTagesbogenGeometrie(Object.assign({}, d, { mond: Object.assign({}, d.mond, { ueberNacht: false }) }), MITTAG);
+    assert.ok(g.S.rx < cp19.S.rx * 0.8, tag + ': Sonne nicht schmaler');
+  }
+  const g31 = bau.heuteTagesbogenGeometrie(lesen(kopfVon('2026-10-31', 'morgen')), MITTAG);
+  assert.equal(g31.S.d, 'M200.2 118 A128.4 104 0 0 1 456.9 118');   // 07:06–17:13 im Fenster 00:00–22:04
+  assert.equal(g31.mondBoegen[0].d, 'M-41.8 118 A198.4 66 0 0 1 355.0 118');
+  assert.equal(g31.mondBoegen[1].d, 'M567.3 118 A198.4 66 0 0 1 964.0 118');
+});
+
+test('Mond oben über Mitternacht: 31.10. um 23:00 und 12:00 oben, um 15:00 nicht', () => {
+  const d = lesen(kopfVon('2026-10-31', 'morgen'));
+  const bei = (std, min = 0) => bau.heuteTagesbogenGeometrie(d, std * 60 + min);
+  const g23 = bei(23), g12 = bei(12);
+  assert.deepEqual([g23.mondOben, g23.nacht, g23.mondAktiv === g23.mondBoegen[1]], [true, true, true]);
+  assert.deepEqual([g12.mondOben, g12.nacht, g12.mondAktiv === g12.mondBoegen[0]], [true, false, true]);
+  assert.deepEqual([bei(15).mondOben, bei(15).mondAktiv], [false, null]);
+  assert.equal(bei(1).mondOben, true);
+  assert.equal(bei(13, 12).mondOben, true);   // genau Untergang
+  assert.equal(bei(21, 33).mondOben, false);
+  assert.equal(bei(23).chipText, 'Nacht · 23:00');
+  assert.equal(bei(23).chipX, ((bei(23).pM.x - 14) / 572 * 100).toFixed(1) + '%');
+  // gerendert: beschnittene Bahnen, Scheibe nur wenn oben
+  const karte = (jetzt) => mitKlasse(bau.heuteBriefingKopfKnoten(kopfVon('2026-10-31', 'morgen'), jetzt), 'tb')[0];
+  const k15 = karte(15 * 60), k23 = karte(23 * 60);
+  assert.equal(mitKlasse(k15, 'tb-mond').length, 0);
+  assert.equal(mitKlasse(k23, 'tb-mond').length, 1);
+  const bahnen = mitKlasse(k23, 'tb-mond-rest').concat(mitKlasse(k23, 'tb-mond-fertig'));
+  assert.equal(bahnen.length, 4);
+  assert.ok(bahnen.every(b => b.attribute['clip-path'] === 'url(#tbMondFenster)'));
+  const [clip] = finde(k23, k => k.tag === 'clipPath');
+  assert.equal(clip.attribute.id, 'tbMondFenster');
+  assert.deepEqual(clip.kinder[0].attribute, { x: '20', y: '-14', width: '560', height: '156' });
+  assert.equal(mitKlasse(k23, 'tb-marke-mond').length, 2);
+  // Nur eine Mondzeit (03.11.): unverändert keine Bahn
+  const g3 = bau.heuteTagesbogenGeometrie(lesen(kopfVon('2026-11-03', 'morgen')), MITTAG);
+  assert.deepEqual([g3.M, g3.mondBoegen], [null, null]);
+});
+
+/* Normaltag bitgleich zu CP1-9: Prüfsummen des gerenderten Bogens 06.11.
+   (Attrappe) um 05:00, 12:20 und 19:30, aufgenommen mit dem Stand 94978e4. */
+test('Normaltag 06.11.: Pfade und gerenderter Bogen unverändert gegenüber CP1-9', () => {
+  const d = lesen(kopfVon('2026-11-06', 'morgen'));
+  const g = bau.heuteTagesbogenGeometrie(d, MITTAG);
+  assert.equal(g.S.d, 'M165.7 118 A197.0 104 0 0 1 559.8 118');
+  assert.equal(g.M.d, 'M40.2 118 A229.4 66 0 0 1 499.0 118');
+  assert.equal(g.mondPfad, 'M0,-13 A13,13 0 0 0 0,13 A10.00,13 0 0 1 0,-13 Z');
+  assert.equal(g.mondBoegen, null);
+  const ser = (k) => k.tag ? { t: k.tag, c: k.className, a: k.attribute, s: { d: k.style.display, tr: k.style.transform, e: k.style.eigenschaften }, x: k.eigenerText, k: k.kinder.map(ser) } : { text: k.textContent };
+  const pruef = (jetzt) => createHash('sha256').update(JSON.stringify(ser(bau.heuteTagesbogenKnoten(d, jetzt)))).digest('hex').slice(0, 16);
+  assert.deepEqual([pruef(300), pruef(740), pruef(1170)], ['7596ada185a835c5', '3805da04cc526888', 'b0af028adcca0392']);
 });

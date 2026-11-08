@@ -247,6 +247,26 @@ Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
   zurück und blockiert nichts.
 - **Sicherheit:** Texte nur per `textContent`/Textknoten, SVG per
   `createElementNS`, kein Alpine, keine fremden Hosts, CSP unverändert.
+- **Abendbriefing (CP1-10):** Sein Kopf trägt nur „Abendbriefing — <Datum>“.
+  `heuteTagesbogenAbend()` nimmt Ort, Sonne, Mond, Phase und Prozent aus dem
+  Morgenbriefing mit **demselben Datum im Kopf**, die Zustellzeit aus den
+  Metadaten des Abendbriefings (`gesendetAt`, sonst `erzeugtAt`, wie der
+  Zustellchip). Ohne passendes Morgenbriefing bleibt die Textzeile. Das Wort
+  „Abendbriefing“ steht nicht im Bogen; das gewählte Segment „Abend“ zeigt es.
+- **Mond über Mitternacht (CP1-10):** Ist der Untergang früher als der Aufgang
+  (der Mond ist um Mitternacht oben und geht abends wieder auf), gilt nur an
+  diesem Tag ein eigenes Fenster: 00:00 bis Mondaufgang + 30 min (mindestens
+  Sonnenuntergang + 30 min, höchstens 24:00). Gezeichnet werden zwei Bögen
+  gleicher Dauer ((Untergang − Aufgang) mod 24 h): der von gestern (Aufgang −
+  24 h bis Untergang) und der von heute (ab Aufgang), beschnitten per
+  `clipPath` `#tbMondFenster` auf x 20…580. Die Scheibe steht auf dem Bogen,
+  in dem „jetzt“ liegt, sonst keine Scheibe. Die Legende nennt „Aufgang –
+  Untergang“, auch wenn der Untergang am Folgetag liegt. Die Sonnenbahn wird
+  im längeren Fenster schmaler. Normaltage sind unverändert (Test: Prüfsummen
+  des Bogens 06.11.). Mit nur einer Mondzeit bleibt es bei „keine Bahn,
+  Zeit wörtlich“.
+- **Jetzt-Chip am Rand (CP1-10):** `left: clamp(60px, var(--x), 100% − 60px)`,
+  damit er nicht halb abgeschnitten wird; die Bogenposition `--x` bleibt.
 
 ## Alpine
 

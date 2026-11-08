@@ -241,6 +241,11 @@
   background: rgba(255,255,255,.88); border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px;
   white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; animation: tb-einblenden .6s 1.5s forwards;
 }
+/* CP1-10: Am Rand (Mond über Mitternacht kurz nach dem Aufgang, Sonne kurz
+   vor dem Untergang) bliebe der Chip halb abgeschnitten; er bleibt deshalb
+   mindestens eine halbe Chipbreite (60 px) vom Rand entfernt. Die Position
+   im Bogen (--x) ist unverändert. */
+.tb .jetzt-chip { left: clamp(60px, var(--x, 50%), calc(100% - 60px)); }
 .tb .jetzt-chip i { width: 7px; height: 7px; border-radius: 999px; background: var(--gold); }
 .tb.nacht .jetzt-chip { background: rgba(29,43,69,.75); color: var(--on-navy); border-color: rgba(255,255,255,.25); }
 @keyframes tb-einblenden { to { opacity: 1; } }
