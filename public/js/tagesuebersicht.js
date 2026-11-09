@@ -926,18 +926,39 @@ function heuteZonenOffset(zone, datum) {
    zum aktuellen Berliner Offset; MEZ im Winter, MESZ im Sommer. */
 function heuteTagesbogenOrtszeit(zone, datum) {
   const iana = zone && typeof zone.zeitzone === 'string' ? zone.zeitzone.trim() : '';
-  if (!iana || iana === 'Europe/Berlin') return null;
+  /* CP1-12: utcOffsetMin hat Vorrang vor der IANA-Zone. Die Zeitzonendaten
+     im Browser (ICU) können veraltet sein — z. B. kennt ICU-tz 2026a die
+     dauerhafte UTC−5 von Manitoba seit 01.11.2026 nicht und rechnet −6. Der
+     Agent liest den Abstand aus tzdata; Intl nur, wenn er fehlt. */
+  const offset = zone && Number.isFinite(zone.utcOffsetMin) ? zone.utcOffsetMin : null;
+  if (offset === null && (!iana || iana === 'Europe/Berlin')) return null;
   let ort, berlin;
   try {
-    ort = Number.isFinite(zone.utcOffsetMin) ? zone.utcOffsetMin : heuteZonenOffset(iana, datum);
-    heuteJetztMinuten(datum, iana);   // prüft die Zone
+    if (offset === null) heuteJetztMinuten(datum, iana);   // prüft die Zone
+    ort = offset !== null ? offset : heuteZonenOffset(iana, datum);
     berlin = heuteZonenOffset('Europe/Berlin', datum);
   } catch { return null; }
   const diff = ort - berlin;
   if (diff === 0) return null;
-  const betrag = Math.abs(diff);
-  const stunden = Math.floor(betrag / 60) + ' h' + (betrag % 60 ? ' ' + (betrag % 60) + ' min' : '');
-  return { zone: iana, text: (berlin === 120 ? 'MESZ ' : 'MEZ ') + (diff < 0 ? '−' : '+') + stunden };
+  /* Schreibweise wie der Kopfzusatz des Agenten: „MEZ −6 h", „MEZ +4,5 h". */
+  const std = Math.abs(diff) / 60;
+  const zahl = Number.isInteger(std) ? String(std) : std.toFixed(1).replace('.', ',');
+  return { zone: iana || null, offsetMin: offset, text: (berlin === 120 ? 'MESZ ' : 'MEZ ') + (diff < 0 ? '−' : '+') + zahl + ' h' };
+}
+
+/* CP1-12: Ortszeit als Minuten seit Mitternacht aus dem Abstand zu UTC —
+   ohne Zeitzonendaten des Browsers. */
+function heuteMinutenAusOffset(datum, offsetMin) {
+  const utc = datum.getUTCHours() * 60 + datum.getUTCMinutes();
+  return ((utc + offsetMin) % 1440 + 1440) % 1440;
+}
+
+/* CP1-12: Sichtbarer Rückfall. Trägt das Briefing keine Zone (ältere
+   Briefings) und liegt der Ort im Kopf nicht am Heimatort, stehen Zeiten und
+   „jetzt" in Berliner Zeit — das wird angezeigt statt verschwiegen. */
+function heuteTagesbogenBerlinHinweis(d, zone) {
+  const ohneZone = !zone || (!(typeof zone.zeitzone === 'string' && zone.zeitzone.trim()) && !Number.isFinite(zone.utcOffsetMin));
+  return ohneZone && !!d.ort && d.ort !== 'Tuttlingen';
 }
 
 /* SVG-Element mit Attributen; Klassen per setAttribute (SVG kennt kein
@@ -958,7 +979,8 @@ function heuteTagesbogenKnoten(d, jetzt) {
   const datum = heuteEl('div', 'tb-datum');
   const datumZeile = heuteEl('div', 'datum');
   datumZeile.append(document.createTextNode(d.tagMonat), document.createElement('br'), document.createTextNode(d.jahr));
-  datum.append(heuteEl('div', 'tag', d.wochentag + ' · ' + d.zeit + ' Uhr'), datumZeile,
+  /* CP1-12: Die Zustellzeit ist Berliner Zeit; bei anderer Ortszeit so benannt. */
+  datum.append(heuteEl('div', 'tag', d.wochentag + ' · ' + d.zeit + ' Uhr' + (d.ortszeit ? ' Berlin' : '')), datumZeile,
     heuteEl('div', 'ort', d.ort + heuteTagesbogenOrtZusatz(d) + ' · ' + Math.floor(licht / 60) + ' h ' + (licht % 60) + ' min Tageslicht'));
 
   const svg = heuteSvg('svg', { viewBox: '0 -14 600 156', role: 'img', 'aria-label': 'Sonnen- und Mondbahn des Tages' });
@@ -1048,9 +1070,9 @@ function heuteTagesbogenKnoten(d, jetzt) {
   chip.style.setProperty('--x', g.chipX);
   chip.append(heuteEl('i'), heuteEl('span', 'jetzt-text', g.chipText));
   /* CP1-11: „jetzt" in der Ortszeit eines anderen Orts trägt den Hinweis. */
-  if (d.ortszeit) {
+  if (d.ortszeit || d.berlinHinweis) {
     chip.className += ' mit-zone';
-    chip.appendChild(heuteEl('span', 'jetzt-zone', ' · Ortszeit'));
+    chip.appendChild(heuteEl('span', 'jetzt-zone', d.ortszeit ? ' · Ortszeit' : ' · Berlin'));
   }
   const himmel = heuteEl('div', 'himmel');
   himmel.append(svg, chip);
@@ -1087,6 +1109,7 @@ function heuteTagesbogenKnoten(d, jetzt) {
    (falls vorhanden), sonst leer. */
 function heuteTagesbogenOrtZusatz(d) {
   if (d.ortszeit) return ' · Ortszeit ' + d.ortszeit.text;
+  if (d.berlinHinweis && typeof d.ortZusatz !== 'string') return ' · Zeiten in Berliner Zeit';
   if (typeof d.ortZusatz === 'string') return ' · Ortszeit' + (d.ortZusatz ? ' ' + d.ortZusatz : '');
   return '';
 }
@@ -1113,8 +1136,12 @@ function heuteBriefingKopfKnoten(kopf, jetzt, daten, zone) {
          aktuelle Uhrzeit in der Ortszeit des Briefings (CP1-11). */
       const zeitpunkt = jetzt instanceof Date ? jetzt : new Date();
       const ortszeit = heuteTagesbogenOrtszeit(zone, zeitpunkt);
-      const d = ortszeit ? Object.assign({}, gelesen, { ortszeit }) : gelesen;
-      const minuten = Number.isFinite(jetzt) ? jetzt : heuteJetztMinuten(zeitpunkt, ortszeit ? ortszeit.zone : 'Europe/Berlin');
+      const berlinHinweis = !ortszeit && heuteTagesbogenBerlinHinweis(gelesen, zone);
+      const d = ortszeit ? Object.assign({}, gelesen, { ortszeit }) : berlinHinweis ? Object.assign({}, gelesen, { berlinHinweis }) : gelesen;
+      /* CP1-12: Ortszeit aus utcOffsetMin, Intl mit der Zone nur als Rückfall. */
+      const minuten = Number.isFinite(jetzt) ? jetzt
+        : ortszeit && ortszeit.offsetMin !== null ? heuteMinutenAusOffset(zeitpunkt, ortszeit.offsetMin)
+          : heuteJetztMinuten(zeitpunkt, ortszeit ? ortszeit.zone : 'Europe/Berlin');
       return heuteTagesbogenKnoten(d, minuten);
     }
   } catch (e) { /* weiter mit der Textzeile */ }
@@ -1131,9 +1158,11 @@ function heuteBriefingZone(b, liste) {
   return zoneVon(liste.find(x => x.art === 'morgen' && x.datum === b.datum));
 }
 
-function heuteBriefingStatus(b) {
+/* ortsfremd (CP1-12): Zone des Briefings weicht von Berlin ab — die
+   Zustellzeit (Berliner Zeit) wird dann als solche benannt. */
+function heuteBriefingStatus(b, ortsfremd) {
   if (b.status === 'gesendet') {
-    const zeit = b.gesendetAt ? ' ' + zeitUhr(new Date(b.gesendetAt)) : '';
+    const zeit = b.gesendetAt ? ' ' + zeitUhr(new Date(b.gesendetAt)) + (ortsfremd ? ' Berlin' : '') : '';
     const teile = ['Zugestellt' + zeit, 'Telegram'];
     if (b.mailOk === true) teile.push('Mail');
     if (b.mailOk === false) teile.push('Mail fehlgeschlagen');
@@ -1187,13 +1216,15 @@ function heuteBriefingInhalt() {
     teile.push(heuteHtmlKnoten(zustandBlock('keine_daten', 'Kein Briefing für diesen Tag.',
       { titel: 'Kein ' + (wahl && wahl.art === 'abend' ? 'Abendbriefing' : 'Morgenbriefing') })));
   } else {
-    const st = heuteBriefingStatus(b);
+    const zone = heuteBriefingZone(b, liste);
+    let ortsfremd = false;
+    try { ortsfremd = !!heuteTagesbogenOrtszeit(zone, new Date()); } catch { ortsfremd = false; }
+    const st = heuteBriefingStatus(b, ortsfremd);
     teile.push(heuteEl('div', 'chip ' + st.klasse + ' hb-status', st.text));
     let gegliedert = null;
     try { gegliedert = b.textHtml ? heuteBriefingGliedern(b.textHtml) : null; } catch { gegliedert = null; }
     /* CP1-10: Abendbriefing mit dem Bogen aus dem Morgenbriefing desselben Tages. */
     let bogenDaten = null;
-    const zone = heuteBriefingZone(b, liste);
     if (gegliedert && b.art === 'abend') {
       try {
         const morgen = liste.find(x => x.art === 'morgen' && x.datum === b.datum && x.textHtml);

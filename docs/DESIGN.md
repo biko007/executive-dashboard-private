@@ -283,6 +283,21 @@ Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
   Berlin. Der Parser liest neben der Langform auch „Sonne 07:30–16:56“,
   „Neumond 0 %“ und „Mond 08:26–16:36“. Die Geometrie hängt nur von den Zeiten
   im Kopf ab, nicht von der Zone; der 06.11. ist bitgleich (Prüfsummen).
+- **Ortszeit robust, Rückfall sichtbar (CP1-12):** Liegt `utcOffsetMin` vor,
+  ist „jetzt“ = UTC-Minuten + `utcOffsetMin` (`heuteMinutenAusOffset()`), ohne
+  Zeitzonendaten des Browsers; Intl mit `zeitzone` nur, wenn der Abstand fehlt.
+  Grund: ICU-tz 2026a (Node 22 und Chromium im Test) kennt die dauerhafte UTC−5
+  von Manitoba seit 01.11.2026 nicht und liefert für Winnipeg −6 h (13:30Z →
+  07:30 statt 08:30); der Agent liest den Abstand aus tzdata. Abstandstext wie
+  der Kopfzusatz des Agenten („MEZ −6 h“, „MEZ +4,5 h“).
+  Trägt das Briefing keine Zone und ist der Ort im Kopf nicht der Heimatort
+  „Tuttlingen“ (`heuteTagesbogenBerlinHinweis()`), steht in der Ortszeile
+  „Winnipeg · Zeiten in Berliner Zeit · …“ (bei Kopfzusatz „(Ortszeit, …)“ bleibt
+  dieser) und im Chip „jetzt 18:40 · Berlin“. Am Heimatort und bei einer Zone mit
+  Berliner Abstand kein Zusatz. Weicht die Zone ab, heißt die Zustellzeit
+  „Zugestellt 07:00 Berlin · Telegram“ (Zustellchip) und „Montag · 07:00 Uhr
+  Berlin“ (Bogenkopf). Sonnen- und Mondzeiten werden nie umgerechnet; sie stehen
+  so im Bogen, wie der Kopf sie nennt.
 
 ## Alpine
 
