@@ -246,6 +246,9 @@
    mindestens eine halbe Chipbreite (60 px) vom Rand entfernt. Die Position
    im Bogen (--x) ist unverändert. */
 .tb .jetzt-chip { left: clamp(60px, var(--x, 50%), calc(100% - 60px)); }
+/* CP1-11: „jetzt" in der Ortszeit eines anderen Orts; der Chip ist breiter. */
+.tb .jetzt-chip.mit-zone { left: clamp(90px, var(--x, 50%), calc(100% - 90px)); }
+.tb .jetzt-chip .jetzt-zone { font-size: 10.5px; font-weight: 600; }
 .tb .jetzt-chip i { width: 7px; height: 7px; border-radius: 999px; background: var(--gold); }
 .tb.nacht .jetzt-chip { background: rgba(29,43,69,.75); color: var(--on-navy); border-color: rgba(255,255,255,.25); }
 @keyframes tb-einblenden { to { opacity: 1; } }

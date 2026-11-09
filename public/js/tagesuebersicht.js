@@ -689,9 +689,9 @@ function heuteBriefingIcon(titel) {
 /* Gegliedertes Briefing als DOM, ausschließlich textContent. Nichts wird
    gekürzt oder ausgeblendet (CP1-8). Kopf seit CP1-9 als Tagesbogen;
    jetzt = Minuten seit Mitternacht Berlin (für Tests injizierbar). */
-function heuteBriefingGegliedertKnoten(g, jetzt, bogenDaten) {
+function heuteBriefingGegliedertKnoten(g, jetzt, bogenDaten, zone) {
   const box = heuteEl('div', 'hb-inhalt');
-  if (g.kopf) box.appendChild(heuteBriefingKopfKnoten(g.kopf, jetzt, bogenDaten));
+  if (g.kopf) box.appendChild(heuteBriefingKopfKnoten(g.kopf, jetzt, bogenDaten, zone));
   for (const a of g.abschnitte) {
     const s = heuteEl('section', 'hb-abschnitt' + (a.art === 'wetter' ? ' hb-wetter' : ''));
     const h = heuteEl('h3', 'hb-titel');
@@ -774,21 +774,29 @@ function heuteTagesbogenLesen(kopf) {
   const d = { wochentag: titel[1], tagMonat: titel[2], jahr: titel[3], zeit: titel[4],
     ort: '', sonneAuf: null, sonneUnter: null, sonneAufText: '', sonneUnterText: '', mond: null };
   let phase = null, mondZeile = null;
+  /* CP1-11: neben „Sonne Aufgang 07:17 · Untergang 17:01" auch die Kurzform
+     „Sonne 07:30–16:56", „Neumond 0 %" und „Mond 08:26–16:36". */
+  const spanne = /^(?:Sonne|Mond) (\d{1,2}:\d\d) ?[–-] ?(\d{1,2}:\d\d)$/;
   for (const z of kopf.slice(1)) {
-    const sonne = /^Sonne Aufgang (\d{1,2}:\d\d) · Untergang (\d{1,2}:\d\d)$/.exec(z);
-    const ph = /^(.+?) \((\d{1,3}) ?%\)$/.exec(z);
+    const sonne = /^Sonne Aufgang (\d{1,2}:\d\d) · Untergang (\d{1,2}:\d\d)$/.exec(z) || (/^Sonne /.test(z) ? spanne.exec(z) : null);
+    const ph = /^(.+?) \((\d{1,3}) ?%\)$/.exec(z) || /^(.+?) (\d{1,3}) ?%$/.exec(z);
+    /* „Winnipeg (Ortszeit, MEZ −7 h)": Zusatz vom Ortsnamen trennen; die
+       Ortszeile zeigt ihn einmal, nicht doppelt. */
+    const ortszeit = /^(.+?) \(Ortszeit(?:, ?([^()]*))?\)$/.exec(z);
     if (sonne && d.sonneAuf === null) {
       d.sonneAufText = sonne[1]; d.sonneUnterText = sonne[2];
       d.sonneAuf = minuten(sonne[1]); d.sonneUnter = minuten(sonne[2]);
-    } else if (/^Mond (Aufgang|Untergang) /.test(z) && !mondZeile) mondZeile = z;
+    } else if ((/^Mond (Aufgang|Untergang) /.test(z) || /^Mond /.test(z) && spanne.test(z)) && !mondZeile) mondZeile = z;
     else if (ph && !phase) phase = { text: ph[1], prozent: Number(ph[2]) };
+    else if (!d.ort && ortszeit) { d.ort = ortszeit[1]; d.ortZusatz = (ortszeit[2] || '').trim(); }
     else if (!d.ort && z) d.ort = z;
     else return null;
   }
   if (!d.ort || d.sonneAuf === null || d.sonneUnter === null || d.sonneAuf >= d.sonneUnter) return null;
   if (phase || mondZeile) {
-    const auf = mondZeile ? (/Aufgang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
-    const unter = mondZeile ? (/Untergang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
+    const kurz = mondZeile ? spanne.exec(mondZeile) : null;
+    const auf = kurz ? kurz[1] : mondZeile ? (/Aufgang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
+    const unter = kurz ? kurz[2] : mondZeile ? (/Untergang (\d{1,2}:\d\d)/.exec(mondZeile) || [])[1] || '' : '';
     if (mondZeile && !auf && !unter) return null;
     const p = phase ? phase.text : '';
     const m = { phase: p, prozent: phase ? phase.prozent : null,
@@ -891,12 +899,45 @@ function heuteTagesbogenGeometrie(d, jetzt) {
   return g;
 }
 
-/* Aktuelle Uhrzeit in Europe/Berlin als Minuten seit Mitternacht. */
-function heuteJetztMinuten(datum) {
-  const teile = new Intl.DateTimeFormat('de-DE', { timeZone: 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+/* Aktuelle Uhrzeit als Minuten seit Mitternacht in der Zone (IANA), ohne
+   Angabe in Europe/Berlin. Seit CP1-11 die Zone des Briefing-Orts. */
+function heuteJetztMinuten(datum, zone) {
+  const teile = new Intl.DateTimeFormat('de-DE', { timeZone: zone || 'Europe/Berlin', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
     .formatToParts(datum);
   const wert = (art) => Number((teile.find(t => t.type === art) || {}).value);
   return wert('hour') * 60 + wert('minute');
+}
+
+/* Abstand der Zone zu UTC in Minuten zum Zeitpunkt datum (aus Intl, damit
+   Sommer- und Winterzeit stimmen). Unbekannte Zone: RangeError. */
+function heuteZonenOffset(zone, datum) {
+  const teile = new Intl.DateTimeFormat('en-US', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(datum);
+  const wert = (art) => Number((teile.find(t => t.type === art) || {}).value);
+  const lokal = Date.UTC(wert('year'), wert('month') - 1, wert('day'), wert('hour'), wert('minute'));
+  return Math.round((lokal - Math.floor(datum.getTime() / 60000) * 60000) / 60000);
+}
+
+/* CP1-11: Ortszeit des Briefings. zone = { zeitzone, utcOffsetMin } aus dem
+   Briefing-Objekt (beide können bei älteren Briefings fehlen). Liefert null,
+   wenn keine oder eine unbekannte Zone angegeben ist oder sie zur Zeit wie
+   Berlin geht — dann rechnet der Bogen wie bisher in Europe/Berlin. Sonst
+   { zone, text: "MEZ −7 h" }: Abstand aus utcOffsetMin (fehlt es, aus Intl)
+   zum aktuellen Berliner Offset; MEZ im Winter, MESZ im Sommer. */
+function heuteTagesbogenOrtszeit(zone, datum) {
+  const iana = zone && typeof zone.zeitzone === 'string' ? zone.zeitzone.trim() : '';
+  if (!iana || iana === 'Europe/Berlin') return null;
+  let ort, berlin;
+  try {
+    ort = Number.isFinite(zone.utcOffsetMin) ? zone.utcOffsetMin : heuteZonenOffset(iana, datum);
+    heuteJetztMinuten(datum, iana);   // prüft die Zone
+    berlin = heuteZonenOffset('Europe/Berlin', datum);
+  } catch { return null; }
+  const diff = ort - berlin;
+  if (diff === 0) return null;
+  const betrag = Math.abs(diff);
+  const stunden = Math.floor(betrag / 60) + ' h' + (betrag % 60 ? ' ' + (betrag % 60) + ' min' : '');
+  return { zone: iana, text: (berlin === 120 ? 'MESZ ' : 'MEZ ') + (diff < 0 ? '−' : '+') + stunden };
 }
 
 /* SVG-Element mit Attributen; Klassen per setAttribute (SVG kennt kein
@@ -918,7 +959,7 @@ function heuteTagesbogenKnoten(d, jetzt) {
   const datumZeile = heuteEl('div', 'datum');
   datumZeile.append(document.createTextNode(d.tagMonat), document.createElement('br'), document.createTextNode(d.jahr));
   datum.append(heuteEl('div', 'tag', d.wochentag + ' · ' + d.zeit + ' Uhr'), datumZeile,
-    heuteEl('div', 'ort', d.ort + ' · ' + Math.floor(licht / 60) + ' h ' + (licht % 60) + ' min Tageslicht'));
+    heuteEl('div', 'ort', d.ort + heuteTagesbogenOrtZusatz(d) + ' · ' + Math.floor(licht / 60) + ' h ' + (licht % 60) + ' min Tageslicht'));
 
   const svg = heuteSvg('svg', { viewBox: '0 -14 600 156', role: 'img', 'aria-label': 'Sonnen- und Mondbahn des Tages' });
   const defs = heuteSvg('defs');
@@ -1006,6 +1047,11 @@ function heuteTagesbogenKnoten(d, jetzt) {
   const chip = heuteEl('div', 'jetzt-chip');
   chip.style.setProperty('--x', g.chipX);
   chip.append(heuteEl('i'), heuteEl('span', 'jetzt-text', g.chipText));
+  /* CP1-11: „jetzt" in der Ortszeit eines anderen Orts trägt den Hinweis. */
+  if (d.ortszeit) {
+    chip.className += ' mit-zone';
+    chip.appendChild(heuteEl('span', 'jetzt-zone', ' · Ortszeit'));
+  }
   const himmel = heuteEl('div', 'himmel');
   himmel.append(svg, chip);
 
@@ -1036,6 +1082,15 @@ function heuteTagesbogenKnoten(d, jetzt) {
   return tb;
 }
 
+/* CP1-11: Zusatz der Ortszeile, „ · Ortszeit MEZ −7 h". Berechnet, wenn das
+   Briefing eine abweichende Zone trägt, sonst der Zusatz aus der Kopfzeile
+   (falls vorhanden), sonst leer. */
+function heuteTagesbogenOrtZusatz(d) {
+  if (d.ortszeit) return ' · Ortszeit ' + d.ortszeit.text;
+  if (typeof d.ortZusatz === 'string') return ' · Ortszeit' + (d.ortZusatz ? ' ' + d.ortZusatz : '');
+  return '';
+}
+
 /* CP1-10: Bogen für das Abendbriefing. Sein Kopf trägt nur das Datum
    („Abendbriefing — Donnerstag, 5. November 2026"); Ort, Sonne, Mond, Phase
    und Prozent kommen aus dem Morgenbriefing mit demselben Datum im Kopf, die
@@ -1050,12 +1105,30 @@ function heuteTagesbogenAbend(abendKopf, morgenKopf, zustellZeit) {
 
 /* Kopf des gegliederten Briefings: Tagesbogen, sonst die bisherige
    Textzeile. Ein Fehler im Bogen darf das Briefing nicht blockieren. */
-function heuteBriefingKopfKnoten(kopf, jetzt, daten) {
+function heuteBriefingKopfKnoten(kopf, jetzt, daten, zone) {
   try {
-    const d = daten || heuteTagesbogenLesen(kopf);
-    if (d) return heuteTagesbogenKnoten(d, Number.isFinite(jetzt) ? jetzt : heuteJetztMinuten(new Date()));
+    const gelesen = daten || heuteTagesbogenLesen(kopf);
+    if (gelesen) {
+      /* jetzt: Minuten (Tests, Bezug wie gegeben) oder Zeitpunkt; sonst die
+         aktuelle Uhrzeit in der Ortszeit des Briefings (CP1-11). */
+      const zeitpunkt = jetzt instanceof Date ? jetzt : new Date();
+      const ortszeit = heuteTagesbogenOrtszeit(zone, zeitpunkt);
+      const d = ortszeit ? Object.assign({}, gelesen, { ortszeit }) : gelesen;
+      const minuten = Number.isFinite(jetzt) ? jetzt : heuteJetztMinuten(zeitpunkt, ortszeit ? ortszeit.zone : 'Europe/Berlin');
+      return heuteTagesbogenKnoten(d, minuten);
+    }
   } catch (e) { /* weiter mit der Textzeile */ }
   return heuteEl('p', 'hb-kopf', kopf.join(' · '));
+}
+
+/* CP1-11: Zone eines Briefings als { zeitzone, utcOffsetMin }, oder null
+   (ältere Briefings ohne Feld → Europe/Berlin). Ein Abendbriefing ohne
+   eigene Zone erbt die des Morgenbriefings desselben Tages. */
+function heuteBriefingZone(b, liste) {
+  const zoneVon = (x) => x && x.zeitzone ? { zeitzone: x.zeitzone, utcOffsetMin: x.utcOffsetMin } : null;
+  const eigene = zoneVon(b);
+  if (eigene || !b || b.art !== 'abend' || !Array.isArray(liste)) return eigene;
+  return zoneVon(liste.find(x => x.art === 'morgen' && x.datum === b.datum));
 }
 
 function heuteBriefingStatus(b) {
@@ -1120,6 +1193,7 @@ function heuteBriefingInhalt() {
     try { gegliedert = b.textHtml ? heuteBriefingGliedern(b.textHtml) : null; } catch { gegliedert = null; }
     /* CP1-10: Abendbriefing mit dem Bogen aus dem Morgenbriefing desselben Tages. */
     let bogenDaten = null;
+    const zone = heuteBriefingZone(b, liste);
     if (gegliedert && b.art === 'abend') {
       try {
         const morgen = liste.find(x => x.art === 'morgen' && x.datum === b.datum && x.textHtml);
@@ -1129,7 +1203,7 @@ function heuteBriefingInhalt() {
       } catch { bogenDaten = null; }
     }
     /* CP1-8: vollständig, ohne Aufklappen — gegliedert oder als Absätze. */
-    if (gegliedert) teile.push(heuteBriefingGegliedertKnoten(gegliedert, undefined, bogenDaten));
+    if (gegliedert) teile.push(heuteBriefingGegliedertKnoten(gegliedert, undefined, bogenDaten, zone));
     else if (b.textHtml) teile.push(heuteBriefingTextKnoten(heuteBriefingAbsaetze(b.textHtml)));
   }
 

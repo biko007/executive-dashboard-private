@@ -79,7 +79,8 @@ function attrappe() {
   return { createElement: knoten, createElementNS: (_ns, tag) => knoten(tag), createTextNode: (t) => ({ textContent: String(t) }) };
 }
 const TB_FUNKTIONEN = ['heuteTagesbogenAbend', 'heuteTagesbogenLesen', 'heuteTagesbogenPunkt', 'heuteTagesbogenMondPfad',
-  'heuteTagesbogenGeometrie', 'heuteJetztMinuten', 'heuteSvg', 'heuteTagesbogenKnoten', 'heuteBriefingKopfKnoten'];
+  'heuteTagesbogenGeometrie', 'heuteJetztMinuten', 'heuteZonenOffset', 'heuteTagesbogenOrtszeit', 'heuteTagesbogenOrtZusatz',
+  'heuteSvg', 'heuteTagesbogenKnoten', 'heuteBriefingKopfKnoten'];
 const baukasten = (doc) => new Function('document',
   `${funktion('heuteEl')}\nfunction iconElement(name) { return document.createElement('svg'); }\n` +
   TB_FUNKTIONEN.map(funktion).join('\n') +
@@ -478,4 +479,94 @@ test('Normaltag 06.11.: Pfade und gerenderter Bogen unverändert gegenüber CP1-
   const ser = (k) => k.tag ? { t: k.tag, c: k.className, a: k.attribute, s: { d: k.style.display, tr: k.style.transform, e: k.style.eigenschaften }, x: k.eigenerText, k: k.kinder.map(ser) } : { text: k.textContent };
   const pruef = (jetzt) => createHash('sha256').update(JSON.stringify(ser(bau.heuteTagesbogenKnoten(d, jetzt)))).digest('hex').slice(0, 16);
   assert.deepEqual([pruef(300), pruef(740), pruef(1170)], ['7596ada185a835c5', '3805da04cc526888', 'b0af028adcca0392']);
+});
+
+// ── CP1-11 (09.11.2026): Tagesbogen in der Ortszeit des Briefing-Orts ──
+const zoneWahl = new Function(`${funktion('heuteBriefingZone')}\nreturn heuteBriefingZone;`)();
+const WINNIPEG_KOPF = ['Montag, 9. November 2026 — 07:00 Uhr', 'Winnipeg (Ortszeit, MEZ −7 h)', 'Sonne 07:30–16:56', 'Neumond 0 %', 'Mond 08:26–16:36'];
+const WINNIPEG_ZONE = { zeitzone: 'America/Winnipeg', utcOffsetMin: -360 };
+const UM_1540_UTC = new Date('2026-11-09T15:40:00Z');
+const tbVon = (k) => mitKlasse(k, 'tb')[0];
+const textVon = (k, klasse) => mitKlasse(k, klasse).map(x => x.textContent).join('|');
+
+test('Zone: fehlt das Feld oder ist sie unbekannt, rechnet der Bogen in Europe/Berlin', () => {
+  assert.equal(bau.heuteTagesbogenOrtszeit(null, UM_1540_UTC), null);
+  assert.equal(bau.heuteTagesbogenOrtszeit({}, UM_1540_UTC), null);
+  assert.equal(bau.heuteTagesbogenOrtszeit({ zeitzone: 'Europe/Berlin', utcOffsetMin: 60 }, UM_1540_UTC), null);
+  assert.equal(bau.heuteTagesbogenOrtszeit({ zeitzone: 'Mars/Olympus' }, UM_1540_UTC), null);
+  assert.equal(bau.heuteTagesbogenOrtszeit({ zeitzone: 'Europe/Paris' }, UM_1540_UTC), null);   // geht wie Berlin
+  assert.equal(bau.heuteJetztMinuten(UM_1540_UTC), 16 * 60 + 40);
+  assert.equal(bau.heuteJetztMinuten(UM_1540_UTC, 'America/Winnipeg'), 9 * 60 + 40);
+  // Ohne Feld: der 06.11.-Bogen um 16:40 Berlin ist bitgleich zum Bogen mit Minuten 16:40
+  const kopf06 = kopfVon('2026-11-06', 'morgen');
+  const ser = (k) => JSON.stringify(k, (key, v) => (typeof v === 'function' ? undefined : v));
+  assert.equal(ser(bau.heuteBriefingKopfKnoten(kopf06, UM_1540_UTC)), ser(bau.heuteBriefingKopfKnoten(kopf06, 16 * 60 + 40)));
+  assert.equal(ser(bau.heuteBriefingKopfKnoten(kopf06, UM_1540_UTC, null, { zeitzone: 'Mars/Olympus' })), ser(bau.heuteBriefingKopfKnoten(kopf06, 16 * 60 + 40)));
+});
+
+test('Winnipeg: 15:40 UTC → 09:40 Ortszeit, Tag, Sonne bei u≈0,23, Ortszeile und Chip mit Ortszeit', () => {
+  const d = lesen(WINNIPEG_KOPF);
+  assert.deepEqual([d.ort, d.ortZusatz, d.sonneAufText, d.sonneUnterText, d.mond.aufText, d.mond.unterText, d.mond.phase, d.mond.prozent],
+    ['Winnipeg', 'MEZ −7 h', '07:30', '16:56', '08:26', '16:36', 'Neumond', 0]);
+  assert.deepEqual(bau.heuteTagesbogenOrtszeit(WINNIPEG_ZONE, UM_1540_UTC), { zone: 'America/Winnipeg', text: 'MEZ −7 h' });
+  // ohne utcOffsetMin: aus Intl
+  assert.deepEqual(bau.heuteTagesbogenOrtszeit({ zeitzone: 'America/Winnipeg' }, UM_1540_UTC), { zone: 'America/Winnipeg', text: 'MEZ −7 h' });
+  assert.equal(bau.heuteTagesbogenOrtszeit({ zeitzone: 'Asia/Kolkata' }, UM_1540_UTC).text, 'MEZ +4 h 30 min');
+  assert.equal(bau.heuteTagesbogenOrtszeit({ zeitzone: 'America/New_York' }, new Date('2026-07-01T12:00:00Z')).text, 'MESZ −6 h');
+  const g = bau.heuteTagesbogenGeometrie(d, 9 * 60 + 40);
+  assert.equal(g.nacht, false);
+  assert.ok(Math.abs(g.uS - 0.23) < 0.005, 'uS ' + g.uS);
+  const tb = tbVon(bau.heuteBriefingKopfKnoten(WINNIPEG_KOPF, UM_1540_UTC, null, WINNIPEG_ZONE));
+  assert.ok(!/nacht/.test(tb.className));
+  assert.equal(textVon(tb, 'ort'), 'Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht');
+  assert.equal(mitKlasse(tb, 'jetzt-chip')[0].textContent, 'jetzt 09:40 · Ortszeit');
+  assert.match(mitKlasse(tb, 'jetzt-chip')[0].className, /mit-zone/);
+  // Nachts in Ortszeit
+  const nacht = tbVon(bau.heuteBriefingKopfKnoten(WINNIPEG_KOPF, new Date('2026-11-10T03:10:00Z'), null, WINNIPEG_ZONE));
+  assert.equal(mitKlasse(nacht, 'jetzt-chip')[0].textContent, 'Nacht · 21:10 · Ortszeit');
+  // Zusatz nicht doppelt
+  assert.equal((tb.textContent.match(/Ortszeit/g) || []).length, 2);   // Ortszeile + Chip
+});
+
+test('Winnipeg: alte Langform und Kurzform ergeben dieselbe Geometrie; Vollständigkeit der Ortszeile', () => {
+  const lang = ['Montag, 9. November 2026 — 07:00 Uhr', 'Winnipeg (Ortszeit, MEZ −7 h)', 'Sonne Aufgang 07:30 · Untergang 16:56', 'Neumond (0%)', 'Mond Aufgang 08:26 · Untergang 16:36'];
+  const ohneZusatz = ['Montag, 9. November 2026 — 07:00 Uhr', 'Winnipeg', 'Sonne Aufgang 14:30 · Untergang 23:56', 'Neumond (0%)', 'Mond Aufgang 15:26 · Untergang 23:36'];
+  const a = bau.heuteTagesbogenGeometrie(lesen(lang), 580), b = bau.heuteTagesbogenGeometrie(lesen(WINNIPEG_KOPF), 580);
+  assert.deepEqual([a.S.d, a.M.d, a.chipText], [b.S.d, b.M.d, b.chipText]);
+  // altes Format (Berliner Zeiten, kein Zusatz, keine Zone): wie bisher, Ortszeile ohne Ortszeit
+  const alt = tbVon(bau.heuteBriefingKopfKnoten(ohneZusatz, UM_1540_UTC));
+  assert.equal(textVon(alt, 'ort'), 'Winnipeg · 9 h 26 min Tageslicht');
+  assert.equal(mitKlasse(alt, 'jetzt-chip')[0].textContent, 'jetzt 16:40');
+  // Zusatz im Kopf, aber keine Zone im Objekt: Zusatz bleibt sichtbar, jetzt in Berlin
+  const nurKopf = tbVon(bau.heuteBriefingKopfKnoten(WINNIPEG_KOPF, UM_1540_UTC));
+  assert.equal(textVon(nurKopf, 'ort'), 'Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht');
+  assert.equal(mitKlasse(nurKopf, 'jetzt-chip')[0].textContent, 'jetzt 16:40');
+  // Vollständigkeit: Originalzeilen eines Briefings im neuen Format stehen in der Karte
+  const textHtml = '<b>📅 Montag, 9. November 2026 — 07:00 Uhr</b>\n📍 Winnipeg (Ortszeit, MEZ −7 h)\n☀️ Aufgang 07:30  •  Untergang 16:56\n🌑 Neumond (0%)\n🌙 Aufgang 08:26  ·  Untergang 16:36\n\n<b>📋 Offene Punkte</b>\n• Keine';
+  const karte = bau.heuteBriefingGegliedertKnoten(gliedern(textHtml), UM_1540_UTC, null, WINNIPEG_ZONE);
+  const kartenText = normal(karte.textContent);
+  const kopfZeilen = new Set(originalZeilen(textHtml.split('\n\n')[0]));
+  for (const z of originalZeilen(textHtml)) {
+    assert.ok(kartenText.includes(z) || (kopfZeilen.has(z) && kopfWoerter(textHtml, z).every(w => kartenText.includes(w))), `fehlt „${z}“`);
+  }
+  assert.ok(mitKlasse(karte, 'tb').length === 1);
+});
+
+test('Abendbriefing erbt die Zone des Morgenbriefings desselben Tages', () => {
+  const liste = [
+    { art: 'morgen', datum: '2026-11-09', zeitzone: 'America/Winnipeg', utcOffsetMin: -360 },
+    { art: 'abend', datum: '2026-11-09' },
+    { art: 'abend', datum: '2026-11-08' },
+    { art: 'morgen', datum: '2026-11-08' },
+    { art: 'abend', datum: '2026-11-07', zeitzone: 'Europe/Berlin', utcOffsetMin: 60 },
+  ];
+  assert.deepEqual(zoneWahl(liste[1], liste), WINNIPEG_ZONE);
+  assert.deepEqual(zoneWahl(liste[0], liste), WINNIPEG_ZONE);
+  assert.equal(zoneWahl(liste[2], liste), null);   // alte Briefings ohne Feld
+  assert.deepEqual(zoneWahl(liste[4], liste), { zeitzone: 'Europe/Berlin', utcOffsetMin: 60 });
+  const abendKopf = ['Abendbriefing — Montag, 9. November 2026'];
+  const d = bau.heuteTagesbogenAbend(abendKopf, WINNIPEG_KOPF, '21:00');
+  const tb = tbVon(bau.heuteBriefingKopfKnoten(abendKopf, new Date('2026-11-10T03:10:00Z'), d, zoneWahl(liste[1], liste)));
+  assert.equal(mitKlasse(tb, 'jetzt-chip')[0].textContent, 'Nacht · 21:10 · Ortszeit');
+  assert.equal(textVon(tb, 'ort'), 'Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht');
 });

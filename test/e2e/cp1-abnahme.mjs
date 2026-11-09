@@ -540,6 +540,70 @@ async function abendbogenPruefen(browser, basis, eigenerHost) {
   }
 }
 
+/* CP1-11: Ortszeit. Die Antwort von /api/briefing (echt, GET) wird im
+   Browser um ein synthetisches Winnipeg-Morgenbriefing 09.11. ergänzt: Kopf
+   in Ortszeit mit Zusatz „(Ortszeit, MEZ −7 h)", dazu die Felder zeitzone und
+   utcOffsetMin. Uhr 15:40 UTC → 09:40 Ortszeit → Tag, Chip „jetzt 09:40 ·
+   Ortszeit". Ohne die Felder rechnet der Bogen wie bisher in Berlin (16:40). */
+const OZ_FAELLE = [
+  { name: 'ortszeit', felder: true, chip: 'jetzt 09:40 · Ortszeit', ort: 'Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht' },
+  { name: 'ohne-felder', felder: false, chip: 'jetzt 16:40', ort: 'Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht' },
+];
+const OZ_KOPF = '<b>📅 Montag, 9. November 2026 — 07:00 Uhr</b>\n📍 Winnipeg (Ortszeit, MEZ −7 h)\n☀️ Aufgang 07:30  •  Untergang 16:56\n🌑 Neumond (0%)\n🌙 Aufgang 08:26  ·  Untergang 16:36\n';
+ergebnis.ortszeit = [];
+async function ortszeitPruefen(browser, basis, eigenerHost) {
+  for (const breite of TB_BREITEN) {
+    for (const fall of OZ_FAELLE) {
+      const { context, page, sammel } = await seiteOeffnen(browser, breite, eigenerHost);
+      const e = { breite: breite.name, fall: fall.name };
+      try {
+        await page.route(u => u.pathname.endsWith('/api/briefing') && u.searchParams.get('tage') === '7', async (r) => {
+          const antwort = await r.fetch();
+          const j = await antwort.json();
+          const liste = (j.briefings || []).filter(b => !(b.art === 'morgen' && b.datum === '2026-11-09'));
+          /* Rubriken aus einem echten Morgenbriefing, Kopf synthetisch. */
+          const vorlage = (j.briefings || []).find(b => b.art === 'morgen' && b.textHtml) || { textHtml: '<b>📋 Offene Punkte</b>\n• keine' };
+          const rumpf = vorlage.textHtml.slice(vorlage.textHtml.indexOf('\n<b>', 1) + 1);
+          const syn = { art: 'morgen', datum: '2026-11-09', textHtml: OZ_KOPF + '\n' + rumpf, status: 'gesendet', versuche: 1,
+            telegramOk: true, mailOk: null, fehler: null, fehlerGemeldet: false,
+            erzeugtAt: '2026-11-09T06:00:00.000Z', gesendetAt: '2026-11-09T06:00:00.000Z' };
+          if (fall.felder) Object.assign(syn, { zeitzone: 'America/Winnipeg', utcOffsetMin: -360 });
+          await r.fulfill({ response: antwort, contentType: 'application/json', body: JSON.stringify({ ...j, briefings: [syn, ...liste] }) });
+        });
+        await page.clock.setFixedTime(new Date('2026-11-09T15:40:00Z'));
+        await page.goto(basis + '/dashboard/?tab=heute&token=' + encodeURIComponent(TOKEN), { waitUntil: 'domcontentloaded' });
+        await bereit(page, 'heute');
+        e.geladen = await page.evaluate(() => document.getElementById('content').dataset.geladen === '1');
+        await page.selectOption('.tu-briefing .hb-tag select', '2026-11-09');
+        await page.waitForTimeout(300);
+        const knopf = page.locator('.tu-briefing .segment button[data-art="morgen"]');
+        if (await knopf.getAttribute('aria-pressed') !== 'true') { await knopf.click(); await page.waitForTimeout(300); }
+        await page.waitForSelector('.tu-briefing .tb', { timeout: 10000 });
+        await page.waitForTimeout(2600);
+        Object.assign(e, await tbMessen(page));
+        Object.assign(e, await page.evaluate(() => {
+          const tb = document.querySelector('.tu-briefing .tb');
+          const chip = tb.querySelector('.jetzt-chip'), cr = chip.getBoundingClientRect(), hr = tb.querySelector('.himmel').getBoundingClientRect();
+          return { chipVoll: chip.textContent, ortZeile: tb.querySelector('.ort').textContent,
+            chipImBild: cr.left >= hr.left - 1 && cr.right <= hr.right + 1,
+            zoneKontrast: (() => { const z = chip.querySelector('.jetzt-zone'); return z ? getComputedStyle(z).fontSize : null; })() };
+        }));
+        e.ueber = await ueberbreite(page);
+        const datei = 'heute-' + breite.name + '-' + fall.name + '.png';
+        await page.screenshot({ path: path.join(AUS, datei), fullPage: true });
+        e.screenshot = datei;
+      } catch (err) { e.ausnahme = String(err.message).slice(0, 200); }
+      e.konsole = [...sammel.konsole];
+      e.ok = !e.ausnahme && e.geladen && e.sichtbar && !e.nacht && e.sonne && !e.sterne && e.chipVoll === fall.chip && e.ortZeile === fall.ort
+        && e.chipImBild && !e.konsole.length && e.ueber && !e.ueber.anzahl && e.legendeMin >= 4.5 && e.datumMin >= 4.5
+        && (breite.name === 'mobil' ? e.spalten === 1 : e.spalten === 2);
+      ergebnis.ortszeit.push(e);
+      console.error('ortszeit', breite.name, fall.name, e.ok, JSON.stringify({ chip: e.chipVoll, ort: e.ortZeile, imBild: e.chipImBild, zone: e.zoneKontrast, legendeMin: e.legendeMin, datumMin: e.datumMin, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole, ausnahme: e.ausnahme }));
+      await context.close();
+    }
+  }
+}
+
 async function liveSmoke(browser) {
   const host = new URL(ZIEL).host;
   for (const breite of BREITEN) {
@@ -571,13 +635,14 @@ try {
   } else {
     proxy = await proxyStarten();
     const host = new URL(proxy.basis).host;
-    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen', 'abendbogen'];
+    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen', 'abendbogen', 'ortszeit'];
     if (teile.includes('tabs')) await tabsPruefen(browser, proxy.basis, host, TABS);
     if (teile.includes('nurheute')) await tabsPruefen(browser, proxy.basis, host, ['heute']);
     if (teile.includes('deeplinks')) await deeplinksPruefen(browser, proxy.basis, host);
     if (teile.includes('heute')) await heutePruefen(browser, proxy.basis, host);
     if (teile.includes('tagesbogen')) await tagesbogenPruefen(browser, proxy.basis, host);
     if (teile.includes('abendbogen')) await abendbogenPruefen(browser, proxy.basis, host);
+    if (teile.includes('ortszeit')) await ortszeitPruefen(browser, proxy.basis, host);
   }
 } catch (e) {
   ergebnis.fehler.push(String(e.stack || e).slice(0, 500));
@@ -595,4 +660,5 @@ console.log(JSON.stringify({ tabs: ergebnis.tabs.length, tabsMitBefund: tabsFehl
   zusatz: ergebnis.tabs.filter(t => t.zusatz).map(t => [t.zusatz.name, t.breite, t.zusatz.ok, t.zusatz.detail]), deeplinks: ergebnis.deeplinks.map(d => d.schritte),
   heute: ergebnis.heute.map(h => [h.name, h.ok]),
   tagesbogen: ergebnis.tagesbogen.map(t => [t.breite, t.zeit, t.ok, t.chip, t.legendeMin, t.datumMin]),
-  abendbogen: ergebnis.abendbogen.map(t => [t.breite, t.fall, t.ok, t.tagZeile, t.chip, t.legendeMin, t.datumMin]), fehler: ergebnis.fehler }, null, 1));
+  abendbogen: ergebnis.abendbogen.map(t => [t.breite, t.fall, t.ok, t.tagZeile, t.chip, t.legendeMin, t.datumMin]),
+  ortszeit: ergebnis.ortszeit.map(t => [t.breite, t.fall, t.ok, t.chipVoll, t.legendeMin, t.datumMin]), fehler: ergebnis.fehler }, null, 1));

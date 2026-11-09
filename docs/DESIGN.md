@@ -267,6 +267,22 @@ Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
   Zeit wörtlich“.
 - **Jetzt-Chip am Rand (CP1-10):** `left: clamp(60px, var(--x), 100% − 60px)`,
   damit er nicht halb abgeschnitten wird; die Bogenposition `--x` bleibt.
+- **Ortszeit des Briefing-Orts (CP1-11):** Trägt das Briefing-Objekt aus
+  `/api/briefing` `zeitzone` (IANA, z. B. `America/Winnipeg`) und `utcOffsetMin`,
+  rechnet „jetzt“ (Chip, Sonnen- und Mondposition, Tag/Nacht, Mond oben) in dieser
+  Zone (`heuteJetztMinuten(datum, zone)`); ein Abendbriefing ohne eigene Zone erbt
+  die des Morgenbriefings desselben Tages (`heuteBriefingZone()`). Fehlt das Feld,
+  ist die Zone unbekannt oder geht sie zur Zeit wie Berlin, bleibt alles wie bisher
+  in Europe/Berlin. Bei abweichender Zone (`heuteTagesbogenOrtszeit()`):
+  Ortszeile „Winnipeg · Ortszeit MEZ −7 h · 9 h 26 min Tageslicht“ (Abstand aus
+  `utcOffsetMin`, sonst aus Intl, gegen den aktuellen Berliner Offset; MEZ/MESZ),
+  Chip „jetzt 09:40 · Ortszeit“ bzw. „Nacht · 21:10 · Ortszeit“ (Zusatz in
+  10,5 px, Klasse `mit-zone`, Randbegrenzung 90 px). Der Kopfzusatz
+  „(Ortszeit, MEZ −7 h)“ wird beim Lesen vom Ortsnamen getrennt (`ortZusatz`) und
+  nur einmal gezeigt; ohne Zonenfeld steht er so in der Ortszeile, „jetzt“ in
+  Berlin. Der Parser liest neben der Langform auch „Sonne 07:30–16:56“,
+  „Neumond 0 %“ und „Mond 08:26–16:36“. Die Geometrie hängt nur von den Zeiten
+  im Kopf ab, nicht von der Zone; der 06.11. ist bitgleich (Prüfsummen).
 
 ## Alpine
 
