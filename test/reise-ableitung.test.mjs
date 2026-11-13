@@ -313,3 +313,148 @@ test('heute der Reise in Ortszeit aus dem jüngsten Briefing mit utcOffsetMin', 
   assert.equal(R.reiseHeuteOrt(b, new Date('2026-11-20T05:00:00Z'), '2026-11-20').quelle, 'berlin');   // Briefing zu alt
   assert.equal(R.reiseHeuteOrt(null, new Date(), '2026-11-13').tag, '2026-11-13');
 });
+
+/* ── CP2-0b (13.11.2026): Reisen-Seite „Heute zuerst" ─────────────────────
+   Fixture v20-voll: Auszug der Reisedatei vom 13.11. mit Kontakten und
+   Buchungstexten; Buchungscodes durch BKnn ersetzt, Mailadressen, Ticket-,
+   Kunden- und Mitgliedsnummern maskiert. Stichtag 12.11. 20:00 Ortszeit. */
+const V3 = new Function(`${js}
+return { reiseStationen, reiseTitelAusStationen, reiseAnlaesse, reiseZeitraumKurz, reiseTagesleiste, reiseEreignisse,
+  reiseNaechste36, reiseAktionenFuer, reiseSummen, reiseLinksUndKontakte, reiseSichereUrl, reisePlan, reiseBuchungsgruppen,
+  reiseBuchungZeilenDatum, reiseZuErledigen, reiseFristenGliedern, reiseJetztOrt, reiseStadtVonIata, reiseTelUrl };`)();
+const voll = JSON.parse(readFileSync(new URL('./fixtures/reise-261107-winnipeg-v20-voll.json', import.meta.url), 'utf8'));
+const RV = voll.reise;
+const TAG = '2026-11-12', UHR = 20 * 60;
+const zeilenV3 = V3.reiseTagesleiste(RV, voll.start_date, voll.end_date, TAG).zeilen;
+const ereignisseV3 = V3.reiseEreignisse(RV, voll.start_date, voll.end_date);
+const ereignis = (titel) => ereignisseV3.find(e => e.titel.startsWith(titel));
+
+test('v3: Stationen aus dem Verlauf — 8 Stationen, Victoria aktuell; Titel, Anlässe, Zeitraum', () => {
+  const st = V3.reiseStationen(zeilenV3, TAG);
+  assert.deepEqual(st.map(s => `${s.ort} ${s.spanne}`), ['Zürich Sa 07.', 'Winnipeg 07.–10.', 'Victoria 10.–13.', 'Vancouver 13.–15.',
+    'San Francisco 15.–20.', 'Santa Clara 21.–22.', 'Los Angeles 23.–24.', 'Zürich Mi 25.']);
+  assert.deepEqual(st.map(s => s.zustand), ['vorbei', 'vorbei', 'jetzt', 'kommend', 'kommend', 'kommend', 'kommend', 'kommend']);
+  assert.equal(V3.reiseTitelAusStationen(st, voll.name), 'Winnipeg → Los Angeles');
+  assert.equal(V3.reiseTitelAusStationen([{ ort: 'Zürich' }, { ort: 'Tuttlingen' }], 'Ersatz'), 'Ersatz');
+  assert.deepEqual(V3.reiseAnlaesse(voll.name).map(a => a.anlass), ['TobaGrown', 'QCon', 'AGI Summit']);
+  assert.equal(V3.reiseZeitraumKurz(voll.start_date, voll.end_date), '07.–25.11.2026');
+  // Reisetag: das Ziel ist die aktuelle Station; vor/nach der Reise keine
+  assert.equal(V3.reiseStationen(zeilenV3, '2026-11-15').find(s => s.zustand === 'jetzt').ort, 'San Francisco');
+  assert.ok(V3.reiseStationen(zeilenV3, '2026-11-30').every(s => s.zustand === 'vorbei'));
+  assert.equal(V3.reiseStadtVonIata('Victoria Harbour'), 'Victoria');
+  assert.equal(V3.reiseStadtVonIata('YVR'), 'Vancouver');
+});
+
+test('v3: die nächsten 36 Stunden ab 12.11. 20:00 Ortszeit — Seair, Fairmont, Essensbestellung', () => {
+  const n = V3.reiseNaechste36(ereignisseV3, RV, TAG, UHR);
+  assert.deepEqual(n.map(e => [e.wann, e.zeitArt, e.zeit, e.titel.slice(0, 20)]), [
+    ['morgen', '', '10:30', 'Seair 528 · Victoria'],
+    ['morgen', '', '15:00', 'Check-in Fairmont Pa'],
+    ['Sa', 'bis', '00:25', 'Essensbestellung AC5']]);
+  assert.equal(n[2].unter, 'Flug Vancouver → San Francisco am So 15.11., 12:25');
+  // Die Termin-Frist „Seair 528 …, 10:30" steht nicht doppelt neben dem Flug
+  assert.equal(ereignisseV3.filter(e => /Seair 528/.test(e.titel)).length, 1);
+  // Fenstergrenzen: 36 h ab 13.11. 13:00 reichen bis 15.11. 01:00
+  assert.deepEqual(V3.reiseNaechste36(ereignisseV3, RV, '2026-11-13', 13 * 60).map(e => e.zeit), ['15:00', '00:25']);
+  assert.deepEqual(V3.reiseNaechste36(ereignisseV3, RV, '2026-11-25', 16 * 60), []);   // nach der Ankunft: leer
+  assert.equal(V3.reiseNaechste36(ereignisseV3, RV, '2026-11-20', 8 * 60)[0].titel, 'AGI Summit Silicon Valley');   // 21.11. 09:00 liegt im Fenster
+  assert.deepEqual(V3.reiseNaechste36(ereignisseV3, RV, TAG, null), []);
+});
+
+test('v3: Summe je Währung aus den Buchungsbeträgen der Fixture', () => {
+  const nachgerechnet = {};
+  for (const b of RV.buchungen) if (b.preis != null) nachgerechnet[b.waehrung] = (nachgerechnet[b.waehrung] || 0) + Math.round(b.preis * 100);
+  const summen = V3.reiseSummen(RV.buchungen);
+  assert.deepEqual(summen.map(s => [s.waehrung, Math.round(s.betrag * 100)]), Object.entries(nachgerechnet));
+  assert.deepEqual(summen, [{ waehrung: 'CHF', betrag: 7331.75 }, { waehrung: 'CAD', betrag: 4069.98 }, { waehrung: 'USD', betrag: 8231.63 }]);
+  assert.deepEqual(V3.reiseSummen([{ preis: 0.1, waehrung: 'EUR' }, { preis: 0.2, waehrung: 'EUR' }, { preis: 5 }, { waehrung: 'EUR' }]),
+    [{ waehrung: 'EUR', betrag: 0.3 }]);   // in Cent gerechnet, ohne Währung zählt nicht
+});
+
+test('v3: Aktions-Chips — Tagesprogramm, Buchung, Hotel + Karte, kein Chip ohne Zuordnung', () => {
+  const art = (e) => V3.reiseAktionenFuer(e, RV).map(a => a.text);
+  const qcon = V3.reiseAktionenFuer(ereignis('QCon Tag 1'), RV);
+  assert.deepEqual(qcon.map(a => [a.text, a.titel]), [['Tagesprogramm', 'QCon Mo 16.11. – Tagesprogramm']]);
+  assert.equal(qcon[0].url, RV.kontakte.find(k => k.name === 'QCon Mo 16.11. – Tagesprogramm').url);
+  const ac564 = V3.reiseAktionenFuer(ereignis('AC564'), RV).find(a => a.art === 'buchung');
+  assert.match(RV.buchungen[ac564.buchung].anbieter, /^Air Canada AC564/);   // in der Reisedatei CQFPL5, hier maskiert
+  const fairmont = V3.reiseAktionenFuer(ereignis('Check-in Fairmont'), RV);
+  assert.deepEqual(fairmont.map(a => a.text), ['Hotel', 'Karte', 'Anrufen']);
+  assert.match(fairmont[1].url, /^https:\/\/maps\.apple\.com\/\?q=Fairmont%20Pacific%20Rim%20Vancouver%2C%201038%20Canada%20Place$/);
+  assert.equal(fairmont[2].url, 'tel:+16046955300');
+  assert.deepEqual(art({ tag: '2026-11-17', titel: 'Essen mit Ron Gershoni (Jetty)', art: 'termin' }), []);
+  assert.deepEqual(art(ereignis('Training') || ereignis('QCon Training')), ['Programm']);
+  assert.deepEqual(art(ereignis('Lucas Museum')).slice(0, 2), ['Tickets', 'Karte']);
+  assert.deepEqual(art(ereignis('Check-out Fairmont')), []);   // steht schon am Check-in
+  // Datum allein ordnet nichts zu, Schlüsselwort allein nimmt den Link ohne fremdes Datum
+  assert.deepEqual(art({ tag: '2026-11-16', titel: 'Abendessen', art: 'termin' }), []);
+  assert.equal(V3.reiseAktionenFuer({ tag: '2026-11-25', titel: 'QCon Nachlese', art: 'termin' }, RV)[0].titel, 'QCon San Francisco – Programm mit Räumen');
+  // Links aus /api/links zählen mit; eine javascript:-Adresse ergibt keinen Chip
+  const api = [{ label: 'QCon Mo 16.11. Folien', spWebUrl: 'https://example.sharepoint.com/folien' }];
+  assert.equal(V3.reiseAktionenFuer(ereignis('QCon Tag 1'), RV, api)[0].url, 'https://example.sharepoint.com/folien');
+  const boese = { ...RV, kontakte: [{ name: 'QCon Mo 16.11. – Tagesprogramm', url: 'javascript:alert(1)' }], buchungen: [] };
+  assert.deepEqual(V3.reiseAktionenFuer({ tag: '2026-11-16', titel: 'QCon Tag 1', art: 'termin' }, boese), []);
+});
+
+test('v3: Links und Kontakte getrennt; URL-Prüfung lehnt javascript: ab', () => {
+  const { links, kontakte } = V3.reiseLinksUndKontakte(RV.kontakte);
+  assert.equal(links.length, 14);
+  assert.deepEqual(kontakte.map(k => k.name.split(/\s[–(]/)[0]), ['Jesse Lavoie', 'SWISS Service Center', 'Troy', 'Seair Seaplanes', 'Fairmont Pacific Rim Vancouver']);
+  // Telefon + URL: unter Kontakte, URL zusätzlich unter Links; nur URL: nur Links
+  assert.ok(links.some(l => l.titel === 'SWISS Service Center'));
+  assert.ok(!kontakte.some(k => /QCon/.test(k.name)));
+  assert.ok(!links.some(l => /Fairmont/.test(l.titel)));
+  for (const schlecht of ['javascript:alert(1)', ' JaVaScRiPt:alert(1)', 'data:text/html,x', '/dashboard/x', '//boese.example', 'tel:+1-800-ABC', 'ftp://x']) {
+    assert.equal(V3.reiseSichereUrl(schlecht), '', schlecht);
+  }
+  assert.equal(V3.reiseSichereUrl('https://qconsf.com/schedule/nov2026#day-319'), 'https://qconsf.com/schedule/nov2026#day-319');
+  assert.equal(V3.reiseSichereUrl('tel:+41848700700'), 'tel:+41848700700');
+  assert.equal(V3.reiseTelUrl('+1 604 695 5300 / +1 800 000'), 'tel:+16046955300');
+  assert.deepEqual(V3.reiseLinksUndKontakte([{ name: 'X', url: 'javascript:alert(1)' }]), { links: [], kontakte: [{ name: 'X', url: 'javascript:alert(1)' }] });
+});
+
+test('v3: Reiseplan — vergangene Tage gefaltet, heute zuerst, AGI als Block, Unterkunft, offene Hotels', () => {
+  const p = V3.reisePlan(voll, RV, TAG);
+  assert.equal(p.spanneVergangen, '07.–11.');
+  assert.equal(p.kurz, 'Zürich → Winnipeg · TobaGrown · 5 Tage');
+  assert.deepEqual([p.rest[0].von, p.rest[0].heute, p.rest[0].ort], [TAG, true, 'Victoria']);
+  const tag = (von) => p.rest.find(d => d.von === von);
+  assert.deepEqual(tag('2026-11-13').ereignisse.map(e => e.zeit), ['10:30', '15:00']);
+  assert.equal(tag('2026-11-13').wechsel, true);
+  assert.deepEqual(tag('2026-11-14').unterkunft, { text: 'Fairmont Pacific Rim', spanne: '13.–15.' });
+  assert.equal(tag('2026-11-13').unterkunft, null);   // Check-in-Tag: steht als Ereignis da
+  assert.deepEqual(tag('2026-11-16').unterkunft, { text: 'Hyatt Regency', spanne: '15.–19.' });
+  const agi = tag('2026-11-21');
+  assert.deepEqual([agi.bis, agi.tage, agi.ereignisse.filter(e => e.art === 'termin').length], ['2026-11-22', 2, 1]);
+  assert.deepEqual(tag('2026-11-19').offen, ['Nacht 19.→20. noch offen']);
+  assert.deepEqual(tag('2026-11-20').offen, ['Hotel Santa Clara 20.–22. noch offen']);
+  assert.deepEqual(agi.offen, ['Hotel Los Angeles 22.–24. noch offen']);
+  assert.equal(p.rest[p.rest.length - 1].ereignisse[0].titel, 'Ankunft Zürich');
+});
+
+test('v3: Buchungen gruppiert, Programmpunkte unter ihrer Buchung, Datum der Zeile', () => {
+  const g = V3.reiseBuchungsgruppen(RV, voll.start_date, voll.end_date);
+  assert.deepEqual(g.map(x => [x.titel, x.zeilen.length]), [['Flüge', 4], ['Unterkünfte', 2], ['Tickets', 3], ['Sonstiges', 1]]);
+  assert.equal(g.reduce((n, x) => n + x.zeilen.reduce((m, z) => m + 1 + z.teile.length, 0), 0), 17);   // nichts geht verloren
+  const qcon = g[2].zeilen.find(z => /^QCon/.test(z.buchung.anbieter));
+  assert.equal(qcon.teile.length, 5);
+  const datum = (z) => V3.reiseBuchungZeilenDatum(z, RV, voll.start_date, voll.end_date);
+  assert.deepEqual(g[0].zeilen.map(datum), ['07.11. / 24.11.', 'Di 10.11.', 'Fr 13.11.', 'So 15.11.']);
+  assert.equal(datum(qcon), '16.–19.11.');
+});
+
+test('v3: Zu erledigen — Aufgaben, überfällig zuerst, Fristtext', () => {
+  const g = V3.reiseFristenGliedern(RV, TAG);
+  const z = V3.reiseZuErledigen(g, TAG);
+  assert.deepEqual(z.map(f => f.bis), ['überfällig', 'überfällig', 'überfällig', 'bis Fr', 'bis So']);
+  assert.match(z[3].titel, /^Treffen mit Troy/);
+  assert.ok(z.every(f => f.art !== 'termin'));
+  assert.equal(V3.reiseZuErledigen(g, TAG, 9).find(f => f.faellig === '2026-11-20').bis, 'bis Fr 20.');
+});
+
+test('v3: jetzt am Reiseort aus utcOffsetMin, sonst Berliner Werte', () => {
+  const b = [{ gesendetAt: '2026-11-12T06:00:00Z', utcOffsetMin: -480, zeitzone: 'America/Vancouver' }];
+  assert.deepEqual(V3.reiseJetztOrt(b, new Date('2026-11-13T04:00:00Z'), '2026-11-13', 300),
+    { tag: '2026-11-12', minuten: 1200, quelle: 'ortszeit', zeitzone: 'America/Vancouver' });
+  assert.deepEqual(V3.reiseJetztOrt([], new Date('2026-11-13T04:00:00Z'), '2026-11-13', 300), { tag: '2026-11-13', minuten: 300, quelle: 'berlin' });
+});

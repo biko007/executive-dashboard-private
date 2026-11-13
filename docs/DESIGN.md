@@ -93,6 +93,7 @@ trending-up, plug — damit jeder der 14 Bereiche ein eigenes, eindeutiges Symbo
 hat (Private Equity, Instagram, Wiki, Trading, Status).
 CP1-7: **ergänzt** um mail, list-checks, info, clock für die Briefing-Abschnitte; CP1-8 um cloud (Wetter).
 CP2-0: **ergänzt** um ellipsis (Menü „…“; Lucide-Name für more-horizontal), bed, ticket, map, clipboard-copy, link, phone, folder, id-card, award für die Reisen-Karte.
+CP2-0b: **ergänzt** um map-pin (Reisen-Seite v3).
 
 ## Bausteine (`design.css`)
 
@@ -299,6 +300,94 @@ Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
   „Zugestellt 07:00 Berlin · Telegram“ (Zustellchip) und „Montag · 07:00 Uhr
   Berlin“ (Bogenkopf). Sonnen- und Mondzeiten werden nie umgerechnet; sie stehen
   so im Bogen, wie der Kopf sie nennt.
+
+## Reisen-Seite v3 „Heute zuerst“ (CP2-0b)
+
+Ersetzt für Reisen mit Reiseblock die Reisen-Karte aus CP2-0 (Abschnitt
+darunter gilt für deren Regeln weiter: Fristeinstufung, „heute“ in Ortszeit,
+Statuschip der Buchung). Vorlage: Owner-Prototyp
+`~/bikosoc-spec/reisen-v3-prototyp.html` (Dropbox
+`/Austausch/dashboard-design/reisen-v3-prototyp.html`), übernommen in
+Aufbau, Abständen, Farben und Schrift; Farben nur als Tokens aus `design.css`,
+Platzhalterzeichen des Prototyps (⌂ ⋯ ↗ ▸) als Sprite-Icons (bed, ellipsis,
+external-link, chevron-right). Aufbau per DOM in `public/js/reise-ansicht.js`
+(Texte per `textContent`, Links per `createElement('a')` mit geprüfter Adresse
+`reiseSichereUrl`: nur http(s) und `tel:` aus Ziffern); Regeln in
+`public/js/reise-ableitung.js`, Tests mit `test/fixtures/reise-261107-winnipeg-v20-voll.json`.
+Klassen mit Präfix `rv-`. Die alte `.trip-card` (Reisen ohne Reiseblock) ist unverändert.
+
+- **Kopfkarte:** Vorschaubild 56/64 px; Titel = erste → letzte Station
+  (`reiseTitelAusStationen`; Zürich/Tuttlingen am Anfang/Ende zählen nicht);
+  Untertitel „07.–25.11.2026 · Tag 6 von 19 · {Anlässe}“ (Anlässe aus den
+  Klammern des Reisenamens, `reiseAnlaesse`). Rechts Chip Status
+  (`-ok` Aktiv, `-info` Geplant, `-neutral` Vergangen) und „{n} überfällig“
+  (`-warn`), sonst „{n} offen“ (`-neutral`) bzw. „nichts offen“ (`-ok`); Menü „…“
+  mit Bearbeiten, Mit Kalender abgleichen, Verknüpfen, Löschen (Bestätigung
+  unverändert). Kein eigener Bearbeiten-Knopf mehr.
+- **Stationenband** (das eine besondere Element): Stationen = Orte des
+  Verlaufs, Folgetage am selben Ort = ein Aufenthalt; ein Reisetag „A → B“
+  gehört zu beiden, bei Nachtflug beginnt B erst am Ankunftstag
+  (`reiseStationen`). Linie `--sand`, vergangene Punkte gefüllt, aktuelle
+  Station `--sun-core` mit Schein `--sun` (wie die Sonne im Tagesbogen),
+  kommende leer. Aktuell = letzte Station, deren Spanne heute enthält (an
+  Reisetagen das Ziel). Schrift `--text-soft` statt `--muted` des Prototyps
+  (`--muted` auf `--sky-top` nur 4,36:1). Mobil seitlich scrollend, beim Laden
+  per `scrollIntoView({inline:'center'})` zur aktuellen Station, ohne
+  Animation bei `prefers-reduced-motion`.
+- **Die nächsten 36 Stunden** (Navy, `--shadow-lift`): Ereignisse des
+  Verlaufs (`reiseEreignisse`: Abflug/Ankunft, Check-in/-out, Buchungstermine,
+  Termin-Fristen; eine Frist, die einen Flug desselben Tages nennt, entfällt)
+  und Aufgaben mit Uhrzeit im Titel, Zeitpunkt in [jetzt, jetzt + 36 h] in
+  Ortszeit, höchstens vier, chronologisch (`reiseNaechste36`). Kopf
+  „{Station} · Do 12.11., 20:00 Ortszeit“ (`reiseJetztOrt` aus `utcOffsetMin`,
+  sonst „Berliner Zeit“). Untertitel `--on-navy-soft`. Leer: „Nichts
+  Dringendes in den nächsten 36 Stunden“. Entfällt bei vergangenen Reisen.
+- **Zu erledigen:** offene Aufgaben (Termin-Fristen stehen im 36-h-Fenster),
+  überfällige zuerst, höchstens fünf (`reiseZuErledigen`); rechts „überfällig“
+  (`--on-red-weak`), „bis Fr“ (≤ 6 Tage), sonst „bis So 15.“. Das Kästchen ist
+  Anzeige — ohne Schreibzugriff auf die Reisedatei gibt es keinen
+  Erledigt-Mechanismus. Fuß: „Alle {n} Fristen“ (gegliedert wie CP2-0) und
+  „Erledigt {n}“ als Chip-Knöpfe. Mobil Aufgabentext höchstens zwei Zeilen.
+- **Reiseplan:** eine Zeile je Tag ab heute (Datumsspalte 62 px, heute auf
+  `--gold-weak` mit „heute“), Ort fett, Ortswechsel `--accent-dark` mit
+  Flugzeug-Icon; Ereignisse mit Uhrzeit (Spalte 44 px) + Titel + Aktions-Chips.
+  Unterkunft „{Hotel} · {Spanne}“ (`.rv-hotel-band`) am Tag nach dem Check-in
+  und an Tagen ohne Ereignis; offene Hotels/Nächte aus Aufgaben-Fristen als
+  „… noch offen“ mit `.chip-warn` „Aufgabe“ (`reiseOffeneUnterkuenfte`). Tage mit
+  denselben Buchungsterminen werden ein Block „21.–22.“ (`reisePlan`).
+  Vergangene Tage gefaltet: „07.–11. Zürich → Winnipeg · TobaGrown · 5 Tage“.
+  Mobil stehen heute + 4 Tage offen, die übrigen als eine Zeile zum Aufklappen;
+  am Desktop offen ohne diese Zeile.
+- **Aktions-Chips** (`.chip-act`, `--accent-weak`/`--accent-dark`, auf Navy
+  14 % Weiß; ↗ = external-link bei Webseiten, phone bei `tel:`) nach
+  `reiseAktionenFuer`: „Buchung“ (Flugnummer/Buchungscode einer Buchung →
+  Sprung + Aufklappen, kein ↗); Link-Chip „Tagesprogramm“/„Programm“/„Tickets“/
+  „Hotel“/„Website“ aus /api/links, Kontakten oder eigener Buchung, deren Titel
+  ein Schlüsselwort des Ereignisses trägt — Titel mit dem Datum des Ereignisses
+  haben Vorrang; ein Datum allein ordnet nichts zu; „Karte“ (Adresse aus dem
+  Kontakt, bei Hotels auch Name + Stadt; `maps.apple.com/?q=`); „Anrufen“
+  (`tel:`). Check-out und Ankunft ohne Chips (stehen am Check-in/Abflug). Keine
+  Zuordnung → kein Chip.
+- **Buchungen:** gruppiert Flüge / Unterkünfte / Tickets / Sonstiges
+  (`reiseBuchungsgruppen`); Programmpunkte ohne Betrag mit dem Code einer
+  Buchung mit Betrag (QCon Tag 1–3, AGI Tag 1/2) stehen in deren Details.
+  Zeile: Titel (Ellipsis), darunter Code (Monospace) · Datum · „von {Person}“ ·
+  Chip (Verwalten/Hotel/Programm/Tickets/Website); Betrag rechts `.num` 700.
+  Fuß „Summe“ je Währung in Cent gerechnet (`reiseSummen`). Mobil ist die Karte
+  zugeklappt (Kopfzeile mit Summe), am Desktop offen.
+- **Unterlagen und Kontakte:** Chip-Reiter (Links, Kontakte, Dokumente,
+  Einreise, Miles & More, Flugkette, Offene Punkte, Notiz; umbrechend, 40 px,
+  Pfeiltasten, gewählter Reiter gemerkt), Standard „Links“. Links aus den
+  Kontakten getrennt (`reiseLinksUndKontakte`): mit URL ohne Telefon/Mail →
+  Links; mit Telefon/Mail → Kontakte, die URL zusätzlich unter Links. Mobil die
+  ersten fünf Einträge und „Alle {n} Links“. Die übrigen Reiter zeigen die
+  bisherigen Blöcke unverändert.
+- **Fuß:** „Erledigt und Hinweise ({n})“ eingeklappt, „Abgeschlossene Reisen
+  ({n})“ im selben Ton.
+- **Raster:** unter 1024 px einspaltig in DOM-Reihenfolge, ab 1024 px zweimal
+  `minmax(0,7fr) minmax(0,5fr)` (36 h | Zu erledigen; Reiseplan | Buchungen +
+  Unterlagen).
+- **Höhe** bei 390 px (Uhr 13.11. 04:00Z): 2907 → 2893 px.
 
 ## Reisen-Karte (CP2-0)
 

@@ -606,94 +606,154 @@ async function ortszeitPruefen(browser, basis, eigenerHost) {
   }
 }
 
-/* CP2-0: Reisen-Karte der aktiven Reise. Uhr 12.11. 22:00Z. Misst die Höhe
-   der Karte (Vergleich vorher/nachher) und prüft Aufklappen, Aktionsmenü,
-   Emojis, Überbreite, Konsole und Kontrast. Nur GET; Schreibanfragen sperrt
-   nurLesend(). */
+/* CP2-0b: Reiseseite „Heute zuerst" (Prototyp v3). Uhr 13.11. 04:00Z
+   (12.11. 20:00 Ortszeit Vancouver). Misst die Höhe der Seite (Vergleich
+   vorher/nachher) und prüft Stationenband, 36-Stunden-Karte, Tagesprogramm-
+   Link am Mo 16., Sprung „Buchung" (AC564), Reiter, Aktionsmenü, Emojis,
+   Überbreite, Konsole und Kontrast aller Texte. Nur GET; Schreibanfragen
+   sperrt nurLesend(). Mit nurMessen (Teil „reisenhoehe") nur Höhe und Bild —
+   das läuft auch gegen den Stand vor CP2-0b. */
 ergebnis.reisen = [];
+const REISE_UHR = '2026-11-13T04:00:00Z';
 async function reisenPruefen(browser, basis, eigenerHost, nurMessen) {
   for (const breite of BREITEN) {
     const { context, page, sammel } = await seiteOeffnen(browser, breite, eigenerHost);
     const e = { breite: breite.name };
     try {
-      await page.clock.setFixedTime(new Date('2026-11-12T22:00:00Z'));
+      await page.clock.setFixedTime(new Date(REISE_UHR));
       await page.goto(basis + '/dashboard/?tab=trips&token=' + encodeURIComponent(TOKEN), { waitUntil: 'domcontentloaded' });
       await bereit(page, 'trips');
-      await page.waitForSelector('#content .trip-card.reise-neu', { timeout: 15000 });
-      await page.waitForTimeout(500);
-      const karte = '#content .trip-card.reise-neu';
+      const karte = nurMessen ? '#content .trip-card.reise-neu' : '#content .reise-v3';
+      await page.waitForSelector(karte + (nurMessen ? '' : ' .rv-seite'), { timeout: 15000 });
+      await page.waitForTimeout(900);   // Band rollt (smooth) zur aktuellen Station
       e.hoehe = await page.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().height), karte);
       const datei = 'reisen-' + breite.name + (nurMessen ? '-vorher' : '') + '.png';
       await page.screenshot({ path: path.join(AUS, datei), fullPage: true });
       e.screenshot = datei;
       if (!nurMessen) {
-        e.stand = await page.evaluate((sel) => {
+        const trips = await apiJson(page, '/api/trips');
+        const reise = (trips.find(t => t.reise && t.start_date <= '2026-11-12' && t.end_date >= '2026-11-12') || {}).reise || {};
+        const tagesprogramm = ((reise.kontakte || []).find(k => /Mo 16\.11\..*Tagesprogramm/.test(k.name || '')) || {}).url || '';
+        const ac564 = ((reise.buchungen || []).find(b => /\bAC564\b/.test(b.anbieter || '')) || {}).code || '';
+        e.stand = await page.evaluate(({ sel, tagesprogramm }) => {
           const k = document.querySelector(sel);
+          const text = (q) => k.querySelector(q)?.textContent.replace(/\s+/g, ' ').trim() || '';
           const emoji = (k.textContent.match(/\p{Extended_Pictographic}/gu) || []);
-          const raster = getComputedStyle(k.querySelector('.reise-raster')).gridTemplateColumns;
-          return { kopfZeile: k.querySelector('.reise-tagzeile')?.textContent.trim() || '',
-            offenChip: k.querySelector('.reise-offen-chip')?.textContent.trim() || '',
-            ziel: !!k.querySelector('.reise-ziel'), warnChipsKopf: k.querySelectorAll('.reise-kopf .reise-chips').length,
-            naechst: k.querySelectorAll('.reise-naechst-kommend > .naechst').length,
-            ueberfaellig: k.querySelector('.reise-ueberfaellig > summary')?.textContent.replace(/\s+/g, ' ').trim() || '',
-            vergangen: k.querySelector('.tl-vergangen > summary')?.textContent.replace(/\s+/g, ' ').trim() || '',
-            heuteLabel: k.querySelector('.tl-tag.heute .tl-heute')?.textContent.trim() || '',
-            buchungen: k.querySelectorAll('.buchung').length, buchungsChips: k.querySelectorAll('.buchung .chip').length,
-            primaer: [...k.querySelectorAll('.reise-knoepfe > .btn')].map(b => b.textContent.trim()),
-            menue: [...k.querySelectorAll('.reise-mehr .reise-mehr-eintrag')].map(b => b.textContent.trim()),
-            letzter: k.querySelector('.reise-raster').lastElementChild.className,
+          const band = k.querySelector('.rv-band'), jetzt = k.querySelector('.rv-band li.jetzt');
+          let bandMitte = null;
+          if (band && jetzt) {
+            const b = band.getBoundingClientRect(), j = jetzt.getBoundingClientRect();
+            bandMitte = { rollt: band.scrollWidth > band.clientWidth, abstand: Math.round(Math.abs((j.left + j.width / 2) - (b.left + b.width / 2))),
+              sichtbar: j.left >= b.left - 1 && j.right <= b.right + 1 };
+          }
+          const mo16 = [...k.querySelectorAll('.rv-plan > li')].find(li => (li.querySelector('.rv-d')?.textContent || '').startsWith('Mo 16.'));
+          const tp = mo16 ? [...mo16.querySelectorAll('a.chip-act')].find(a => a.textContent.trim() === 'Tagesprogramm') : null;
+          const links = [...k.querySelectorAll('a')];
+          const raster = getComputedStyle(k.querySelector('.rv-g2')).gridTemplateColumns;
+          return {
+            titel: text('.rv-titel'), sub: text('.rv-sub'), chips: [...k.querySelectorAll('.rv-kopf-aktionen > .chip')].map(c => c.textContent.trim()),
+            stationen: [...k.querySelectorAll('.rv-band li')].map(li => li.className + ':' + li.querySelector('b').textContent), band: bandMitte,
+            jetztKopf: text('.rv-jetzt .rv-ueb span'), jetzt: [...k.querySelectorAll('.rv-jetzt li:not(.rv-leer)')].map(li => li.querySelector('.rv-z').textContent.replace(/\s+/g, ' ').trim() + ' ' + li.querySelector('.rv-t-titel').textContent),
+            todo: k.querySelectorAll('.rv-todo li:not(.rv-leer)').length, todoFuss: [...k.querySelectorAll('.rv-todo-fuss .chip')].map(c => c.textContent.trim()),
+            planHeute: text('.rv-plan > li.heute .rv-d'), gefaltet: text('.rv-gefaltet summary'),
+            tagesprogramm: tp ? { href: tp.href, soll: tagesprogramm, ok: tp.href === tagesprogramm, target: tp.target, rel: tp.rel } : null,
+            linkRegel: links.every(a => /^(https?:|tel:)/.test(a.href) && (a.href.startsWith('tel:') || (a.target === '_blank' && /noopener/.test(a.rel)))),
+            links: links.length, chipsAct: k.querySelectorAll('.chip-act').length,
+            gruppen: [...k.querySelectorAll('.rv-grp h3')].map(h => h.textContent.trim()), summe: text('.rv-summe-werte'),
+            reiter: [...k.querySelectorAll('.rv-reiter button')].map(b => b.textContent.replace(/\s+/g, ' ').trim()), reiterOffen: text('.rv-reiter button.on'),
             spalten: raster.split(' ').length, emoji: emoji.length, emojiText: [...new Set(emoji)].join(''),
-            teile: Object.fromEntries([['kopf', '.reise-kopf'], ['naechst', '.reise-naechst'], ['verlauf', '.reise-links > .reise-block:last-child'],
-              ['buchungen', '.reise-rechts > .reise-block:first-child'], ['abschnitte', '.reise-abschnitte'], ['fuss', '.reise-rechts > .reise-fuss'], ['erledigt', '.reise-erledigt']]
-              .map(([n, q]) => [n, [...k.querySelectorAll(q)].reduce((x, el) => x + Math.round(el.getBoundingClientRect().height), 0)])),
-            tlTag: [...k.querySelectorAll('.tl-tag')].slice(0, 3).map(el => Math.round(el.getBoundingClientRect().height)),
-            buchung: Math.round(k.querySelector('.buchung')?.getBoundingClientRect().height || 0) };
-        }, karte);
-        /* Aufklappen: jedes Ziel öffnet beim Antippen. */
+            teile: Object.fromEntries([['kopf', '.rv-kopfkarte'], ['jetzt', '.rv-jetzt'], ['todo', '.rv-zu-erledigen'], ['plan', '.rv-reiseplan'],
+              ['buchungen', '.rv-buchungen'], ['unterlagen', '.rv-unterlagen'], ['erledigt', '.rv-erledigt']]
+              .map(([n, q]) => [n, Math.round(k.querySelector(q)?.getBoundingClientRect().height || 0)])),
+          };
+        }, { sel: karte, tagesprogramm });
+        /* Sprung „Buchung" aus der Zeile AC564 klappt die Buchung auf. */
+        e.buchungSprung = 'fehlt';
+        const ev = page.locator(karte + ' .rv-plan .rv-ev', { hasText: 'AC564 ·' }).first();
+        if (await ev.count() && ac564) {
+          const knopf = ev.locator('[data-buchung-sprung]').first();
+          await knopf.scrollIntoViewIfNeeded(); await knopf.click(); await page.waitForTimeout(700);
+          e.buchungSprung = await page.evaluate(({ sel, code }) => {
+            const d = [...document.querySelectorAll(sel + ' details.rv-buchung')].find(x => x.querySelector('code')?.textContent === code);
+            if (!d) return 'keine Zeile';
+            const r = d.getBoundingClientRect();
+            return d.open && r.top < innerHeight && r.bottom > 0 ? 'ok' : (d.open ? 'offen, nicht im Bild' : 'zu');
+          }, { sel: karte, code: ac564 });
+        }
+        /* Reiter wechseln: Kontakte zeigt seine Fläche, Links verschwindet; zurück. */
+        const reiter = async (name) => { const b = page.locator(karte + ' .rv-reiter button', { hasText: name }).first();
+          await b.scrollIntoViewIfNeeded(); await b.click(); await page.waitForTimeout(100);
+          return page.evaluate(({ sel, name }) => {
+            const knopf = [...document.querySelectorAll(sel + ' .rv-reiter button')].find(x => x.textContent.includes(name));
+            const f = document.getElementById(knopf.getAttribute('aria-controls'));
+            const sichtbar = [...document.querySelectorAll(sel + ' .rv-reiter-inhalt')].filter(x => !x.hidden);
+            return knopf.getAttribute('aria-selected') === 'true' && !f.hidden && sichtbar.length === 1;
+          }, { sel: karte, name }); };
+        e.reiter = { kontakte: await reiter('Kontakte'), dokumente: await reiter('Dokumente'), links: await reiter('Links') };
+        /* Aufklappen: vergangene Tage, „Alle Fristen", Buchung, Erledigt und Hinweise. */
+        /* Klick links oben in die Kopfzeile — nicht auf einen Link-Chip darin. */
         const auf = async (sel) => {
           const s = page.locator(karte + ' ' + sel + ' > summary').first();
           if (!(await s.count())) return 'fehlt';
-          await s.scrollIntoViewIfNeeded(); await s.click(); await page.waitForTimeout(150);
+          await s.scrollIntoViewIfNeeded(); await s.click({ position: { x: 4, y: 6 } }); await page.waitForTimeout(150);
           return await page.locator(karte + ' ' + sel).first().evaluate(d => d.open) ? 'ok' : 'zu';
         };
-        e.aufklappen = { ueberfaellig: await auf('.reise-ueberfaellig'), vergangen: await auf('.tl-vergangen'),
-          buchung: await auf('.buchung'), erledigt: await auf('.reise-erledigt'), alleFristen: await auf('.reise-naechst > .reise-klapp') };
+        const alle = page.locator(karte + ' .rv-todo-fuss .rv-klapp-knopf').first();
+        await alle.scrollIntoViewIfNeeded(); await alle.click(); await page.waitForTimeout(150);
+        e.aufklappen = { vergangen: await auf('.rv-gefaltet details'), alleFristen: await alle.getAttribute('aria-expanded') === 'true' ? 'ok' : 'zu',
+          buchung: await auf('.rv-buchung'), erledigt: await auf('.rv-erledigt') };
         /* Aktionsmenü „…": öffnen, Klick außerhalb schließt, erneut öffnen, Esc schließt. */
         const menue = page.locator(karte + ' .reise-mehr');
         const offen = () => menue.evaluate(d => d.open);
         await menue.locator('summary').scrollIntoViewIfNeeded();
         await menue.locator('summary').click(); await page.waitForTimeout(100);
         const m1 = await offen();
-        await page.locator(karte + ' .reise-titel').click({ position: { x: 2, y: 2 } }); await page.waitForTimeout(100);
+        e.menueEintraege = await menue.locator('.reise-mehr-eintrag').allTextContents();
+        await page.locator(karte + ' .rv-titel').click({ position: { x: 2, y: 2 } }); await page.waitForTimeout(100);
         const m2 = await offen();
         await menue.locator('summary').click(); await page.waitForTimeout(100);
         const m3 = await offen();
         await page.keyboard.press('Escape'); await page.waitForTimeout(100);
         const m4 = await offen();
         e.menue = { auf: m1, aussenZu: !m2, wiederAuf: m3, escZu: !m4 };
-        /* Kontrast der neuen Bausteine gegen ihren tatsächlichen Hintergrund. */
+        /* Kontrast aller sichtbaren Texte gegen ihren tatsächlichen Grund. Ein
+           Verlauf (Stationenband) zählt mit seiner dunkelsten Farbe (Anfang),
+           halbdurchsichtige Flächen (Chips auf Navy) mit dem Grund darunter. */
         e.kontrast = await page.evaluate((sel) => {
-          const rgb = (t) => t.match(/[\d.]+/g).map(Number);
+          const rgb = (t) => (t.match(/[\d.]+/g) || []).map(Number);
           const lum = (c) => { const l = c.slice(0, 3).map(v => v / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
-          const grund = (el) => { for (let x = el; x; x = x.parentElement) { const c = rgb(getComputedStyle(x).backgroundColor); if (c.length < 4 || c[3] > 0.5) { if (c.length < 4 || c[3] === 1 || c[3] > 0.5) return c; } } return [255, 255, 255]; };
+          const grund = (el) => {
+            for (let x = el; x; x = x.parentElement) {
+              const st = getComputedStyle(x);
+              const c = rgb(st.backgroundColor);
+              if (c.length === 3 || (c.length === 4 && c[3] > 0.5)) return c;
+              const verlauf = st.backgroundImage.match(/rgba?\([^)]*\)/);
+              if (verlauf) return rgb(verlauf[0]);
+            }
+            return [255, 255, 255];
+          };
           const ratio = (el) => { const a = lum(rgb(getComputedStyle(el).color)), b = lum(grund(el)); const [x, y] = [a, b].sort((p, q) => q - p); return Math.round((x + 0.05) / (y + 0.05) * 100) / 100; };
           const k = document.querySelector(sel);
-          const liste = ['.reise-tagzeile', '.reise-offen-chip', '.reise-zeitraum', '.naechst-tag', '.naechst-titel', '.naechst-rest',
-            '.reise-ueberfaellig > summary', '.tl-vergangen > summary', '.tl-heute', '.tl-datum', '.buchung-anbieter', '.buchung-zeile2',
-            '.buchung .num', '.reise-erledigt > summary', '.reise-erledigt .chip', '.frist-gruppe-titel', '.frist-text', '.frist-rest', '.frist-tag', '.reise-mehr > summary', '.reise-mehr-eintrag', '.reise-knoepfe .btn-primary']
-            .flatMap(s => [...k.querySelectorAll(s)].filter(el => el.getBoundingClientRect().width > 0).slice(0, 4).map(el => ({ s, r: ratio(el) })));
-          return { min: Math.min(...liste.map(x => x.r)), schwach: liste.filter(x => x.r < 4.5) };
+          const mitText = [...k.querySelectorAll('*')].filter(el => [...el.childNodes].some(n => n.nodeType === 3 && n.textContent.trim())
+            && el.getBoundingClientRect().width > 0 && getComputedStyle(el).visibility !== 'hidden');
+          const liste = mitText.map(el => ({ s: el.tagName.toLowerCase() + '.' + String(el.className).split(' ')[0], t: el.textContent.trim().slice(0, 30), r: ratio(el) }));
+          const schwach = liste.filter(x => x.r < 4.5);
+          const navyUnter = [...k.querySelectorAll('.rv-jetzt .rv-t small, .rv-jetzt .rv-ueb span, .rv-jetzt .rv-z small')].map(el => getComputedStyle(el).color);
+          return { anzahl: liste.length, min: Math.min(...liste.map(x => x.r)), schwach: schwach.slice(0, 10), navyUnter: [...new Set(navyUnter)] };
         }, karte);
       }
       e.ueber = await ueberbreite(page);
     } catch (err) { e.ausnahme = String(err.message).slice(0, 300); }
     e.konsole = [...sammel.konsole];
     const st = e.stand || {};
-    e.ok = nurMessen ? !e.ausnahme : (!e.ausnahme && !e.konsole.length && e.ueber && !e.ueber.anzahl && !st.ziel && !st.warnChipsKopf && !st.emoji
-      && Object.values(e.aufklappen || {}).every(v => v === 'ok') && e.menue && Object.values(e.menue).every(Boolean)
-      && e.kontrast && e.kontrast.min >= 4.5 && (breite.name.startsWith('mobil') ? st.spalten === 1 : st.spalten === 2));
+    const bandOk = st.band && (st.band.rollt ? st.band.abstand <= 40 && st.band.sichtbar : st.band.sichtbar);
+    e.ok = nurMessen ? !e.ausnahme : (!e.ausnahme && !e.konsole.length && e.ueber && !e.ueber.anzahl && !st.emoji
+      && bandOk && (st.jetzt || []).length === 3 && st.tagesprogramm && st.tagesprogramm.ok && st.linkRegel && e.buchungSprung === 'ok'
+      && e.reiter && Object.values(e.reiter).every(Boolean) && Object.values(e.aufklappen || {}).every(v => v === 'ok')
+      && e.menue && Object.values(e.menue).every(Boolean) && e.kontrast && e.kontrast.min >= 4.5
+      && (breite.name.startsWith('mobil') ? st.spalten === 1 && e.hoehe <= 2907 : st.spalten === 2));
     ergebnis.reisen.push(e);
-    console.error('reisen', breite.name, e.ok, JSON.stringify({ hoehe: e.hoehe, stand: e.stand, aufklappen: e.aufklappen, menue: e.menue, kontrast: e.kontrast, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole, ausnahme: e.ausnahme }));
+    console.error('reisen', breite.name, e.ok, JSON.stringify({ hoehe: e.hoehe, stand: e.stand, buchungSprung: e.buchungSprung, reiter: e.reiter, aufklappen: e.aufklappen, menue: e.menue, menueEintraege: e.menueEintraege, kontrast: e.kontrast, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole, ausnahme: e.ausnahme }));
     await context.close();
   }
 }

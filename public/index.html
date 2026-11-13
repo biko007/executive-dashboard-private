@@ -1900,6 +1900,12 @@ async function loadTrips() {
        UTC und haette zwischen 0 und 2 Uhr noch den Vortag. */
     const today = zeitTagInZone(new Date(), ZEIT_ZONE) || new Date().toISOString().slice(0,10);
     const heuteOrt = reiseHeuteOrt(briefingAntwort && briefingAntwort.briefings, new Date(), today).tag;
+    /* CP2-0b: Uhrzeit am Reiseort für „Die nächsten 36 Stunden"; ohne
+       Briefing mit utcOffsetMin die Berliner Uhrzeit (sichtbar gekennzeichnet). */
+    const jetztMs = Date.now();
+    const berlin = new Date(jetztMs + zeitZonenOffsetMs(jetztMs, ZEIT_ZONE));
+    const jetztOrt = reiseJetztOrt(briefingAntwort && briefingAntwort.briefings, new Date(jetztMs), today,
+      berlin.getUTCHours() * 60 + berlin.getUTCMinutes());
 
     function renderTripCard(t) {
       /* Der Reiseblock kommt vom Import des Reiseassistenten. Reisen, die im
@@ -2002,9 +2008,9 @@ async function loadTrips() {
           (t.activities || []).length && 'Aktivitäten ' + esc(t.activities.join(', ')),
         ].filter(Boolean).join(' · ');
         return reiseKarteHtml(t, reise, {
-          heute: tag, badge, metaText,
+          heute: tag, jetzt: jetztOrt, metaText,
           bild: reiseThumbHtml(t.id),
-          segs, docsSection, linksSection,
+          segs, docsSection, linksSection, apiLinks: tripLinks,
           weitereDokumente: tripDocs.length + tripLinks.length,
         });
       }
@@ -2037,11 +2043,12 @@ async function loadTrips() {
     html += current.map(renderTripCard).join('');
     if (past.length) {
       html += `<details class="traveled-section">
-        <summary>Abgeschlossene Reisen (${past.length})</summary>
+        <summary><span>Abgeschlossene Reisen (${past.length})</span>${reiseIcon('chevron-right', 'ic-14 rv-pfeil')}</summary>
         ${past.map(renderTripCard).join('')}
       </details>`;
     }
     c.innerHTML = html;
+    reiseKartenEinsetzen(c);   // CP2-0b: Reisen mit Reiseblock per DOM (js/reise-ansicht.js)
     stamp();
   } catch(e) { c.innerHTML = `<div class="empty">Fehler: ${esc(netzFehlerText(e))}</div>`; }
 }

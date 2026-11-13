@@ -1,197 +1,268 @@
-/* ── Reisen-Tab: Reisekarte im neuen Aufbau (Owner-Auftrag 01.11.2026) ──────
-   Mobil zuerst (390 px, einspaltig), ab 1024 px zwei Spalten. Nur Tokens aus
-   :root in index.html — helles Design, keine eigene Farbpalette.
-   Tap-Ziele (Zeilen zum Aufklappen, Knöpfe) mindestens 44 px hoch. */
+/* ── Reisen-Tab: Reiseseite „Heute zuerst" (CP2-0b, Prototyp v3) ──────────
+   Vorlage ~/bikosoc-spec/reisen-v3-prototyp.html: Aufbau, Abstände, Farben
+   und Schriftgrößen von dort, Farben ausschließlich als Tokens aus
+   design.css. Mobil zuerst (390 px, einspaltig in DOM-Reihenfolge), ab
+   1024 px zwei Spalten 7 : 5. Klassen mit Präfix rv-, damit nichts mit den
+   übrigen Tabs kollidiert. Gilt nur für Reisen mit Reiseblock; die alte
+   .trip-card (Dashboard-Reisen) nutzt nur den CP1-5-Block am Ende. */
 
-.trip-card.reise-neu { padding: 0; overflow: hidden; }
-/* Das Reisebild als schmaler Streifen: im 16:9-Format schob es Kopfzeile und
-   „Als Nächstes" am Telefon unter den ersten Bildschirm. */
-.reise-neu > .entity-img-wrap { aspect-ratio: auto; height: 120px; }
-.reise-neu .reise-fuss { word-break: normal; overflow-wrap: anywhere; }
-/* Alle Knöpfe der Karte mindestens 44 px hoch (Tap-Ziel) */
-.reise-neu .btn { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
-.reise-raster { padding: 16px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.reise-raster > * { min-width: 0; }
-.reise-links, .reise-rechts { display: flex; flex-direction: column; gap: 16px; }
+/* Die Reise ist keine Karte mehr, sondern eine Folge von Karten. */
+.trip-card.reise-v3 { background: none; border: 0; box-shadow: none; padding: 0; margin-bottom: 4px; overflow: visible; }
+.rv-seite { min-width: 0; }
+.rv-seite .ic { color: var(--muted); }
+.ic-12 { width: 12px; height: 12px; }
+.ic-14 { width: 14px; height: 14px; }
 
-/* §1 Kopf (CP2-0: ohne Ortezeile und Warnchips; Status + „{n} offen",
-   Zeitraum, „Tag 6 von 19 · heute Victoria", Bearbeiten + Menü „…") */
-.reise-titel { font-size: 18px; font-weight: 700; margin: 0 0 6px; overflow-wrap: anywhere; }
-.reise-aktionszeile { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-.reise-status { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.reise-zeitraum { font-size: 14px; color: var(--text); font-variant-numeric: tabular-nums;
-                  display: flex; align-items: center; gap: 6px; }
-.reise-zeitraum .ic { color: var(--text-soft); }
-.reise-tagzeile { font-size: 14px; color: var(--text-soft); margin-top: 2px; overflow-wrap: anywhere; }
-.reise-countdown { font-weight: 700; color: var(--accent); }
-.reise-countdown.nachher { color: var(--muted); font-weight: 600; }
-.reise-knoepfe { display: flex; gap: 6px; align-items: center; margin-left: auto; }
-.reise-knoepfe .btn { min-height: 44px; }
-.reise-knoepfe .btn .ic, .reise-mehr-eintrag .ic { flex: none; }
+/* Bausteine */
+.rv-karte { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); padding: 16px; min-width: 0; }
+@media (min-width: 640px) { .rv-karte { padding: 20px; } }
+.rv-h2 { font-size: 16px; font-weight: 700; margin: 0; color: var(--text); }
+.rv-zahl-text { color: var(--muted); font-weight: 600; font-size: 13px; }
+.rv-leer { color: var(--muted); font-size: 14px; }
+.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Aktions-Chip (blau, ↗ bei externem Ziel) und Chip-Knopf */
+.rv-seite .chip-act { background: var(--accent-weak); color: var(--accent-dark); font-weight: 700; border-color: transparent;
+  text-decoration: none; cursor: pointer; font-family: inherit; }
+.rv-seite .chip-act::before { content: none; }
+.rv-seite .chip-act .ic { color: currentColor; opacity: .75; }
+.rv-seite .chip-act:hover { background: var(--accent); color: var(--on-accent); }
+.rv-seite .chip-act:focus-visible, .rv-klapp-knopf:focus-visible, .rv-reiter button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Knöpfe im Chip-Format: die globale Knopfhöhe gilt hier nicht. */
+.rv-seite button.chip { min-height: 0; height: auto; line-height: 1.3; margin: 0; }
+.rv-seite .chip-act { padding: 3px 9px; font-size: 12px; }
+.rv-akt { display: inline-flex; gap: 6px; flex-wrap: wrap; vertical-align: middle; }
+.rv-seite .rv-klapp-knopf { cursor: pointer; font-family: inherit; min-height: 32px; }
+.rv-klapp-knopf::before { content: none; }
+.rv-klapp-knopf .ic { color: currentColor; transition: transform .15s; }
+.rv-klapp-knopf.offen .ic { transform: rotate(90deg); }
+
+/* ── 1 Kopf ────────────────────────────────────────────────────────────── */
+.rv-kopf { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 14px; align-items: center; }
+.rv-thumb .entity-img-wrap.reise-thumb, .rv-thumb .entity-img-wrap.reise-thumb.bild-leer { width: 56px; height: 56px; min-height: 56px; flex-basis: 56px; border-radius: 12px; }
+.rv-thumb .reise-thumb .thumb { width: 56px; height: 56px; }
+.rv-titel { margin: 0; font-size: 20px; line-height: 1.2; font-weight: 800; letter-spacing: -.01em; color: var(--text); overflow-wrap: anywhere; }
+.rv-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.rv-kopf-aktionen { display: flex; gap: 8px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+@media (max-width: 639px) { .rv-kopf-aktionen { grid-column: 1 / -1; } }
+@media (min-width: 640px) {
+  .rv-kopf { grid-template-columns: 64px minmax(0, 1fr) auto; }
+  .rv-thumb .entity-img-wrap.reise-thumb, .rv-thumb .entity-img-wrap.reise-thumb.bild-leer { width: 64px; height: 64px; min-height: 64px; flex-basis: 64px; }
+  .rv-thumb .reise-thumb .thumb { width: 64px; height: 64px; }
+  .rv-titel { font-size: 24px; }
+}
+
 /* Menü „…": nav-mehr ist in design.css unter 1024 px ausgeblendet (nur
    Hauptnavigation) — hier immer sichtbar. */
-.reise-neu .nav-mehr.reise-mehr { display: block; }
-.reise-mehr > summary { list-style: none; min-width: 44px; padding: 0 10px; cursor: pointer; }
+.reise-v3 .nav-mehr.reise-mehr { display: block; position: relative; }
+.reise-mehr > summary { list-style: none; cursor: pointer; width: 40px; min-width: 40px; height: 40px; min-height: 40px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); }
 .reise-mehr > summary::-webkit-details-marker { display: none; }
+.reise-mehr > summary .ic { color: var(--text-soft); }
+.reise-mehr-liste { right: 0; left: auto; }
+.reise-mehr-eintrag .ic { flex: none; }
 .reise-mehr-eintrag.btn-danger { color: var(--on-red-weak); }
 .reise-mehr-eintrag.btn-danger:hover { background: var(--red-weak); }
 
-/* Blöcke */
-.reise-block { min-width: 0; }
-.reise-h { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px;
-           margin: 0 0 8px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
-.reise-zaehler { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 999px;
-                 background: var(--surface-2); color: var(--text-soft); font-size: 12px;
-                 font-weight: 600; text-align: center; text-transform: none; letter-spacing: 0; }
-.reise-leer { font-size: 13px; color: var(--muted); }
+/* Stationenband — das eine besondere Element: Linie in Sand, vergangene
+   Punkte gefüllt, die aktuelle Station als goldener Punkt mit Schein (wie
+   die Sonne im Tagesbogen), kommende leer. */
+.rv-band { margin: 18px -16px 0; padding: 14px 16px 6px; overflow-x: auto; scrollbar-width: none;
+  background: linear-gradient(180deg, var(--sky-top), transparent 70%); border-radius: 14px; }
+.rv-band::-webkit-scrollbar { display: none; }
+.rv-band:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@media (min-width: 640px) { .rv-band { margin: 18px 0 0; } }
+.rv-band ol { list-style: none; margin: 0; padding: 0; display: flex; min-width: max-content; position: relative; }
+.rv-band ol::before { content: ""; position: absolute; left: 28px; right: 28px; top: 11px; height: 2px; background: var(--sand); opacity: .7; }
+/* Schrift --text-soft statt --muted (Prototyp): --muted erreicht auf
+   --sky-top nur 4,36:1; die Unterscheidung vorbei/kommend trägt der Punkt. */
+.rv-band li { position: relative; width: 118px; padding-top: 28px; text-align: center; font-size: 12px; color: var(--text-soft); line-height: 1.25; }
+.rv-band li::before { content: ""; position: absolute; left: 50%; top: 6px; width: 12px; height: 12px; border-radius: 999px;
+  background: var(--surface); border: 2px solid var(--sand); transform: translateX(-50%); box-sizing: border-box; }
+.rv-band li.vorbei { color: var(--text-soft); }
+.rv-band li.vorbei::before { background: var(--sand); }
+.rv-band li.jetzt { color: var(--text); font-weight: 800; }
+.rv-band li.jetzt::before { width: 18px; height: 18px; top: 3px; background: var(--sun-core); border-color: var(--surface);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--sun) 35%, transparent); }
+.rv-band li b { display: block; font-size: 13px; }
+.rv-band li.jetzt b { font-size: 14px; }
+.rv-band li small { display: block; font-weight: 500; font-size: 11px; }
 
-/* Einklappbare Zeile — gemeinsam für Abschnitte, „Alle Fristen" und Hinweise */
-.reise-klapp { border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
-.reise-klapp + .reise-klapp { margin-top: 6px; }
-.reise-klapp > summary { list-style: none; cursor: pointer; min-height: 44px; padding: 0 12px;
-                         display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; }
-.reise-klapp > summary::-webkit-details-marker { display: none; }
-.reise-klapp > summary::before { content: '▸'; color: var(--muted); transition: transform .15s; flex: none; }
-.reise-klapp[open] > summary::before { transform: rotate(90deg); }
-.reise-klapp > summary .reise-klapp-titel { flex: 1; min-width: 0; }
-.reise-klapp-inhalt { padding: 0 12px 12px; min-width: 0; overflow-wrap: anywhere; }
-/* Die eingebetteten bisherigen Blöcke bringen Trennlinie und Überschrift mit —
-   die Überschrift steht jetzt in der Zeile darüber. */
-.reise-klapp-inhalt > .segments { margin-top: 0; padding-top: 0; border-top: none; }
-.reise-klapp-inhalt > .segments + .segments { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
-.reise-klapp-inhalt > .segments:first-child > .seg-header:first-child { display: none; }
-.reise-naechst > .reise-klapp, .reise-naechst > .reise-ueberfaellig { margin-top: 6px; }
-/* „{n} überfällig ▸": eine rote Zeile, klappt die überfälligen Fristen auf */
-.reise-ueberfaellig > summary { list-style: none; cursor: pointer; min-height: 44px; padding: 0 12px; display: flex; align-items: center; gap: 8px;
-  border-left: 4px solid var(--red); background: var(--red-weak); border-radius: 0 var(--r) var(--r) 0;
-  font-size: 14px; font-weight: 600; color: var(--on-red-weak); }
-.reise-ueberfaellig > summary::-webkit-details-marker { display: none; }
-.reise-ueberfaellig > summary::after { content: '▸'; transition: transform .15s; }
-.reise-ueberfaellig[open] > summary::after { transform: rotate(90deg); }
-.reise-ueberfaellig-liste { margin-top: 6px; }
-/* Alle Fristen: Gruppen Überfällig / Kommend / Vergangen / Erledigt */
-.frist-gruppe + .frist-gruppe { margin-top: 10px; }
-.frist-gruppe-titel { font-size: 12px; font-weight: 700; color: var(--text-soft); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 2px; }
-.frist-gruppe .frist-rest { flex: none; color: var(--text-soft); font-size: 12px; }
-/* Textfarben mit ≥ 4,5:1 (--gold/--red sind Flächen- bzw. Signalfarben); die
-   alte Dämpfung per opacity .6 senkte den Kontrast unter die Grenze. */
-.frist-gruppe .frist.faellig .frist-tag { color: var(--on-red-weak); }
-.frist-gruppe .frist.nah .frist-tag { color: var(--on-gold-weak); }
-.frist-gruppe .frist.erledigt { opacity: 1; color: var(--text-soft); }
-
-/* §2 Als Nächstes */
-.naechst { border-left: 4px solid var(--border-strong); background: var(--surface-2);
-           border-radius: 0 var(--r) var(--r) 0; margin-bottom: 6px; }
-.naechst.rot  { border-left-color: var(--red);    background: var(--red-weak); }
-.naechst.gelb { border-left-color: var(--yellow); background: var(--yellow-weak); }
-.naechst > summary, .naechst.ohne-notiz { list-style: none; min-height: 44px; padding: 6px 10px;
-           display: flex; align-items: baseline; gap: 10px; font-size: 14px; }
-.naechst > summary { cursor: pointer; }
-.naechst > summary::-webkit-details-marker { display: none; }
-.naechst-tag { flex: none; width: 64px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.naechst-titel { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.naechst-rest { flex: none; font-size: 12px; font-weight: 600; color: var(--text-soft); }
-.naechst.rot .naechst-tag, .naechst.rot .naechst-rest { color: var(--red); }
-/* CP2-0: --yellow (= --gold) ist keine Textfarbe (2,45:1 auf --gold-weak) */
-.naechst.gelb .naechst-tag, .naechst.gelb .naechst-rest { color: var(--on-gold-weak); }
-.naechst > summary .naechst-titel::after { content: ' ▾'; color: var(--muted); font-size: 12px; }
-.naechst[open] > summary .naechst-titel::after { content: ' ▴'; }
-.naechst-notiz { padding: 0 10px 10px 84px; font-size: 13px; color: var(--text-soft); overflow-wrap: anywhere; }
-
-/* §3 Tagesleiste: senkrechte Linie mit Punkt je Tag */
-.tl { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid var(--border); }
-.tl-tag { position: relative; padding: 4px 0 5px 10px; display: flex; gap: 8px; font-size: 13px; line-height: 1.3; }
-.tl-tag::before { content: ''; position: absolute; left: -21px; top: 9px; width: 10px; height: 10px;
-                  border-radius: 50%; background: var(--surface); border: 2px solid var(--accent); }
-.tl-tag.ruhig::before { border-color: var(--border-strong); }
-.tl-tag.heute { background: var(--gold-weak); border-radius: var(--r); }
-.tl-tag.heute::before { background: var(--gold); border-color: var(--gold); }
-.tl-heute { display: block; font-size: 12px; font-weight: 700; color: var(--on-gold-weak); }
-.tl-zeile .ic { color: var(--text-soft); margin-right: 4px; vertical-align: -2px; }
-.ic-14 { width: 14px; height: 14px; }
-/* Vergangene Tage als eine Zeile (CP2-0) */
-.tl-vergangen { margin-bottom: 4px; }
-.tl-vergangen > summary { list-style: none; cursor: pointer; min-height: 44px; display: flex; align-items: center; gap: 8px;
-  padding: 0 0 0 30px; font-size: 13px; font-weight: 600; color: var(--text-soft); position: relative; }
-.tl-vergangen > summary::-webkit-details-marker { display: none; }
-.tl-vergangen > summary::before { content: ''; position: absolute; left: 10px; top: 17px; width: 10px; height: 10px;
-  border-radius: 50%; background: var(--surface-2); border: 2px solid var(--border-strong); }
-.tl-vergangen > summary::after { content: '▸'; color: var(--muted); transition: transform .15s; }
-.tl-vergangen[open] > summary::after { transform: rotate(90deg); }
-.tl-vergangen > .tl { margin-bottom: 4px; }
-.tl-datum { flex: none; width: 66px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tl-inhalt { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.tl-ort { font-weight: 600; }
-.tl-ort.fortgeschrieben { color: var(--muted); font-weight: 500; }
-.tl-ort.fortgeschrieben span { font-size: 12px; }
-.tl-zeile { color: var(--text-soft); margin-top: 1px; }
-.tl-frist { color: var(--muted); }
-
-/* §4 Buchungen als Listenzeilen (CP2-0) — Zeile 1 Anbieter + Betrag,
-   Zeile 2 Code · Datum · Art; Details auf Klick. */
-.buchungen { display: flex; flex-direction: column; border-top: 1px solid var(--border-soft); }
-.buchung { border-bottom: 1px solid var(--border-soft); min-width: 0; }
-.buchung > summary { list-style: none; cursor: pointer; padding: 4px 0; min-height: 44px;
-  display: flex; flex-direction: column; justify-content: center; gap: 2px; }
-.buchung > summary::-webkit-details-marker { display: none; }
-.buchung-zeile1 { display: flex; align-items: center; gap: 8px; min-width: 0; line-height: 1.3; }
-.buchung-anbieter { flex: 1; min-width: 0; font-weight: 600; font-size: 14px;
-                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.buchung-zeile1 .chip, .buchung-zeile1 .num { flex: none; }
-.buchung-preis { font-weight: 600; font-size: 14px; color: var(--text); white-space: nowrap; }
-.buchung-zeile2 { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; line-height: 1.3;
-                  font-size: 12px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
-.buchung-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
-.buchung-zeile2 .buchung-code { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.buchung-art { display: inline-flex; color: var(--text-soft); }
-.buchung-trenner { color: var(--muted); }
-.buchung .kpi-kopie { min-width: 44px; min-height: 44px; padding: 0; }
-.buchung-details { padding: 4px 0 12px; font-size: 13px; }
-.buchung-details .dok-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.buchung-details .dok-knopf { margin-top: 6px; }
-
-/* §6 Erledigt & Hinweise am Ende, Schrift 13 */
-.reise-erledigt > summary { font-size: 13px; }
-.reise-erledigt .reise-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-/* Chips statt Abzeichen (kontrastgeprüfte Paare); langer Text bricht um statt abzuschneiden */
-.reise-erledigt .chip { font-size: 13px; white-space: normal; text-align: left; align-items: flex-start; }
-.reise-erledigt .chip::before { margin-top: 5px; }
-.reise-erledigt .chip > span { overflow: visible; }
-.reise-klapp-titel .ic { margin-right: 6px; vertical-align: -3px; color: var(--text-soft); }
-.reise-h .ic { color: var(--text-soft); }
-
-.reise-abschnitte { display: flex; flex-direction: column; }
-/* CP2-0: die Klappzeilen als eine Liste — ein Rahmen, Trennlinien statt Abstände */
-.reise-abschnitte > .reise-klapp { border-radius: 0; margin-top: 0; }
-.reise-abschnitte > .reise-klapp + .reise-klapp { border-top: none; margin-top: 0; }
-.reise-abschnitte > .reise-klapp:first-child { border-top-left-radius: var(--r); border-top-right-radius: var(--r); }
-.reise-abschnitte > .reise-klapp:last-child { border-bottom-left-radius: var(--r); border-bottom-right-radius: var(--r); }
-.reise-rechts > .reise-fuss { margin-top: 12px; }
-.reise-klapp-inhalt > .reise-fuss { margin-top: 0; }
-.reise-klapp-inhalt > .reise-fuss + .reise-fuss { margin-top: 6px; }
-/* Mobil: Kartenrand 12 statt 16 px — mehr Breite für Verlauf und Buchungen */
-@media (max-width: 1023px) {
-  .reise-raster { padding: 14px 12px; gap: 12px; }
-  .reise-links, .reise-rechts { gap: 12px; }
-  .reise-h { margin-bottom: 6px; }
-  .reise-titel { font-size: 17px; }
-}
-
-/* Desktop: zwei Spalten. Links Als Nächstes + Reiseverlauf, rechts Buchungen
-   und die Abschnitte; die Kopfzeile über die volle Breite. */
+/* Raster: mobil eine Spalte, ab 1024 px 7 : 5 */
+.rv-g { display: grid; gap: 16px; margin-top: 16px; min-width: 0; }
+.rv-g > * { min-width: 0; }
+.rv-spalte { margin-top: 0; align-content: start; }
 @media (min-width: 1024px) {
-  .reise-neu > .entity-img-wrap { height: 180px; }
-  /* CP2-0: 7 : 5 — Als Nächstes + Reiseverlauf links, Buchungen und
-     Klappabschnitte rechts; Erledigt & Hinweise darunter über beide Spalten. */
-  .reise-raster { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
-                  gap: 20px 28px; padding: 20px 24px; align-items: start; }
-  .reise-kopf, .reise-raster > .reise-erledigt { grid-column: 1 / -1; }
-  .reise-links, .reise-rechts { gap: 18px; }
+  .rv-g2 { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); align-items: start; }
 }
+
+/* ── 2 Die nächsten 36 Stunden (Navy) ──────────────────────────────────── */
+.rv-jetzt { background: var(--navy); color: var(--on-navy); border-radius: 18px; padding: 18px; box-shadow: var(--shadow-lift); border: 0; }
+.rv-jetzt .rv-ueb { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.rv-jetzt h2 { margin: 0; font-size: 18px; font-weight: 800; color: var(--on-navy); }
+.rv-jetzt .rv-ueb span { font-size: 12px; color: var(--on-navy-soft); }
+.rv-jetzt ul { list-style: none; margin: 12px 0 0; padding: 0; }
+.rv-jetzt li { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 10px; padding: 11px 0; border-top: 1px solid var(--navy-line); align-items: start; }
+.rv-jetzt li:first-child { border-top: 0; }
+.rv-jetzt li.rv-leer { display: block; color: var(--on-navy-soft); padding: 4px 0 0; }
+.rv-jetzt .rv-z { font-weight: 800; font-size: 14px; color: var(--on-navy); padding-top: 1px; }
+.rv-jetzt .rv-z small { display: block; font-weight: 600; font-size: 11px; color: var(--on-navy-soft); white-space: nowrap; }
+.rv-jetzt .rv-t { font-weight: 600; line-height: 1.35; min-width: 0; overflow-wrap: anywhere; }
+.rv-jetzt .rv-t-titel { display: block; }
+.rv-jetzt .rv-t small { display: block; font-weight: 500; font-size: 12px; color: var(--on-navy-soft); margin-top: 1px; }
+.rv-jetzt .rv-akt { display: flex; margin-top: 7px; }
+.rv-jetzt .chip-act { background: color-mix(in srgb, var(--on-navy) 14%, transparent); color: var(--on-navy); }
+.rv-jetzt .chip-act:hover { background: var(--on-navy); color: var(--navy); }
+.rv-jetzt .chip-act:focus-visible { outline-color: var(--on-navy); }
+
+/* ── 3 Zu erledigen ────────────────────────────────────────────────────── */
+.rv-todo { list-style: none; margin: 10px 0 0; padding: 0; }
+.rv-todo li { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 0;
+  border-top: 1px solid var(--border-soft); font-size: 15px; line-height: 1.4; }
+.rv-todo li:first-child { border-top: 0; }
+.rv-todo li.rv-leer { display: block; }
+.rv-box { width: 18px; height: 18px; border-radius: 5px; border: 1.5px solid var(--border-strong); }
+.rv-todo-text { min-width: 0; overflow-wrap: anywhere; }
+/* Mobil höchstens zwei Zeilen; der volle Text steht unter „Alle Fristen". */
+@media (max-width: 1023px) { .rv-todo-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } }
+.rv-todo-frist { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rv-todo-frist.rot { color: var(--on-red-weak); font-weight: 700; }
+.rv-todo-fuss { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+/* Alle Fristen / Erledigt (gegliedert wie CP2-0) */
+.rv-fristen { margin-top: 12px; }
+.rv-frist-gruppe + .rv-frist-gruppe { margin-top: 12px; }
+.rv-frist-gruppe h3 { font-size: 12px; font-weight: 700; color: var(--text-soft); text-transform: uppercase; letter-spacing: .4px; margin: 0 0 4px;
+  display: flex; align-items: center; gap: 6px; }
+.rv-zahl { display: inline-block; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-soft);
+  font-size: 12px; font-weight: 600; text-align: center; letter-spacing: 0; text-transform: none; }
+.rv-fristen ul { list-style: none; margin: 0; padding: 0; }
+.rv-fristen li { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 10px; padding: 6px 0; border-top: 1px solid var(--border-soft);
+  font-size: 13px; align-items: baseline; }
+.rv-frist-tag { font-weight: 700; color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.rv-frist-text { min-width: 0; overflow-wrap: anywhere; color: var(--text); }
+.rv-frist-text small { display: block; color: var(--muted); font-size: 12px; }
+.rv-frist-rest { font-size: 12px; color: var(--text-soft); white-space: nowrap; }
+.rv-frist-rest.rot { color: var(--on-red-weak); font-weight: 700; }
+
+/* ── 4 Reiseplan ───────────────────────────────────────────────────────── */
+.rv-plan { list-style: none; margin: 8px 0 0; padding: 0; }
+.rv-plan > li { display: grid; grid-template-columns: 62px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--border-soft); position: relative; }
+.rv-plan > li:first-child { border-top: 0; }
+.rv-d { font-size: 13px; font-weight: 700; color: var(--text-soft); line-height: 1.25; font-variant-numeric: tabular-nums; }
+.rv-d small { display: block; font-weight: 600; font-size: 11px; color: var(--muted); }
+.rv-tag-inhalt { min-width: 0; }
+.rv-o { font-weight: 700; font-size: 15px; color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rv-o.weg { color: var(--accent-dark); }
+.rv-o.weg .ic { color: currentColor; }
+.rv-ev { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; align-items: baseline; margin-top: 5px; font-size: 14px; color: var(--text-soft); }
+.rv-ev-text { min-width: 0; overflow-wrap: anywhere; line-height: 1.45; }
+.rv-ev-text > .rv-akt { margin-left: 6px; }
+.rv-zeit { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.rv-offen { color: var(--muted); }
+.rv-plan > li.heute { background: var(--gold-weak); margin: 0 -16px; padding: 12px 16px; border-radius: 12px; border-top: 0; }
+.rv-plan > li.heute + li { border-top: 0; }
+.rv-plan > li.heute .rv-d, .rv-plan > li.heute .rv-d small { color: var(--on-gold-weak); }
+@media (min-width: 640px) { .rv-plan > li.heute { margin: 0 -8px; padding: 12px 8px; } }
+.rv-hotel-band { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); background: var(--surface-3);
+  border-radius: 8px; padding: 3px 8px; margin-top: 6px; max-width: 100%; }
+/* Vergangene Tage gefaltet */
+.rv-plan > li.rv-gefaltet { display: block; padding: 0; }
+.rv-gefaltet > details > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 12px;
+  align-items: center; min-height: 44px; padding: 6px 0; color: var(--muted); font-size: 14px; }
+.rv-gefaltet > details > summary::-webkit-details-marker { display: none; }
+.rv-gefaltet .rv-pfeil { transition: transform .15s; }
+.rv-gefaltet > details[open] > summary .rv-pfeil { transform: rotate(90deg); }
+.rv-plan-innen { margin: 0 0 6px; }
+@media (min-width: 1024px) {
+  /* Desktop: spätere Tage offen, ohne Kopfzeile — wie der Prototyp */
+  .rv-spaeter > details > summary { display: none; }
+  .rv-spaeter .rv-plan-innen > li:first-child { border-top: 1px solid var(--border-soft); }
+  .rv-plan > li.rv-spaeter { border-top: 0; }
+}
+.rv-plan-innen > li:first-child { border-top: 1px solid var(--border-soft); }
+
+/* ── 5 Buchungen ───────────────────────────────────────────────────────── */
+.rv-buchungen-kopf { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; min-height: 32px; }
+.rv-buchungen-kopf::-webkit-details-marker { display: none; }
+.rv-buchungen-kopf .rv-pfeil { grid-column: 2; grid-row: 1; transition: transform .15s; }
+.rv-buchungen-klapp[open] > .rv-buchungen-kopf .rv-pfeil { transform: rotate(90deg); }
+.rv-summe-kurz { grid-column: 1 / -1; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.rv-buchungen-klapp[open] .rv-summe-kurz { display: none; }
+@media (min-width: 1024px) { .rv-buchungen-kopf { cursor: default; pointer-events: none; } .rv-buchungen-kopf .rv-pfeil { display: none; } }
+.rv-grp { margin-top: 14px; }
+.rv-grp h3 { margin: 0 0 4px; font-size: 13px; font-weight: 700; color: var(--text-soft); display: flex; align-items: center; gap: 8px; }
+.rv-buchung { border-top: 1px solid var(--border-soft); min-width: 0; }
+.rv-row { list-style: none; cursor: pointer; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 9px 0; align-items: center; min-height: 44px; }
+.rv-row::-webkit-details-marker { display: none; }
+.rv-ti { grid-column: 1; grid-row: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.rv-me { grid-column: 1; grid-row: 2; font-size: 12px; color: var(--muted); display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.rv-me code { font: 600 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text-soft); overflow-wrap: anywhere; }
+.rv-trenner { color: var(--muted); }
+.rv-be { grid-column: 2; grid-row: 1 / 3; font-weight: 700; text-align: right; align-self: center; color: var(--text); }
+.rv-buchung[open] > .rv-row .rv-ti { white-space: normal; }
+.buchung-details { padding: 0 0 12px; font-size: 13px; color: var(--text-soft); }
+.buchung-details .dok-zeile { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; overflow-wrap: anywhere; }
+.buchung-details .dok-zeile b { color: var(--text); }
+.buchung-code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+.buchung-details .kpi-kopie { min-width: 36px; min-height: 36px; padding: 0; }
+.buchung-details .dok-knopf { margin-top: 8px; }
+.rv-teile-kopf { margin-top: 8px; font-weight: 700; color: var(--text); }
+.rv-teile { list-style: none; margin: 2px 0 0; padding: 0; }
+.rv-teile li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 4px 0; border-top: 1px solid var(--border-soft); }
+.rv-teil-wann { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.rv-teil-titel { min-width: 0; flex: 1 1 160px; overflow-wrap: anywhere; }
+.rv-summe { display: flex; justify-content: space-between; gap: 12px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);
+  font-size: 13px; color: var(--muted); flex-wrap: wrap; }
+.rv-summe b { color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ── 6 Unterlagen und Kontakte ─────────────────────────────────────────── */
+.rv-reiter { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.rv-reiter button { height: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface);
+  font: 600 13px var(--font, inherit); font-family: inherit; color: var(--text); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.rv-reiter button b { background: var(--surface-3); border-radius: 999px; padding: 1px 8px; font-size: 12px; color: var(--text-soft); }
+.rv-reiter button.on { background: var(--accent-weak); border-color: var(--accent-weak); color: var(--accent-dark); }
+.rv-reiter button.on b { background: var(--surface); }
+.rv-reiter-inhalt { margin-top: 14px; min-width: 0; overflow-wrap: anywhere; }
+.rv-links { list-style: none; margin: 0; padding: 0; }
+.rv-links li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 44px; padding: 6px 0; border-top: 1px solid var(--border-soft); }
+.rv-links li:first-child { border-top: 0; }
+.rv-links .rv-ti { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.rv-links .rv-ti small { display: block; font-weight: 500; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-links .rv-akt { justify-content: flex-end; }
+.rv-alle { margin-top: 10px; }
+@media (max-width: 1023px) { .rv-links.rv-gekuerzt > li:nth-child(n+6) { display: none; } }
+@media (min-width: 1024px) { .rv-alle { display: none; } }
+/* Die bisherigen Blöcke bringen Trennlinie und Überschrift mit — die
+   Überschrift steht jetzt im Reiter. */
+.rv-alt > .segments { margin-top: 0; padding-top: 0; border-top: none; }
+.rv-alt > .segments + .segments { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-soft); }
+.rv-alt > .segments:first-child > .seg-header:first-child { display: none; }
+.rv-alt .reise-fuss { font-size: 13px; color: var(--muted); word-break: normal; overflow-wrap: anywhere; }
+.rv-alt .reise-fuss + .reise-fuss { margin-top: 6px; }
+
+/* ── 7 Fuß ─────────────────────────────────────────────────────────────── */
+.rv-erledigt { margin-top: 12px; font-size: 13px; color: var(--muted); }
+.rv-erledigt > summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0; }
+.rv-erledigt > summary::-webkit-details-marker { display: none; }
+.rv-erledigt .rv-pfeil { transition: transform .15s; }
+.rv-erledigt[open] > summary .rv-pfeil { transform: rotate(90deg); }
+.rv-erledigt-chips { display: flex; flex-wrap: wrap; gap: 6px; padding-bottom: 8px; }
+/* Chips der Reisedatei: langer Text bricht um statt abzuschneiden */
+.rv-erledigt-chips .chip { font-size: 13px; white-space: normal; text-align: left; align-items: flex-start; }
+.rv-erledigt-chips .chip::before { margin-top: 5px; }
+.rv-erledigt-chips .chip > span { overflow: visible; }
+/* „Abgeschlossene Reisen (n)" im selben Ton wie „Erledigt und Hinweise".
+   #content, weil der Inline-Stil in index.html nach dieser Datei kommt. */
+#content .traveled-section { margin-top: 0; }
+#content .traveled-section > summary { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 400; border-top: 0;
+  justify-content: space-between; min-height: 44px; padding: 0; }
+#content .traveled-section > summary::before { content: none; }
+#content .traveled-section > summary .ic { color: var(--muted); transition: transform .15s; }
+#content .traveled-section[open] > summary .rv-pfeil { transform: rotate(90deg); }
 
 /* ── CP1-5: Vorschaubild statt Bildstreifen (Spec §1.5 .thumb) ─────────────
-   64×64 links neben dem Titel. Das Markup ist das von entityImgHtml (Klick
-   lädt hoch); die Regeln hier heben dessen 16:9-Vollbreite auf. */
+   Für die alte .trip-card (Dashboard-Reisen) und — mit den Maßen oben — die
+   Kopfkarte. Das Markup ist das von entityImgHtml (Klick lädt hoch). */
 .reise-kopf-zeile { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
 .reise-kopf-text { min-width: 0; flex: 1 1 auto; }
 .entity-img-wrap.reise-thumb {
@@ -208,8 +279,8 @@
 /* Das Kamerasymbol beim Überfahren ist für 64 px zu groß. */
 .entity-img-wrap.reise-thumb:hover::after { content: none; }
 
-/* CP2-0: mobil 48 px (steht hinter dem CP1-5-Block, sonst gewinnt dessen 64 px) */
+/* CP2-0: mobil 48 px für die alte Karte (steht hinter dem CP1-5-Block, sonst gewinnt dessen 64 px) */
 @media (max-width: 1023px) {
-  .entity-img-wrap.reise-thumb, .entity-img-wrap.reise-thumb.bild-leer { width: 48px; height: 48px; min-height: 48px; flex-basis: 48px; }
-  .reise-thumb .thumb { width: 48px; height: 48px; }
+  .reise-kopf-zeile .entity-img-wrap.reise-thumb, .reise-kopf-zeile .entity-img-wrap.reise-thumb.bild-leer { width: 48px; height: 48px; min-height: 48px; flex-basis: 48px; }
+  .reise-kopf-zeile .reise-thumb .thumb { width: 48px; height: 48px; }
 }
