@@ -1098,6 +1098,25 @@ async function apiFetch(url, opts = {}) {
   return res.json();
 }
 
+/* kalender-500 (13.11.2026): Termine samt Stand. Scheitert Graph, liefert der
+   Server den letzten guten Abruf mit X-Kalender-Veraltet; die Liste traegt dann
+   .veraltet und .stand, damit die Anzeige den Stand nennt statt leer zu bleiben. */
+async function kalenderAbruf() {
+  const res = await netzFetch('/dashboard/api/calendar?token=' + encodeURIComponent(TOKEN));
+  if (res.status === 401) { logout(); throw new Error('401'); }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const events = await res.json();
+  events.stand = res.headers.get('X-Kalender-Stand') || null;
+  events.veraltet = res.headers.get('X-Kalender-Veraltet') === '1';
+  return events;
+}
+
+function kalenderStandHinweis(events) {
+  if (!events || !events.veraltet) return '';
+  return '<div class="empty" role="status">Der Kalender ist gerade nicht abrufbar (Microsoft antwortet nicht). Gezeigt wird der letzte Abruf von '
+    + esc(events.stand ? fmtDT(events.stand) : 'unbekannt') + '.</div>';
+}
+
 /* ── Helpers ── */
 /* P2-3: Kennzahl-Beschriftung mit Kurzform fuer schmale Geraete. Lange
    Beschriftungen wie "Gewicht-Trend 30 T" brachen in der 177 px breiten
@@ -2652,7 +2671,7 @@ let _calCache = [];
 async function loadCalendar() {
   const c = document.getElementById('content');
   try {
-    const [events, calLinks] = await Promise.all([apiFetch('/api/calendar'), apiFetch('/api/links').catch(() => [])]);
+    const [events, calLinks] = await Promise.all([kalenderAbruf(), apiFetch('/api/links').catch(() => [])]);
     _calCache = events;
 
     const toolbar = '<div style="margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
@@ -2660,7 +2679,8 @@ async function loadCalendar() {
       /* C2 (Phase 3): Der Zeitzonenhinweis steht im Seitenkopf und gilt
          fuer alle Bereiche. Zweimal derselbe Satz auf einer Seite kostete
          schmal eine ganze Zeile. */
-      + '</div>';
+      + '</div>'
+      + kalenderStandHinweis(events);
 
     if (!events.length) { c.innerHTML = toolbar + '<div class="empty">Keine Termine in den nächsten 7 Tagen.</div>'; return; }
 

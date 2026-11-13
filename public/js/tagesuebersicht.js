@@ -450,6 +450,8 @@ function heuteTermineFuellen(k, events) {
   const heuteListe = alle.filter(x => x.z.tagesSchluessel === heute);
   const folge = alle.filter(x => x.z.tagesSchluessel === morgen).slice(0, 2);
   const teile = [];
+  /* kalender-500: letzter guter Stand statt leerer Kachel — mit Zeitpunkt. */
+  if (events.veraltet) teile.push(heuteHtmlKnoten(kalenderStandHinweis(events)));
   if (!heuteListe.length) {
     teile.push(heuteHtmlKnoten(zustandBlock('keine_daten', 'Heute steht kein Termin im Kalender.')));
   } else {
@@ -1397,7 +1399,7 @@ async function loadHeute() {
   const [rUmfeld, rKalender, rAlerts, rHealth, rFahrzeuge, rStatus, rSp, rInsta, rKonten, rObjekte, rBriefing]
     = await Promise.allSettled([
       apiFetch('/api/heute/umfeld'),
-      apiFetch('/api/calendar'),
+      kalenderAbruf(),
       apiFetch('/api/health/alerts'),
       apiFetch('/api/health?days=3'),
       apiFetch('/api/fleet/vehicles?status=active'),

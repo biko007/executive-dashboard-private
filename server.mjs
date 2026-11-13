@@ -11,6 +11,7 @@ import pg from 'pg';
 import { marked } from 'marked';
 import sanitizeHtml from 'sanitize-html';
 import SunCalc from 'suncalc';
+import { kalenderHolen, standLesen, standSchreiben } from './kalender-abruf.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || '/root';
@@ -61,6 +62,8 @@ const dbPool = ENV.POSTGRES_URL
 // ── Paths ─────────────────────────────────────────────────────────────────────
 
 const TRAVEL_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/personal/travel');
+/* Letzter erfolgreicher Kalenderabruf (kalender-500): Rückfall, wenn Graph scheitert. */
+const KALENDER_STAND_DATEI = path.join(HOME, '.openclaw/workspace/artifacts/personal/calendar/letzter-stand.json');
 const HEALTH_LOG  = path.join(HOME, '.openclaw/workspace/artifacts/personal/health/health-log.jsonl');
 const DRAFTS_DIR  = path.join(HOME, '.openclaw/workspace/artifacts/mail-drafts');
 const DOCS_DIR    = path.join(HOME, '.openclaw/workspace/artifacts/personal/documents');
@@ -1656,16 +1659,23 @@ app.get('/api/calendar', auth, async (req, res) => {
       `/calendarView?startDateTime=${encodeURIComponent(start.toISOString())}` +
       `&endDateTime=${encodeURIComponent(end.toISOString())}` +
       `&$select=id,subject,start,end,isAllDay,location,organizer,onlineMeeting,bodyPreview` +
-      `&$orderby=start/dateTime`;
+      `&$orderby=start/dateTime&$top=100`;
 
-    const events = [];
-    for (let i = 0; i < 10; i++) {
-      const json = await graphGet(url);
-      if (json?.value?.length) events.push(...json.value);
-      const next = json?.['@odata.nextLink'];
-      if (!next) break;
-      url = next;
+    /* kalender-500 (13.11.2026): kurze Versuche mit Wiederholung, danach
+       der letzte gute Stand mit Zeitstempel statt leerer Antwort. */
+    let events;
+    try {
+      events = await kalenderHolen(url, await getGraphToken());
+    } catch (e) {
+      const alt = standLesen(KALENDER_STAND_DATEI);
+      console.error(`[calendar] Graph-Abruf gescheitert: ${e.message}${alt ? ` — liefere Stand ${alt.stand}` : ''}`);
+      if (!alt) throw e;
+      res.set('X-Kalender-Stand', alt.stand);
+      res.set('X-Kalender-Veraltet', '1');
+      return res.json(alt.events);
     }
+    standSchreiben(KALENDER_STAND_DATEI, events);
+    res.set('X-Kalender-Stand', new Date().toISOString());
     res.json(events);
   } catch (e) {
     res.status(500).json({ error: e.message });
