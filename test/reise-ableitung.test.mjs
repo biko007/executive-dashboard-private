@@ -9,7 +9,9 @@ import { readFileSync } from 'node:fs';
 const js = readFileSync(new URL('../public/js/reise-ableitung.js', import.meta.url), 'utf8');
 const R = new Function(`${js}
 return { reiseCountdown, reiseChipAuswahl, reiseNaechsteFristen, reiseDatumsbereich,
-  reiseBuchungEinordnen, reiseTagesleiste, reiseZeilenDatum, reiseZeitraumText, reiseTagKurz, reiseFlugText };`)();
+  reiseBuchungEinordnen, reiseTagesleiste, reiseZeilenDatum, reiseZeitraumText, reiseTagKurz, reiseFlugText,
+  reiseFristBezug, reiseFristEinstufung, reiseFristenGliedern, reiseHeuteOrt, reiseAktuelleStation, reiseVerlaufFalten,
+  reiseBuchungStatusChip, reiseBuchungArt, reiseBuchungDatum };`)();
 const reise = JSON.parse(readFileSync(new URL('./fixtures/reise-261107-winnipeg-v11.json', import.meta.url), 'utf8'));
 const HEUTE = '2026-11-02';
 const { von, bis } = reise;
@@ -208,4 +210,106 @@ test('Schema-Erweiterung: Winnipeg-Variante mit neuen Feldern', () => {
   assert.deepEqual([am('2026-11-15').hotel.art, am('2026-11-15').hotel.zeit], ['checkin', '16:00']);
   // Als Nächstes zeigt Aufgaben weiter
   assert.deepEqual(R.reiseNaechsteFristen(mitFeldern.fristen, HEUTE).map(f => f.faellig), ['2026-10-31', '2026-11-02', '2026-11-04']);
+});
+
+// ── CP2-0 (13.11.2026): Reisen-Karte entlastet ──
+// v11 (Stand 02.11.) für die Vergangen-Regel; v20 = Auszug der Reisedatei vom 13.11.
+// (ohne Buchungscodes, Tickets, Dokumente, Kontakte; Mailadressen maskiert).
+const v20 = JSON.parse(readFileSync(new URL('./fixtures/reise-261107-winnipeg-v20.json', import.meta.url), 'utf8'));
+const STICHTAG = '2026-11-12';
+const titelVon = (liste) => liste.map(f => f.titel);
+
+test('Vergangen-Regel v11, Stichtag 12.11.: Check-in-Frist vergangen, Rest offen', () => {
+  const check = reise.fristen.find(f => f.titel === 'Online-Check-in Air Canada öffnet');
+  assert.equal(R.reiseFristBezug(check, reise), '2026-11-07');            // „24 h vor LX4640" → Abflug 07.11.
+  assert.equal(R.reiseFristEinstufung(check, reise, STICHTAG), 'vergangen');
+  assert.equal(R.reiseFristEinstufung(check, reise, '2026-11-07'), 'ueberfaellig');   // am Flugtag noch offen
+  const g = R.reiseFristenGliedern(reise, STICHTAG);
+  assert.deepEqual(titelVon(g.vergangen), ['Online-Check-in Air Canada öffnet']);
+  // Bezug in der Zukunft → überfällig, nicht vergangen
+  assert.equal(R.reiseFristBezug(reise.fristen.find(f => f.titel.startsWith('LX41:')), reise), '2026-11-25');
+  assert.equal(R.reiseFristBezug(reise.fristen.find(f => f.titel.startsWith('Hotels Santa Clara')), reise), '2026-11-24');   // spätestes Datum im Titel
+  assert.equal(R.reiseFristBezug(reise.fristen.find(f => f.titel.startsWith('Hotel SF')), reise), '2026-11-20');
+  // Kein erkennbares Bezugsereignis, kein Termin → im Zweifel offen
+  const abfahrt = reise.fristen.find(f => f.titel.startsWith('Abfahrt Tuttlingen'));
+  assert.equal(R.reiseFristBezug(abfahrt, reise), null);
+  assert.equal(R.reiseFristEinstufung(abfahrt, reise, STICHTAG), 'ueberfaellig');
+  assert.deepEqual([g.ueberfaellig.length, g.kommend.length, g.vergangen.length, g.offen], [6, 7, 1, 13]);
+  assert.ok(g.vergangen.every(f => f.ton === '' && f.rest === 'vorbei'));
+  assert.ok(g.ueberfaellig.every(f => f.ton === 'rot'));
+});
+
+test('Unterkunft-Frist bleibt offen bis zum Ende ihres Zeitraums (15.11.)', () => {
+  for (const titel of ['Unterkunft Vancouver ab 13.11. bis 15.11. klären', 'Unterkunft 10.–15.11. klären']) {
+    const f = { faellig: '2026-11-10', titel, status: 'offen', art: 'aufgabe' };
+    const r = { ...reise, fristen: [...reise.fristen, f] };
+    assert.equal(R.reiseFristBezug(f, r), '2026-11-15', titel);
+    assert.equal(R.reiseFristEinstufung(f, r, STICHTAG), 'ueberfaellig', titel);
+    assert.equal(R.reiseFristEinstufung(f, r, '2026-11-15'), 'ueberfaellig', titel);
+    assert.equal(R.reiseFristEinstufung(f, r, '2026-11-16'), 'vergangen', titel);
+  }
+  // Vor ihrer Fälligkeit ist sie kommend
+  assert.equal(R.reiseFristEinstufung({ faellig: '2026-11-13', titel: 'Unterkunft Vancouver ab 13.11. bis 15.11. klären', status: 'offen' }, reise, STICHTAG), 'kommend');
+});
+
+test('v20 (13.11.): Kommend/Überfällig-Zählung, Termine ohne Bezug vergehen mit ihrem Datum', () => {
+  const g = R.reiseFristenGliedern(v20, STICHTAG);
+  assert.equal(v20.fristen.filter(f => f.status !== 'erledigt').length, 16);
+  assert.deepEqual(titelVon(g.vergangen), ['Online-Check-in Air Canada öffnet', 'Abfahrt Tuttlingen ca. 09:30',
+    'Online-Check-in Air Canada XCODEX öffnet (24 h vor AC293)']);
+  assert.deepEqual(titelVon(g.ueberfaellig), ['Hotels Santa Clara (20.–22.11.) und Los Angeles (22.–24.11.) buchen – je 2 Betten (mit Bernd Huber)',
+    'Flug San José → Los Angeles (So 22.11.) buchen', 'Hotel SF: Nacht 19.→20.11. entscheiden (Hyatt-Reservierung nicht änderbar → ggf. separate Buchung)']);
+  assert.deepEqual([g.ueberfaellig.length, g.kommend.length, g.vergangen.length, g.erledigt.length, g.offen], [3, 10, 3, 5, 13]);
+  assert.deepEqual(g.kommend.slice(0, 3).map(f => [f.faellig, f.rest]), [['2026-11-13', 'morgen'], ['2026-11-13', 'morgen'], ['2026-11-14', 'in 2 Tg.']]);
+  // „Alle Fristen" zählt die nicht erledigten: 3 + 10 + 3 = 16
+  assert.equal(g.ueberfaellig.length + g.kommend.length + g.vergangen.length, 16);
+});
+
+test('Aktuelle Station am 12.11.: Victoria; Reisetag mit Ortswechsel ohne Station; außerhalb leer', () => {
+  const z = (tag) => R.reiseTagesleiste(v20, v20.von, v20.bis, tag).zeilen;
+  assert.equal(R.reiseAktuelleStation(z(STICHTAG), STICHTAG), 'Victoria');
+  assert.equal(R.reiseAktuelleStation(z('2026-11-16'), '2026-11-16'), 'San Francisco');
+  assert.equal(R.reiseAktuelleStation(z('2026-11-15'), '2026-11-15'), '');   // Vancouver → San Francisco
+  assert.equal(R.reiseAktuelleStation(z('2026-11-30'), '2026-11-30'), '');
+  assert.equal(R.reiseAktuelleStation(R.reiseTagesleiste(reise, von, bis, STICHTAG).zeilen, STICHTAG), 'Winnipeg');   // v11 kannte Victoria noch nicht
+  assert.equal(R.reiseCountdown(v20.von, v20.bis, STICHTAG).text, 'Tag 6 von 19');
+});
+
+test('Zusammenfassungszeile vergangener Tage', () => {
+  const zeilen = R.reiseTagesleiste(v20, v20.von, v20.bis, STICHTAG).zeilen;
+  const f = R.reiseVerlaufFalten(zeilen, STICHTAG);
+  assert.equal(f.text, 'Sa 07.–Di 10. · 4 Stationen');
+  assert.equal(f.vergangen.length + f.rest.length, zeilen.length);
+  assert.ok(f.rest[0].heute && f.rest[0].von <= STICHTAG && STICHTAG <= f.rest[0].bis);
+  // Inhalt unverändert: dieselben Zeilenobjekte
+  assert.deepEqual([...f.vergangen, ...f.rest], zeilen);
+  assert.equal(R.reiseVerlaufFalten(zeilen, '2026-11-07').text, '');   // erster Tag: nichts vergangen
+  const nov = R.reiseVerlaufFalten([{ von: '2026-10-30', bis: '2026-10-31' }, { von: '2026-11-01', bis: '2026-11-01' }, { von: '2026-11-02', bis: '2026-11-02' }], '2026-11-02');
+  assert.equal(nov.text, 'Fr 30.10.–So 01.11. · 2 Stationen');
+  assert.equal(R.reiseVerlaufFalten([{ von: '2026-11-07', bis: '2026-11-07' }, { von: '2026-11-08', bis: '2026-11-08' }], '2026-11-08').text, 'Sa 07.11. · 1 Station');
+});
+
+test('Buchungsstatus-Chip nur bei Abweichung; Art und Datum der Zeile', () => {
+  const chip = (status) => R.reiseBuchungStatusChip({ status });
+  for (const s of ['bestätigt', 'bezahlt', 'gebucht', 'Senator', '', undefined]) assert.equal(chip(s), null, String(s));
+  assert.deepEqual(chip('storniert'), { text: 'storniert', klasse: 'chip-err' });
+  assert.deepEqual(chip('offen'), { text: 'offen', klasse: 'chip-warn' });
+  assert.deepEqual(chip('Vorschlag'), { text: 'Vorschlag', klasse: 'chip-warn' });
+  assert.equal(v20.buchungen.filter(b => R.reiseBuchungStatusChip(b)).length, 0);   // alle 17 im Normalfall
+  const art = v20.buchungen.map(b => R.reiseBuchungArt(b, v20.von, v20.bis));
+  assert.deepEqual([...new Set(art)].sort(), ['flug', 'hotel', 'sonstiges', 'termin']);
+  const fairmont = v20.buchungen.find(b => /^Fairmont/.test(b.anbieter));
+  assert.equal(R.reiseBuchungDatum(fairmont, v20.von, v20.bis), '13.–15.11.');
+  assert.equal(R.reiseBuchungDatum(v20.buchungen.find(b => /^Lucas/.test(b.anbieter)), v20.von, v20.bis), 'Mo 23.11.');
+  assert.equal(R.reiseBuchungArt(reise.buchungen.find(b => /^Hyatt/.test(b.anbieter)), von, bis), 'hotel');   // v11 ohne Feld art
+});
+
+test('heute der Reise in Ortszeit aus dem jüngsten Briefing mit utcOffsetMin', () => {
+  const b = [{ datum: '2026-11-12', gesendetAt: '2026-11-12T15:00:00Z', utcOffsetMin: -480, zeitzone: 'America/Vancouver' },
+    { datum: '2026-11-11', gesendetAt: '2026-11-11T15:00:00Z' }];
+  assert.deepEqual(R.reiseHeuteOrt(b, new Date('2026-11-13T05:00:00Z'), '2026-11-13'), { tag: '2026-11-12', quelle: 'ortszeit', zeitzone: 'America/Vancouver' });
+  assert.equal(R.reiseHeuteOrt(b, new Date('2026-11-12T22:00:00Z'), '2026-11-12').tag, '2026-11-12');
+  assert.deepEqual(R.reiseHeuteOrt([b[1]], new Date('2026-11-13T05:00:00Z'), '2026-11-13'), { tag: '2026-11-13', quelle: 'berlin' });
+  assert.equal(R.reiseHeuteOrt(b, new Date('2026-11-20T05:00:00Z'), '2026-11-20').quelle, 'berlin');   // Briefing zu alt
+  assert.equal(R.reiseHeuteOrt(null, new Date(), '2026-11-13').tag, '2026-11-13');
 });

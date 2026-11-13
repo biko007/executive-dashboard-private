@@ -92,6 +92,7 @@ paperclip, plus, search, x. **Ergänzt** um briefcase, camera, book-open,
 trending-up, plug — damit jeder der 14 Bereiche ein eigenes, eindeutiges Symbol
 hat (Private Equity, Instagram, Wiki, Trading, Status).
 CP1-7: **ergänzt** um mail, list-checks, info, clock für die Briefing-Abschnitte; CP1-8 um cloud (Wetter).
+CP2-0: **ergänzt** um ellipsis (Menü „…“; Lucide-Name für more-horizontal), bed, ticket, map, clipboard-copy, link, phone, folder, id-card, award für die Reisen-Karte.
 
 ## Bausteine (`design.css`)
 
@@ -298,6 +299,61 @@ Der Kopf des Morgenbriefings ist ein **Tagesbogen** nach dem Owner-Prototyp
   „Zugestellt 07:00 Berlin · Telegram“ (Zustellchip) und „Montag · 07:00 Uhr
   Berlin“ (Bogenkopf). Sonnen- und Mondzeiten werden nie umgerechnet; sie stehen
   so im Bogen, wie der Kopf sie nennt.
+
+## Reisen-Karte (CP2-0)
+
+Gilt für Reisen mit Reiseblock (Import des Reiseassistenten); Bausteine in
+`public/js/reise-ansicht.js`, Regeln in `public/js/reise-ableitung.js`
+(Tests `test/reise-ableitung.test.mjs`), Stile in `public/css/reise.css`.
+Owner-Befund 13.11.2026: „fast überfrachtet, doppelt“. Grundsatz: nichts geht
+verloren, alles bleibt aufklappbar; keine Emojis, Icons aus dem Sprite.
+
+- **Kopf:** Vorschaubild (mobil 48 px, ab 1024 px 64 px), Titel, Zeitraum,
+  darunter „Tag 6 von 19 · heute Victoria“ (`reiseAktuelleStation`: Ort der
+  letzten Verlaufszeile mit Beginn ≤ heute; an einem Reisetag mit Ortswechsel
+  keine Station). Die Ortezeile (`destination`) und die Warnchips entfallen.
+  Eine Zeile Status „Aktiv“ + Chip „{n} offen“ (`.chip-warn`, bei 0 `.chip-ok`
+  „nichts offen“; n = überfällig + kommend) und rechts `.btn-primary`
+  „Bearbeiten“ sowie das Menü „…“ (`details.nav-mehr.reise-mehr`, Summary
+  `.btn-ghost`) mit „Mit Kalender abgleichen“, „Verknüpfen“, „Löschen“
+  (`.btn-danger`, Bestätigung unverändert in `deleteTrip`). Schließt bei Klick
+  außerhalb und mit Esc wie „Mehr“ in der Navigation.
+- **„heute“** der Reise in Ortszeit: aus `utcOffsetMin` des jüngsten Briefings
+  (höchstens 2 Tage alt, `reiseHeuteOrt`), sonst Europe/Berlin.
+- **Fristen** (`reiseFristEinstufung`): kommend (fällig ≥ heute), überfällig
+  (fällig < heute, Bezugsereignis heute oder später, oder kein Bezug
+  erkennbar — im Zweifel offen), vergangen (fällig < heute und Bezug < heute;
+  ein Termin ohne Bezug vergeht mit seinem Datum), erledigt. Bezug
+  (`reiseFristBezug`) = spätestes Datum aus Flugnummer (fluege[]),
+  Buchungscode mit Datum (buchungen[].von/bis) oder „TT.MM.“ im Titel; die
+  Notiz zählt für Daten nicht (Bearbeitungsvermerke).
+- **Als Nächstes:** höchstens drei kommende Fristen; Überfällige als eine rote
+  Zeile „{n} überfällig ▸“; „Alle Fristen ({überfällig+kommend+vergangen})“
+  eingeklappt, gegliedert Überfällig / Kommend / Vergangen / Erledigt.
+  Vergangene sind nie rot.
+- **Reiseverlauf:** während der Reise sind die Zeilen vor heute zu „Sa 07.–Di
+  10. · 4 Stationen ▸“ gefaltet (Stationen = Verlaufszeilen, Inhalt
+  unverändert); heute mit Punkt `--gold` auf `--gold-weak` und Label „heute“
+  (`--on-gold-weak`); kommende Tage offen.
+- **Buchungen:** Listenzeilen statt Karten. Zeile 1 Anbieter (Ellipsis) und
+  Betrag `.num`, Zeile 2 Code (Monospace) · Datum · Art-Icon (plane, bed,
+  ticket, file-text). Klick öffnet die Details (Code mit Kopierknopf, Stand,
+  Ausgestellt, Tarif, Ticket, Vielflieger, Notiz, „Buchung verwalten“).
+  Statuschip nur bei Abweichung (`reiseBuchungStatusChip`: storniert
+  `.chip-err`; offen, Vorschlag, Warteliste `.chip-warn`).
+- **Klappabschnitte** als eine Liste (ein Rahmen, Trennlinien): Dokumente,
+  Einreise, Kontakte, Miles & More, Offen, Flugkette, Segmente, dazu neu
+  „Notiz & Quelle“ (bisher offener Fuß).
+- **Erledigt & Hinweise** am Ende, eingeklappt, Schrift 13: alle Chips der
+  Reisedatei als `.chip` (green → `-ok`, amber → `-warn`, red → `-err`,
+  blue → `-info`), Text bricht um.
+- **Raster:** unter 1024 px einspaltig (Kopf → Als Nächstes → Reiseverlauf →
+  Buchungen → Klappabschnitte → Erledigt & Hinweise), ab 1024 px
+  `minmax(0,7fr) minmax(0,5fr)`; Erledigt & Hinweise über beide Spalten.
+- **Kontrast:** `--gold`/`--yellow` und `--red` nie als Text auf den hellen
+  Flächen — Fristtage gelb in `--on-gold-weak`, rot in `--on-red-weak`; die
+  frühere Dämpfung erledigter Fristen per `opacity: .6` entfällt.
+- **Höhe** der aktiven Reise bei 390 px (Uhr 12.11. 22:00Z): 4870 → 2907 px.
 
 ## Alpine
 

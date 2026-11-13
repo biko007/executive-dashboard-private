@@ -371,3 +371,154 @@ function reiseZeilenDatum(zeile) {
   const anfang = zeile.von.slice(5, 7) === zeile.bis.slice(5, 7) ? zeile.von.slice(8, 10) + '.' : tm(zeile.von);
   return `${anfang}–${tm(zeile.bis)}`;
 }
+
+/* ── CP2-0 (13.11.2026): Reisen-Karte entlasten ────────────────────────────
+   Owner-Befund: „fast überfrachtet, doppelt, Hinweise was noch fehlen würde
+   noch und nöchter". Die Regeln hier entscheiden, was die Karte zeigt; nichts
+   davon verändert die Reisedatei. */
+
+/* Bezugsdatum einer Frist: das späteste Datum des Ereignisses, auf das sie
+   sich bezieht. Gesucht wird
+     1. eine Flugnummer aus fluege[] in Titel oder Notiz (Check-in „24 h vor
+        LX4640" → Abflugtag des LX4640; bei Nachtflug der Ankunftstag),
+     2. ein Buchungscode aus buchungen[] in Titel oder Notiz, wenn die Buchung
+        ein Datum (von/bis) trägt,
+     3. Tagesangaben „TT.MM." im Titel („Unterkunft … bis 15.11. klären",
+        „Hotels Santa Clara (20.–22.11.)", „Nacht 19.→20.11.").
+   Die Notiz zählt für Daten nicht mit: dort stehen Bearbeitungsvermerke
+   („12.11.: Fairmont gebucht"), keine Bezugsereignisse. Ergebnis: ISO-Tag
+   oder null (kein erkennbares Bezugsereignis). */
+function reiseFristBezug(frist, reise) {
+  const titel = String(frist?.titel || '');
+  const text = titel + ' ' + String(frist?.notiz || '');
+  const von = reise?.von || (reiseIstTag(frist?.faellig) ? frist.faellig : '');
+  const daten = [];
+  const wort = (w) => new RegExp('(^|[^A-Za-z0-9])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^A-Za-z0-9])');
+  for (const f of Array.isArray(reise?.fluege) ? reise.fluege : []) {
+    if (!f || !f.flugnummer || !reiseIstTag(f.datum)) continue;
+    if (wort(String(f.flugnummer)).test(text)) daten.push(reiseIstTag(f.an_datum) ? f.an_datum : f.datum);
+  }
+  for (const b of Array.isArray(reise?.buchungen) ? reise.buchungen : []) {
+    if (!b || !b.code || String(b.code).length < 5 || !reiseIstTag(b.von)) continue;
+    if (wort(String(b.code)).test(text)) daten.push(reiseIstTag(b.bis) ? b.bis : b.von);
+  }
+  if (reiseIstTag(von)) {
+    for (const m of titel.matchAll(/(\d{1,2})\.(\d{1,2})\.(\d{4})?/g)) {
+      const tag = reiseDatumAus(m[1], m[2], m[3], von);
+      if (tag) daten.push(tag);
+    }
+  }
+  return daten.length ? daten.sort().pop() : null;
+}
+
+/* Einstufung einer Frist am Tag `heute`:
+     erledigt     — Status erledigt
+     kommend      — offen, fällig heute oder später
+     vergangen    — offen, fällig vor heute, und das Bezugsereignis ist vorbei
+                    (Bezug < heute); ein Termin ohne Bezug ist sein eigenes
+                    Ereignis und mit seinem Datum vorbei
+     ueberfaellig — offen, fällig vor heute, Bezug heute oder später — oder
+                    kein erkennbarer Bezug (im Zweifel bleibt sie offen)
+   Ohne gültiges Fälligkeitsdatum: kommend (sie wird nirgends versteckt). */
+function reiseFristEinstufung(frist, reise, heute) {
+  if ((frist?.status || 'offen') === 'erledigt') return 'erledigt';
+  if (!reiseIstTag(frist?.faellig) || !reiseIstTag(heute) || frist.faellig >= heute) return 'kommend';
+  const bezug = reiseFristBezug(frist, reise);
+  if (bezug) return bezug < heute ? 'vergangen' : 'ueberfaellig';
+  return frist.art === 'termin' ? 'vergangen' : 'ueberfaellig';
+}
+
+/* Alle Fristen nach Einstufung, je Gruppe nach Fälligkeit (gleiches Datum:
+   Dateireihenfolge), mit Farbe und Resttext. Überfällige sind rot, vergangene
+   nie. `offen` = überfällig + kommend (Zähler im Kopf). */
+function reiseFristenGliedern(reise, heute) {
+  const gruppen = { ueberfaellig: [], kommend: [], vergangen: [], erledigt: [] };
+  (Array.isArray(reise?.fristen) ? reise.fristen : [])
+    .map((f, index) => ({ f, index }))
+    .sort((x, y) => String(x.f.faellig || '9999').localeCompare(String(y.f.faellig || '9999')) || x.index - y.index)
+    .forEach(({ f }) => {
+      const art = reiseFristEinstufung(f, reise, heute);
+      const lage = reiseFristLage(f.faellig, heute);
+      gruppen[art].push({ ...f, ...lage, einstufung: art,
+        ton: art === 'vergangen' || art === 'erledigt' ? '' : lage.ton,
+        rest: art === 'vergangen' ? 'vorbei' : art === 'erledigt' ? 'erledigt' : lage.rest });
+    });
+  return { ...gruppen, offen: gruppen.ueberfaellig.length + gruppen.kommend.length };
+}
+
+/* „heute" der Reise in Ortszeit, wie der Tagesbogen (CP1-12): aus
+   utcOffsetMin des jüngsten Briefings, das ihn trägt. Ohne solches Briefing
+   der übergebene Berliner Tag. Ein Briefing älter als 2 Tage zählt nicht
+   (der Ort könnte nicht mehr stimmen). */
+function reiseHeuteOrt(briefings, jetzt, berlinTag) {
+  const liste = (Array.isArray(briefings) ? briefings : [])
+    .filter(b => b && Number.isFinite(b.utcOffsetMin) && (b.gesendetAt || b.erzeugtAt))
+    .sort((a, b) => String(b.gesendetAt || b.erzeugtAt).localeCompare(String(a.gesendetAt || a.erzeugtAt)));
+  const b = liste[0];
+  if (!b || !(jetzt instanceof Date)) return { tag: berlinTag, quelle: 'berlin' };
+  const alter = jetzt.getTime() - Date.parse(b.gesendetAt || b.erzeugtAt);
+  if (!(alter >= 0 && alter <= 2 * 86400000)) return { tag: berlinTag, quelle: 'berlin' };
+  const tag = new Date(jetzt.getTime() + b.utcOffsetMin * 60000).toISOString().slice(0, 10);
+  return { tag, quelle: 'ortszeit', zeitzone: b.zeitzone || '' };
+}
+
+/* Aktuelle Station: Ort der letzten Verlaufszeile, die heute oder früher
+   beginnt und einen Ort hat. Ein Reisetag mit Ortswechsel („Victoria →
+   Vancouver") ist keine eindeutige Station → ''. Außerhalb der Reise ''. */
+function reiseAktuelleStation(zeilen, heute) {
+  const liste = Array.isArray(zeilen) ? zeilen : [];
+  if (!liste.length || !reiseIstTag(heute) || heute < liste[0].von || heute > liste[liste.length - 1].bis) return '';
+  const davor = liste.filter(z => z.von <= heute && z.ort);
+  const z = davor[davor.length - 1];
+  if (!z || /→/.test(z.ort)) return '';
+  return z.ort;
+}
+
+/* Vergangene Verlaufszeilen (bis < heute) als eine Zeile zusammenfassen:
+   „Sa 07.–Mi 11. · 4 Stationen" — Stationen = Zahl der Verlaufszeilen. */
+function reiseVerlaufFalten(zeilen, heute) {
+  const liste = Array.isArray(zeilen) ? zeilen : [];
+  const vergangen = reiseIstTag(heute) ? liste.filter(z => z.bis < heute) : [];
+  const rest = liste.filter(z => !vergangen.includes(z));
+  if (!vergangen.length) return { vergangen, rest, text: '' };
+  const a = vergangen[0].von, b = vergangen[vergangen.length - 1].bis;
+  const kurz = (t, mitMonat) => {
+    const wt = REISE_WOCHENTAG[new Date(Date.parse(t + 'T00:00:00Z')).getUTCDay()];
+    return `${wt} ${t.slice(8, 10)}.` + (mitMonat ? `${t.slice(5, 7)}.` : '');
+  };
+  const gleich = a.slice(0, 7) === b.slice(0, 7);
+  const datum = a === b ? reiseTagKurz(a) : `${kurz(a, !gleich)}–${kurz(b, !gleich)}`;
+  const n = vergangen.length;
+  return { vergangen, rest, text: `${datum} · ${n} ${n === 1 ? 'Station' : 'Stationen'}` };
+}
+
+/* Statuschip einer Buchung: nur, wenn der Stand vom Normalfall abweicht.
+   Bestätigt, bezahlt, gebucht, ausgestellt, reserviert sind Normalfall —
+   ebenso ein Vielfliegerstatus im Feld status (v11: „Senator"). */
+function reiseBuchungStatusChip(buchung) {
+  const s = String(buchung?.status || '').trim();
+  if (/^storniert/i.test(s)) return { text: s, klasse: 'chip-err' };
+  if (/^(offen|vorschlag|warteliste|angefragt|unbestätigt)/i.test(s)) return { text: s, klasse: 'chip-warn' };
+  return null;
+}
+
+/* Art einer Buchung für das Icon: das Feld `art`, sonst wie in der
+   Tagesleiste eingeordnet (Hotel/Termin), sonst „sonstiges". */
+function reiseBuchungArt(buchung, reiseVon, reiseBis) {
+  if (['flug', 'hotel', 'termin', 'sonstiges'].includes(buchung?.art)) return buchung.art;
+  const e = reiseBuchungEinordnen(buchung, reiseVon, reiseBis);
+  return e ? e.art : 'sonstiges';
+}
+
+/* Datum einer Buchung für die zweite Zeile: von/bis, sonst aus den Texten
+   (wie in der Tagesleiste), sonst ''. „13.–15.11." oder „Mo 23.11.". */
+function reiseBuchungDatum(buchung, reiseVon, reiseBis) {
+  let von = reiseIstTag(buchung?.von) ? buchung.von : '';
+  let bis = von && reiseIstTag(buchung?.bis) && buchung.bis >= von ? buchung.bis : von;
+  if (!von) {
+    const e = reiseBuchungEinordnen(buchung, reiseVon, reiseBis);
+    if (e) { von = e.von; bis = e.bis; }
+  }
+  if (!von) return '';
+  return von === bis ? reiseTagKurz(von) : reiseZeilenDatum({ von, bis });
+}

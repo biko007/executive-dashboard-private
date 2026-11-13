@@ -1,0 +1,425 @@
+{
+ "quelle": "Auszug aus /api/trips 13.11.2026 (Reise 261107-trip-winnipeg, Version 20), ohne Buchungscodes, Tickets, Dokumente, Einreise, Kontakte, Meilen und Notizen; Mailadressen maskiert",
+ "von": "2026-11-07",
+ "bis": "2026-11-25",
+ "version": 20,
+ "chips": [
+  {
+   "text": "Interkontinentalflüge gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "10.11. Winnipeg → Victoria gebucht (Jesse)",
+   "ton": "green"
+  },
+  {
+   "text": "13.11. Seair Victoria → Vancouver 10:30 gebucht (Jesse)",
+   "ton": "green"
+  },
+  {
+   "text": "15.11. AC564 Vancouver → San Francisco 12:25 gebucht (Business)",
+   "ton": "green"
+  },
+  {
+   "text": "Fairmont Pacific Rim Vancouver 13.–15.11. gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "QCon-Training Do: GitHub, Codex, AWS-EC2-Konto vorbereiten",
+   "ton": "amber"
+  },
+  {
+   "text": "First-Upgrade LX41 auf Warteliste",
+   "ton": "blue"
+  },
+  {
+   "text": "Hyatt Regency SF 15.–19.11. gebucht",
+   "ton": "green"
+  },
+  {
+   "text": "QCon Mo–Mi + 2 Trainings Do 19.11. bezahlt",
+   "ton": "green"
+  },
+  {
+   "text": "AGI Summit Sa/So gebucht (Two Days)",
+   "ton": "green"
+  },
+  {
+   "text": "Lucas Museum: 3 Tickets Mo 23.11. 10:00",
+   "ton": "green"
+  },
+  {
+   "text": "eTA und ESTA gültig",
+   "ton": "green"
+  },
+  {
+   "text": "Nacht 19.→20.11. SF offen",
+   "ton": "amber"
+  },
+  {
+   "text": "Hotels Santa Clara / LA offen",
+   "ton": "amber"
+  },
+  {
+   "text": "Senator: ca. 30 Points offen – eVoucher-Tausch bis 30.12.",
+   "ton": "amber"
+  }
+ ],
+ "fristen": [
+  {
+   "faellig": "2026-10-31",
+   "titel": "LX41: Flugzeugtyp (First an Bord) und Zeiten prüfen",
+   "status": "erledigt",
+   "art": "aufgabe",
+   "notiz": "05.11.: Zeiten und Status laut E-Ticket bestätigt; Flugzeugtyp nicht im E-Ticket (Angabe Boeing 777-300ER aus Recherche 18.10.)."
+  },
+  {
+   "faellig": "2026-11-06",
+   "titel": "Flug nach San Francisco am So 15.11. buchen – ab Victoria (YYJ) oder Vancouver (YVR)?",
+   "status": "erledigt",
+   "notiz": "12.11.: AC564 YVR 12:25 → SFO 13:51, Business Latitude, XCODEX.",
+   "art": "aufgabe"
+  },
+  {
+   "faellig": "2026-11-06",
+   "titel": "Online-Check-in Air Canada öffnet",
+   "status": "offen",
+   "notiz": "ab 13:20 MEZ, 24 h vor LX4640",
+   "art": "termin"
+  },
+  {
+   "faellig": "2026-11-07",
+   "titel": "Abfahrt Tuttlingen ca. 09:30",
+   "status": "offen",
+   "notiz": "Abflug Zürich 13:20",
+   "art": "termin"
+  },
+  {
+   "faellig": "2026-11-09",
+   "titel": "Online-Check-in Air Canada XCODEX öffnet (24 h vor AC293)",
+   "status": "offen",
+   "notiz": "ab 06:40 CST am 09.11.",
+   "art": "termin"
+  },
+  {
+   "faellig": "2026-11-10",
+   "titel": "Hotels Santa Clara (20.–22.11.) und Los Angeles (22.–24.11.) buchen – je 2 Betten (mit Bernd Huber)",
+   "status": "offen",
+   "art": "aufgabe",
+   "notiz": "AGI Summit gebucht (04.11.) → Santa Clara 20.–22.11. wird gebraucht."
+  },
+  {
+   "faellig": "2026-11-10",
+   "titel": "Flug San José → Los Angeles (So 22.11.) buchen",
+   "status": "offen",
+   "art": "aufgabe",
+   "notiz": "Nach Summit-Ende (17:00, vorläufig)."
+  },
+  {
+   "faellig": "2026-11-10",
+   "titel": "Hotel SF: Nacht 19.→20.11. entscheiden (Hyatt-Reservierung nicht änderbar → ggf. separate Buchung)",
+   "status": "offen",
+   "art": "aufgabe",
+   "notiz": "05.11.: Yahoo (alle Ordner) und M365 seit 25.10. durchsucht – einzige SF-Reservierung ist Hyatt 15.–19.11."
+  },
+  {
+   "faellig": "2026-11-10",
+   "titel": "AGI Summit: neu anmelden – ja/nein",
+   "status": "erledigt",
+   "notiz": "04.11. neu angemeldet, Two Days 249 USD (Bestätigung person@example.invalid).",
+   "art": "aufgabe"
+  },
+  {
+   "faellig": "2026-11-13",
+   "titel": "Unterkunft Vancouver ab 13.11. bis 15.11. klären",
+   "status": "erledigt",
+   "art": "aufgabe",
+   "notiz": "12.11.: Fairmont Pacific Rim XCODEX."
+  },
+  {
+   "faellig": "2026-11-13",
+   "titel": "Treffen mit Troy in LA (Ball-Vape-Session) vereinbaren",
+   "status": "offen",
+   "notiz": "Letzte Mail von Troy 27.10.2026, noch unbeantwortet.",
+   "art": "aufgabe"
+  },
+  {
+   "faellig": "2026-11-13",
+   "titel": "Seair 528 Victoria Harbour → Vancouver Harbour, 10:30",
+   "status": "offen",
+   "art": "termin",
+   "notiz": "Buchung XCODEX, mit Jesse."
+  },
+  {
+   "faellig": "2026-11-13",
+   "titel": "Sitzplatz AC564 (15.11.) wählen",
+   "status": "erledigt",
+   "art": "aufgabe",
+   "notiz": "12.11.: 1F (Fenster) gespeichert."
+  },
+  {
+   "faellig": "2026-11-14",
+   "titel": "Essensbestellung AC564 änderbar bis 00:25",
+   "status": "offen",
+   "art": "termin",
+   "notiz": "Bestellt: Thai Green Curry Chicken."
+  },
+  {
+   "faellig": "2026-11-15",
+   "titel": "Hyatt: Late Check-out oder Gepäckaufbewahrung für Do 19.11. klären",
+   "status": "offen",
+   "notiz": "Check-out 12:00; Training 09:00–12:00 und 13:00–16:00 im selben Haus (Seacliff C).",
+   "art": "aufgabe"
+  },
+  {
+   "faellig": "2026-11-18",
+   "titel": "QCon-Training Do: GitHub-Konto, Codex, AWS-Konto mit EC2 vorbereiten; Claude Code auf dem Laptop prüfen",
+   "status": "offen",
+   "art": "aufgabe",
+   "notiz": "Voraussetzungen laut QCon-Mail 12.11.; Trainingsseite am 18.11. erneut prüfen."
+  },
+  {
+   "faellig": "2026-11-20",
+   "titel": "Lucas-Museum-Tickets (XCODEX) als PDF ablegen und in der Karte verlinken",
+   "status": "offen",
+   "art": "aufgabe",
+   "notiz": "12.11.: Outlook-Suche hing, Lucas-Konto nicht angemeldet."
+  },
+  {
+   "faellig": "2026-11-21",
+   "titel": "First-Upgrade LX41: spätester Abbuchungszeitpunkt der 70.000 Meilen",
+   "status": "offen",
+   "art": "termin"
+  },
+  {
+   "faellig": "2026-11-23",
+   "titel": "Online-Check-in SWISS öffnet",
+   "status": "offen",
+   "notiz": "ab 20:30 PST, 23 h vor LX41",
+   "art": "termin"
+  },
+  {
+   "faellig": "2026-12-15",
+   "titel": "Senator-Verlängerung: Gutschriften prüfen",
+   "status": "offen",
+   "notiz": "Geschätzt ca. 1.970 von 2.000 Points. Danach eVoucher-Tausch entscheiden.",
+   "art": "aufgabe"
+  },
+  {
+   "faellig": "2026-12-30",
+   "titel": "Spätester Termin: 2 eVoucher in 100 Points tauschen",
+   "status": "offen",
+   "notiz": "Miles & More → Status Management → eVoucher → Tausch in Points.",
+   "art": "aufgabe"
+  }
+ ],
+ "fluege": [
+  {
+   "datum": "2026-11-07",
+   "flugnummer": "LX4640",
+   "von": "ZRH",
+   "nach": "YYZ",
+   "ab_ortszeit": "13:20",
+   "an_ortszeit": "16:15"
+  },
+  {
+   "datum": "2026-11-07",
+   "flugnummer": "AC269",
+   "von": "YYZ",
+   "nach": "YWG",
+   "ab_ortszeit": "19:25",
+   "an_ortszeit": "22:14"
+  },
+  {
+   "datum": "2026-11-10",
+   "flugnummer": "AC293",
+   "von": "YWG",
+   "nach": "YVR",
+   "ab_ortszeit": "06:40",
+   "an_ortszeit": "08:00"
+  },
+  {
+   "datum": "2026-11-10",
+   "flugnummer": "AC8147",
+   "von": "YVR",
+   "nach": "YYJ",
+   "ab_ortszeit": "08:55",
+   "an_ortszeit": "09:33"
+  },
+  {
+   "datum": "2026-11-13",
+   "flugnummer": "Seair 528",
+   "von": "Victoria Harbour",
+   "nach": "Vancouver Harbour",
+   "ab_ortszeit": "10:30"
+  },
+  {
+   "datum": "2026-11-15",
+   "flugnummer": "AC564",
+   "von": "YVR",
+   "nach": "SFO",
+   "ab_ortszeit": "12:25",
+   "an_ortszeit": "13:51"
+  },
+  {
+   "datum": "2026-11-24",
+   "an_datum": "2026-11-25",
+   "flugnummer": "LX41",
+   "von": "LAX",
+   "nach": "ZRH",
+   "ab_ortszeit": "19:30",
+   "an_ortszeit": "15:35"
+  }
+ ],
+ "buchungen": [
+  {
+   "art": "flug",
+   "anbieter": "SWISS",
+   "status": "Senator",
+   "preis": 6721.8,
+   "waehrung": "CHF"
+  },
+  {
+   "art": "sonstiges",
+   "anbieter": "SWISS – CO₂-Beitrag „Large“ (35 % SAF)",
+   "status": "bestätigt",
+   "preis": 609.95,
+   "waehrung": "CHF"
+  },
+  {
+   "art": "flug",
+   "anbieter": "Air Canada – Winnipeg → Vancouver → Victoria (von Jesse Lavoie gebucht)",
+   "status": "bestätigt",
+   "preis": 885.63,
+   "waehrung": "CAD"
+  },
+  {
+   "art": "flug",
+   "anbieter": "Seair Seaplanes – Wasserflugzeug Victoria Harbour → Vancouver Harbour (von Jesse Lavoie gebucht)",
+   "status": "bestätigt",
+   "von": "2026-11-13",
+   "zeit_von": "10:30",
+   "ort": "Victoria → Vancouver"
+  },
+  {
+   "art": "hotel",
+   "anbieter": "Fairmont Pacific Rim Vancouver – Signature Ofuro King (Hafen-/Bergblick), 1 Erwachsener",
+   "status": "bestätigt",
+   "von": "2026-11-13",
+   "bis": "2026-11-15",
+   "zeit_von": "15:00",
+   "zeit_bis": "12:00",
+   "ort": "Vancouver",
+   "preis": 1869.07,
+   "waehrung": "CAD"
+  },
+  {
+   "art": "flug",
+   "anbieter": "Air Canada AC564 – Vancouver → San Francisco",
+   "status": "bestätigt",
+   "von": "2026-11-15",
+   "zeit_von": "12:25",
+   "zeit_bis": "13:51",
+   "ort": "Vancouver → San Francisco",
+   "preis": 1315.28,
+   "waehrung": "CAD"
+  },
+  {
+   "art": "termin",
+   "anbieter": "Lucas Museum of Narrative Art – Eintritt (3 Tickets)",
+   "status": "bestätigt",
+   "von": "2026-11-23",
+   "zeit_von": "10:00",
+   "ort": "Los Angeles",
+   "preis": 75,
+   "waehrung": "USD"
+  },
+  {
+   "art": "hotel",
+   "anbieter": "Hyatt Regency San Francisco – 2 Queen Beds City View Balcony, 2 Erwachsene",
+   "status": "bestätigt",
+   "von": "2026-11-15",
+   "bis": "2026-11-19",
+   "zeit_von": "16:00",
+   "zeit_bis": "12:00",
+   "ort": "San Francisco",
+   "preis": 4172.63,
+   "waehrung": "USD"
+  },
+  {
+   "art": "sonstiges",
+   "anbieter": "QCon San Francisco – Ticket Conference (3 Tage) + Training (1 Tag)",
+   "status": "bezahlt",
+   "ort": "San Francisco",
+   "preis": 3735,
+   "waehrung": "USD"
+  },
+  {
+   "art": "termin",
+   "anbieter": "QCon Tag 1 – Konferenz · Tagesprogramm",
+   "status": "bezahlt",
+   "von": "2026-11-16",
+   "zeit_von": "07:15",
+   "zeit_bis": "19:00",
+   "ort": "San Francisco"
+  },
+  {
+   "art": "termin",
+   "anbieter": "QCon Tag 2 – Konferenz · Tagesprogramm",
+   "status": "bezahlt",
+   "von": "2026-11-17",
+   "zeit_von": "08:00",
+   "zeit_bis": "18:30",
+   "ort": "San Francisco"
+  },
+  {
+   "art": "termin",
+   "anbieter": "QCon Tag 3 – Konferenz · Tagesprogramm",
+   "status": "bezahlt",
+   "von": "2026-11-18",
+   "zeit_von": "08:00",
+   "ort": "San Francisco"
+  },
+  {
+   "art": "termin",
+   "anbieter": "QCon Training: Supercharge Your Work With Claude Code and Codex",
+   "status": "bestätigt",
+   "von": "2026-11-19",
+   "zeit_von": "09:00",
+   "zeit_bis": "12:00",
+   "ort": "San Francisco"
+  },
+  {
+   "art": "termin",
+   "anbieter": "QCon Training: How To Write Skills That Actually Work",
+   "status": "bestätigt",
+   "von": "2026-11-19",
+   "zeit_von": "13:00",
+   "zeit_bis": "16:00",
+   "ort": "San Francisco"
+  },
+  {
+   "art": "sonstiges",
+   "anbieter": "AGI Summit Silicon Valley – Ticket General Admission Two Days (Owner)",
+   "status": "bestätigt",
+   "ort": "Santa Clara",
+   "preis": 249,
+   "waehrung": "USD"
+  },
+  {
+   "art": "termin",
+   "anbieter": "AGI Summit Silicon Valley – Tag 1",
+   "status": "bestätigt",
+   "von": "2026-11-21",
+   "zeit_von": "09:00",
+   "ort": "Santa Clara"
+  },
+  {
+   "art": "termin",
+   "anbieter": "AGI Summit Silicon Valley – Tag 2",
+   "status": "bestätigt",
+   "von": "2026-11-22",
+   "ort": "Santa Clara"
+  }
+ ]
+}

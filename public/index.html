@@ -1655,7 +1655,7 @@ function reiseKachel(label, wert, kopie) {
   const knopf = kopie
     ? `<button class="btn btn-primary kpi-kopie" data-kopie="${esc(kopie)}"
         data-kopie-name="${esc(label)}" aria-label="${esc(label)} kopieren"
-        title="${esc(label)} kopieren">\u{1F4CB}</button>`
+        title="${esc(label)} kopieren">${reiseIcon('clipboard-copy')}</button>`
     : '';
   return `<div class="kpi"><div class="kpi-text"><span class="kpi-label">${esc(label)}</span>
     <span class="kpi-wert">${esc(wert)}</span></div>${knopf}</div>`;
@@ -1677,10 +1677,10 @@ function reiseFluege(t, reise) {
     const kalender = seg
       ? (seg.calendarEventId
         ? `<a href="${esc(seg.calendarWebLink || '')}" target="_blank" rel="noopener"
-            title="Kalendereintrag öffnen" style="text-decoration:none">\u{1F4C5}</a>`
+            title="Kalendereintrag öffnen" aria-label="Kalendereintrag öffnen" style="text-decoration:none">${reiseIcon('calendar')}</a>`
         : `<button class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)"
             aria-label="Flug in den Kalender eintragen" title="Kalendereintrag erstellen"
-            onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(seg.id)}')">\u{1F4C5}+</button>`)
+            onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(seg.id)}')">${reiseIcon('calendar')}+</button>`)
       : '';
     const strecke = [
       `${esc(f.von)}${f.von_terminal ? ' ' + esc(f.von_terminal) : ''}`,
@@ -1690,7 +1690,7 @@ function reiseFluege(t, reise) {
       f.dauer && esc(f.dauer),
       f.flugzeug && esc(f.flugzeug),
       f.klasse && esc(f.klasse) + (f.buchungsklasse ? ' (' + esc(f.buchungsklasse) + ')' : ''),
-      f.gepaeck && '\u{1F9F3} ' + esc(f.gepaeck),
+      f.gepaeck && 'Gepäck ' + esc(f.gepaeck),
     ].filter(Boolean).join(' · ');
     const flug = `<div class="flug">
       <div class="flug-zeit"><b>${esc(f.ab_ortszeit || '')}</b>
@@ -1714,7 +1714,7 @@ function reiseFluege(t, reise) {
     return flug + umstieg;
   }).join('');
 
-  return `<div class="segments"><div class="seg-header">✈️ Flüge (${fluege.length})</div>
+  return `<div class="segments"><div class="seg-header">Flüge (${fluege.length})</div>
     ${zeilen}</div>`;
 }
 
@@ -1745,36 +1745,16 @@ function reiseDokumente(reise, heute) {
       ${d.erteilt ? `<div class="dok-zeile">erteilt ${esc(fmtDate(d.erteilt))}</div>` : ''}
       ${d.notiz ? `<div class="dok-zeile">${esc(d.notiz)}</div>` : ''}
       ${url
-        ? `<a class="btn btn-primary dok-knopf" href="${esc(url)}" target="_blank" rel="noopener">\u{1F4C4} PDF öffnen</a>`
+        ? `<a class="btn btn-primary dok-knopf" href="${esc(url)}" target="_blank" rel="noopener">${reiseIcon('file-text')}PDF öffnen</a>`
         : (d.ablage ? `<div class="dok-zeile">Original: ${esc(d.ablage)}</div>` : '')}
     </div>`;
   }).join('');
-  return `<div class="segments"><div class="seg-header">\u{1F6C2} Reisedokumente (${dok.length})</div>
+  return `<div class="segments"><div class="seg-header">Reisedokumente (${dok.length})</div>
     <div class="dok-karten">${karten}</div></div>`;
 }
 
-function reiseFristen(reise, heute) {
-  const fristen = reise.fristen || [];
-  if (!fristen.length) return '';
-  const offen = fristen.filter(f => f.status !== 'erledigt').length;
-  const zeilen = fristen.map(f => {
-    const tage = reiseTage(f.faellig, heute);
-    const klasse = f.status === 'erledigt' ? 'erledigt'
-      : tage != null && tage < 0 ? 'faellig'
-        : tage != null && tage <= 7 ? 'nah' : '';
-    const rest = f.status === 'erledigt' ? 'erledigt'
-      : tage == null ? ''
-        : tage < 0 ? `vor ${Math.abs(tage)} Tg.`
-          : tage === 0 ? 'heute' : `in ${tage} Tg.`;
-    return `<div class="frist ${klasse}">
-      <span class="frist-tag">${esc(fmtDate(f.faellig))}</span>
-      <span class="frist-text">${esc(f.titel)}
-        ${f.notiz ? `<span class="frist-notiz">— ${esc(f.notiz)}</span>` : ''}</span>
-      <span style="color:var(--muted);flex:none">${esc(rest)}</span></div>`;
-  }).join('');
-  return `<div class="segments"><div class="seg-header">⏰ Fristen (${offen} offen)</div>
-    ${zeilen}</div>`;
-}
+/* CP2-0: Die Fristenliste steht jetzt gegliedert in reise-ansicht.js
+   (reiseFristenGegliedertHtml, Einstufung reiseFristEinstufung). */
 
 function reiseEinreise(reise) {
   const liste = reise.einreise || [];
@@ -1784,7 +1764,7 @@ function reiseEinreise(reise) {
     <span>${esc(e.dokument || '')}</span>
     ${e.wo ? `<span style="color:var(--muted)">${esc(e.wo)}</span>` : ''}
     ${e.notiz ? `<span style="color:var(--muted)">${esc(e.notiz)}</span>` : ''}</div>`).join('');
-  return `<div class="segments"><div class="seg-header">\u{1F6C2} Einreise</div>${zeilen}</div>`;
+  return `<div class="segments"><div class="seg-header">Einreise</div>${zeilen}</div>`;
 }
 
 function reiseKontakte(reise) {
@@ -1800,7 +1780,7 @@ function reiseKontakte(reise) {
       ${k.url ? `<a href="${esc(k.url)}" target="_blank" rel="noopener" style="color:var(--accent)">Website</a>` : ''}
       ${k.notiz ? `<span style="color:var(--muted)">${esc(k.notiz)}</span>` : ''}</div>`;
   }).join('');
-  return `<div class="segments"><div class="seg-header">☎️ Kontakte</div>${zeilen}</div>`;
+  return `<div class="segments"><div class="seg-header">Kontakte</div>${zeilen}</div>`;
 }
 
 /* Miles & More. Leere Zahlenfelder zeigen „offen" statt zu verschwinden —
@@ -1845,7 +1825,7 @@ function reiseMeilen(reise) {
   }).join('');
   const stand = [m.quelle ? 'Quelle: ' + m.quelle : 'Quelle offen',
     m.stand ? 'Stand ' + fmtDate(m.stand) : ''].filter(Boolean).join(' · ');
-  return `<div class="segments"><div class="seg-header">✈️ Miles &amp; More</div>
+  return `<div class="segments"><div class="seg-header">Miles &amp; More</div>
     <div class="kpi-grid">${kacheln}</div>
     ${segmente ? `<div style="margin-top:8px">${segmente}</div>` : ''}
     ${upgrades ? `<div style="margin-top:8px">${upgrades}</div>` : ''}
@@ -1855,7 +1835,7 @@ function reiseMeilen(reise) {
 function reiseOffen(reise) {
   const liste = reise.offen || [];
   if (!liste.length) return '';
-  return `<div class="segments"><div class="seg-header">\u{1F6A7} Noch offen (${liste.length})</div>
+  return `<div class="segments"><div class="seg-header">Noch offen (${liste.length})</div>
     <ul class="reise-liste">${liste.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
 }
 
@@ -1890,21 +1870,27 @@ document.addEventListener('click', e => {
 async function loadTrips() {
   const c = document.getElementById('content');
   try {
-    const [trips, docs, allLinks] = await Promise.all([apiFetch('/api/trips'), apiFetch('/api/documents'), apiFetch('/api/links').catch(() => [])]);
+    /* CP2-0: das jüngste Briefing liefert utcOffsetMin — „heute" der Reise
+       in Ortszeit wie im Tagesbogen. Fehlt es, gilt der Berliner Tag. */
+    const [trips, docs, allLinks, briefingAntwort] = await Promise.all([apiFetch('/api/trips'), apiFetch('/api/documents'),
+      apiFetch('/api/links').catch(() => []), apiFetch('/api/briefing?tage=2').catch(() => null)]);
     _tripsCache = trips;
     _docsCache = docs;
     if (!trips.length) { c.innerHTML = '<div class="empty">Keine Reisen vorhanden.<br><button class="btn btn-primary" style="margin-top:12px" onclick="newTrip()">+ Neue Reise</button></div>'; return; }
     /* Heute als Kalendertag in Europe/Berlin (zeit.js) — toISOString() waere
        UTC und haette zwischen 0 und 2 Uhr noch den Vortag. */
     const today = zeitTagInZone(new Date(), ZEIT_ZONE) || new Date().toISOString().slice(0,10);
+    const heuteOrt = reiseHeuteOrt(briefingAntwort && briefingAntwort.briefings, new Date(), today).tag;
 
     function renderTripCard(t) {
       /* Der Reiseblock kommt vom Import des Reiseassistenten. Reisen, die im
          Dashboard selbst angelegt wurden, haben ihn nicht — dann bleibt alles
          wie vorher. */
       const reise = t.reise || null;
-      const active   = t.start_date <= today && t.end_date >= today;
-      const upcoming = !active && t.start_date > today;
+      /* Reisen mit Reiseblock rechnen in der Ortszeit (CP2-0), die übrigen wie bisher. */
+      const tag = reise ? heuteOrt : today;
+      const active   = t.start_date <= tag && t.end_date >= tag;
+      const upcoming = !active && t.start_date > tag;
       const badge = active
         ? '<span class="badge badge-green">Aktiv</span>'
         : upcoming
@@ -1930,10 +1916,10 @@ async function loadTrips() {
             <span class="badge badge-muted">${esc(s.type)}</span>
             <span>${esc(s.title)}</span>
             <span style="color:var(--muted);font-size:13px">${esc(s.datetime_local)} (${esc(s.timezone)})</span>
-            ${s.confirmation ? `<span style="color:var(--green);font-size:13px">✔ ${esc(s.confirmation)}</span>` : ''}
+            ${s.confirmation ? `<span style="color:var(--green);font-size:13px">${reiseIcon('check', 'ic-14')} ${esc(s.confirmation)}</span>` : ''}
             ${s.calendarEventId
-              ? `<a href="${esc(s.calendarWebLink||'')}" target="_blank" title="Kalendereintrag öffnen" style="text-decoration:none;cursor:pointer">📅</a>`
-              : `<button aria-label="Segment in den Kalender eintragen" class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">📅+</button>`
+              ? `<a href="${esc(s.calendarWebLink||'')}" target="_blank" title="Kalendereintrag öffnen" aria-label="Kalendereintrag öffnen" style="text-decoration:none;cursor:pointer">${reiseIcon('calendar')}</a>`
+              : `<button aria-label="Segment in den Kalender eintragen" class="btn" style="padding:1px 6px;font-size:13px;background:var(--accent-weak);color:var(--accent);border:1px solid var(--accent)" onclick="event.stopPropagation();syncSegCal('${esc(t.id)}','${esc(s.id)}')" title="Kalendereintrag erstellen">${reiseIcon('calendar')}+</button>`
             }
           </div>`).join('')}
         </div>` : '';
@@ -1944,7 +1930,7 @@ async function loadTrips() {
       const tripDocs = docs.filter(d => d.tripId === t.id && !reisePfade.includes(d.path));
       const docsSection = tripDocs.length ? `
         <div class="segments">
-          <div class="seg-header">📁 Dokumente (${tripDocs.length})</div>
+          <div class="seg-header">Dokumente (${tripDocs.length})</div>
           ${tripDocs.map(d => {
             const dlUrl = '/dashboard/api/documents/download/' + encodeURIComponent(d.path) + '?token=' + encodeURIComponent(TOKEN);
             return `<div class="seg-row">
@@ -1958,9 +1944,9 @@ async function loadTrips() {
       const tripLinks = (allLinks || []).filter(l => l.entityType === 'trip' && l.entityId === t.id);
       const linksSection = tripLinks.length ? `
         <div class="segments">
-          <div class="seg-header">📎 Verknüpfte Dokumente (${tripLinks.length})</div>
+          <div class="seg-header">Verknüpfte Dokumente (${tripLinks.length})</div>
           ${tripLinks.map(l => {
-            const lIcon = l.docType === 'sharepoint' ? '☁️' : '📁';
+            const lIcon = reiseIcon(l.docType === 'sharepoint' ? 'cloud' : 'folder');
             const lName = l.docType === 'sharepoint' ? esc(l.spName || '') : esc(l.localName || '');
             const lLink = l.docType === 'sharepoint' && l.spWebUrl
               ? `<a href="${esc(l.spWebUrl)}" target="_blank" rel="noopener" class="dok-link" style="text-decoration:none">${lName}</a>`
@@ -1992,12 +1978,12 @@ async function loadTrips() {
           t.visa_de && 'Visum ' + esc(t.visa_de),
           t.distance_km && 'Luftlinie ' + esc(t.distance_km) + ' km',
           t.travel_mode && 'Verkehr ' + esc(t.travel_mode),
-          t.door_to_door_estimate && 'Haustür↔Haustür ' + esc(t.door_to_door_estimate),
+          t.door_to_door_estimate && 'Haustür bis Haustür ' + esc(t.door_to_door_estimate),
           t.climate && 'Klima ' + esc(t.climate),
           (t.activities || []).length && 'Aktivitäten ' + esc(t.activities.join(', ')),
         ].filter(Boolean).join(' · ');
         return reiseKarteHtml(t, reise, {
-          heute: today, badge, knoepfe, metaText,
+          heute: tag, badge, metaText,
           bild: reiseThumbHtml(t.id),
           segs, docsSection, linksSection,
           weitereDokumente: tripDocs.length + tripLinks.length,

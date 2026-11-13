@@ -70,7 +70,7 @@ const BREITEN = [
 ];
 
 const ergebnis = { ziel: LIVE ? ZIEL : 'lokal (Proxy auf ' + ZIEL + ')', start: new Date().toISOString(),
-  gesperrt: [], fremdeHosts: [], tabs: [], deeplinks: [], heute: [], fehler: [] };
+  gesperrt: [], fremdeHosts: [], tabs: [], deeplinks: [], heute: [], fehler: [], fehlerAntworten: [] };
 
 function beobachten(page, sammel, eigenerHost) {
   page.on('console', m => {
@@ -78,6 +78,8 @@ function beobachten(page, sammel, eigenerHost) {
     if (m.type() === 'error' || /Content Security Policy/i.test(t)) sammel.konsole.push(t.slice(0, 300));
   });
   page.on('pageerror', e => sammel.konsole.push('pageerror: ' + String(e.message).slice(0, 300)));
+  /* CP2-0: Pfad jeder 5xx-Antwort mitschreiben — die Konsole nennt nur den Status. */
+  page.on('response', r => { if (r.status() >= 500) ergebnis.fehlerAntworten.push(r.status() + ' ' + new URL(r.url()).pathname); });
   page.on('request', r => {
     try { const h = new URL(r.url()).host; if (h && h !== eigenerHost && !r.url().startsWith('data:')) ergebnis.fremdeHosts.push(r.url().slice(0, 120)); } catch {}
   });
@@ -604,6 +606,98 @@ async function ortszeitPruefen(browser, basis, eigenerHost) {
   }
 }
 
+/* CP2-0: Reisen-Karte der aktiven Reise. Uhr 12.11. 22:00Z. Misst die Höhe
+   der Karte (Vergleich vorher/nachher) und prüft Aufklappen, Aktionsmenü,
+   Emojis, Überbreite, Konsole und Kontrast. Nur GET; Schreibanfragen sperrt
+   nurLesend(). */
+ergebnis.reisen = [];
+async function reisenPruefen(browser, basis, eigenerHost, nurMessen) {
+  for (const breite of BREITEN) {
+    const { context, page, sammel } = await seiteOeffnen(browser, breite, eigenerHost);
+    const e = { breite: breite.name };
+    try {
+      await page.clock.setFixedTime(new Date('2026-11-12T22:00:00Z'));
+      await page.goto(basis + '/dashboard/?tab=trips&token=' + encodeURIComponent(TOKEN), { waitUntil: 'domcontentloaded' });
+      await bereit(page, 'trips');
+      await page.waitForSelector('#content .trip-card.reise-neu', { timeout: 15000 });
+      await page.waitForTimeout(500);
+      const karte = '#content .trip-card.reise-neu';
+      e.hoehe = await page.evaluate((sel) => Math.round(document.querySelector(sel).getBoundingClientRect().height), karte);
+      const datei = 'reisen-' + breite.name + (nurMessen ? '-vorher' : '') + '.png';
+      await page.screenshot({ path: path.join(AUS, datei), fullPage: true });
+      e.screenshot = datei;
+      if (!nurMessen) {
+        e.stand = await page.evaluate((sel) => {
+          const k = document.querySelector(sel);
+          const emoji = (k.textContent.match(/\p{Extended_Pictographic}/gu) || []);
+          const raster = getComputedStyle(k.querySelector('.reise-raster')).gridTemplateColumns;
+          return { kopfZeile: k.querySelector('.reise-tagzeile')?.textContent.trim() || '',
+            offenChip: k.querySelector('.reise-offen-chip')?.textContent.trim() || '',
+            ziel: !!k.querySelector('.reise-ziel'), warnChipsKopf: k.querySelectorAll('.reise-kopf .reise-chips').length,
+            naechst: k.querySelectorAll('.reise-naechst-kommend > .naechst').length,
+            ueberfaellig: k.querySelector('.reise-ueberfaellig > summary')?.textContent.replace(/\s+/g, ' ').trim() || '',
+            vergangen: k.querySelector('.tl-vergangen > summary')?.textContent.replace(/\s+/g, ' ').trim() || '',
+            heuteLabel: k.querySelector('.tl-tag.heute .tl-heute')?.textContent.trim() || '',
+            buchungen: k.querySelectorAll('.buchung').length, buchungsChips: k.querySelectorAll('.buchung .chip').length,
+            primaer: [...k.querySelectorAll('.reise-knoepfe > .btn')].map(b => b.textContent.trim()),
+            menue: [...k.querySelectorAll('.reise-mehr .reise-mehr-eintrag')].map(b => b.textContent.trim()),
+            letzter: k.querySelector('.reise-raster').lastElementChild.className,
+            spalten: raster.split(' ').length, emoji: emoji.length, emojiText: [...new Set(emoji)].join(''),
+            teile: Object.fromEntries([['kopf', '.reise-kopf'], ['naechst', '.reise-naechst'], ['verlauf', '.reise-links > .reise-block:last-child'],
+              ['buchungen', '.reise-rechts > .reise-block:first-child'], ['abschnitte', '.reise-abschnitte'], ['fuss', '.reise-rechts > .reise-fuss'], ['erledigt', '.reise-erledigt']]
+              .map(([n, q]) => [n, [...k.querySelectorAll(q)].reduce((x, el) => x + Math.round(el.getBoundingClientRect().height), 0)])),
+            tlTag: [...k.querySelectorAll('.tl-tag')].slice(0, 3).map(el => Math.round(el.getBoundingClientRect().height)),
+            buchung: Math.round(k.querySelector('.buchung')?.getBoundingClientRect().height || 0) };
+        }, karte);
+        /* Aufklappen: jedes Ziel öffnet beim Antippen. */
+        const auf = async (sel) => {
+          const s = page.locator(karte + ' ' + sel + ' > summary').first();
+          if (!(await s.count())) return 'fehlt';
+          await s.scrollIntoViewIfNeeded(); await s.click(); await page.waitForTimeout(150);
+          return await page.locator(karte + ' ' + sel).first().evaluate(d => d.open) ? 'ok' : 'zu';
+        };
+        e.aufklappen = { ueberfaellig: await auf('.reise-ueberfaellig'), vergangen: await auf('.tl-vergangen'),
+          buchung: await auf('.buchung'), erledigt: await auf('.reise-erledigt'), alleFristen: await auf('.reise-naechst > .reise-klapp') };
+        /* Aktionsmenü „…": öffnen, Klick außerhalb schließt, erneut öffnen, Esc schließt. */
+        const menue = page.locator(karte + ' .reise-mehr');
+        const offen = () => menue.evaluate(d => d.open);
+        await menue.locator('summary').scrollIntoViewIfNeeded();
+        await menue.locator('summary').click(); await page.waitForTimeout(100);
+        const m1 = await offen();
+        await page.locator(karte + ' .reise-titel').click({ position: { x: 2, y: 2 } }); await page.waitForTimeout(100);
+        const m2 = await offen();
+        await menue.locator('summary').click(); await page.waitForTimeout(100);
+        const m3 = await offen();
+        await page.keyboard.press('Escape'); await page.waitForTimeout(100);
+        const m4 = await offen();
+        e.menue = { auf: m1, aussenZu: !m2, wiederAuf: m3, escZu: !m4 };
+        /* Kontrast der neuen Bausteine gegen ihren tatsächlichen Hintergrund. */
+        e.kontrast = await page.evaluate((sel) => {
+          const rgb = (t) => t.match(/[\d.]+/g).map(Number);
+          const lum = (c) => { const l = c.slice(0, 3).map(v => v / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * l[0] + 0.7152 * l[1] + 0.0722 * l[2]; };
+          const grund = (el) => { for (let x = el; x; x = x.parentElement) { const c = rgb(getComputedStyle(x).backgroundColor); if (c.length < 4 || c[3] > 0.5) { if (c.length < 4 || c[3] === 1 || c[3] > 0.5) return c; } } return [255, 255, 255]; };
+          const ratio = (el) => { const a = lum(rgb(getComputedStyle(el).color)), b = lum(grund(el)); const [x, y] = [a, b].sort((p, q) => q - p); return Math.round((x + 0.05) / (y + 0.05) * 100) / 100; };
+          const k = document.querySelector(sel);
+          const liste = ['.reise-tagzeile', '.reise-offen-chip', '.reise-zeitraum', '.naechst-tag', '.naechst-titel', '.naechst-rest',
+            '.reise-ueberfaellig > summary', '.tl-vergangen > summary', '.tl-heute', '.tl-datum', '.buchung-anbieter', '.buchung-zeile2',
+            '.buchung .num', '.reise-erledigt > summary', '.reise-erledigt .chip', '.frist-gruppe-titel', '.frist-text', '.frist-rest', '.frist-tag', '.reise-mehr > summary', '.reise-mehr-eintrag', '.reise-knoepfe .btn-primary']
+            .flatMap(s => [...k.querySelectorAll(s)].filter(el => el.getBoundingClientRect().width > 0).slice(0, 4).map(el => ({ s, r: ratio(el) })));
+          return { min: Math.min(...liste.map(x => x.r)), schwach: liste.filter(x => x.r < 4.5) };
+        }, karte);
+      }
+      e.ueber = await ueberbreite(page);
+    } catch (err) { e.ausnahme = String(err.message).slice(0, 300); }
+    e.konsole = [...sammel.konsole];
+    const st = e.stand || {};
+    e.ok = nurMessen ? !e.ausnahme : (!e.ausnahme && !e.konsole.length && e.ueber && !e.ueber.anzahl && !st.ziel && !st.warnChipsKopf && !st.emoji
+      && Object.values(e.aufklappen || {}).every(v => v === 'ok') && e.menue && Object.values(e.menue).every(Boolean)
+      && e.kontrast && e.kontrast.min >= 4.5 && (breite.name.startsWith('mobil') ? st.spalten === 1 : st.spalten === 2));
+    ergebnis.reisen.push(e);
+    console.error('reisen', breite.name, e.ok, JSON.stringify({ hoehe: e.hoehe, stand: e.stand, aufklappen: e.aufklappen, menue: e.menue, kontrast: e.kontrast, ueber: e.ueber && e.ueber.anzahl, konsole: e.konsole, ausnahme: e.ausnahme }));
+    await context.close();
+  }
+}
+
 async function liveSmoke(browser) {
   const host = new URL(ZIEL).host;
   for (const breite of BREITEN) {
@@ -635,7 +729,7 @@ try {
   } else {
     proxy = await proxyStarten();
     const host = new URL(proxy.basis).host;
-    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen', 'abendbogen', 'ortszeit'];
+    const teile = NUR ? String(NUR).split(',') : ['tabs', 'deeplinks', 'heute', 'tagesbogen', 'abendbogen', 'ortszeit', 'reisen'];
     if (teile.includes('tabs')) await tabsPruefen(browser, proxy.basis, host, TABS);
     if (teile.includes('nurheute')) await tabsPruefen(browser, proxy.basis, host, ['heute']);
     if (teile.includes('deeplinks')) await deeplinksPruefen(browser, proxy.basis, host);
@@ -643,6 +737,8 @@ try {
     if (teile.includes('tagesbogen')) await tagesbogenPruefen(browser, proxy.basis, host);
     if (teile.includes('abendbogen')) await abendbogenPruefen(browser, proxy.basis, host);
     if (teile.includes('ortszeit')) await ortszeitPruefen(browser, proxy.basis, host);
+    if (teile.includes('reisenhoehe')) await reisenPruefen(browser, proxy.basis, host, true);
+    if (teile.includes('reisen')) await reisenPruefen(browser, proxy.basis, host, false);
   }
 } catch (e) {
   ergebnis.fehler.push(String(e.stack || e).slice(0, 500));
